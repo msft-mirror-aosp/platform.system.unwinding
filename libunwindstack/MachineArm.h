@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,37 @@
  * limitations under the License.
  */
 
-#ifndef _LIBBACKTRACE_BACKTRACE_PTRACE_H
-#define _LIBBACKTRACE_BACKTRACE_PTRACE_H
+#ifndef _LIBUNWINDSTACK_MACHINE_ARM_H
+#define _LIBUNWINDSTACK_MACHINE_ARM_H
 
 #include <stdint.h>
-#include <sys/types.h>
 
-#include <backtrace/Backtrace.h>
+namespace unwindstack {
 
-class BacktraceMap;
+enum ArmReg : uint16_t {
+  ARM_REG_R0 = 0,
+  ARM_REG_R1,
+  ARM_REG_R2,
+  ARM_REG_R3,
+  ARM_REG_R4,
+  ARM_REG_R5,
+  ARM_REG_R6,
+  ARM_REG_R7,
+  ARM_REG_R8,
+  ARM_REG_R9,
+  ARM_REG_R10,
+  ARM_REG_R11,
+  ARM_REG_R12,
+  ARM_REG_R13,
+  ARM_REG_R14,
+  ARM_REG_R15,
+  ARM_REG_LAST,
 
-class BacktracePtrace : public Backtrace {
- public:
-  BacktracePtrace(pid_t pid, pid_t tid, BacktraceMap* map) : Backtrace(pid, tid, map) {}
-  virtual ~BacktracePtrace() {}
-
-  size_t Read(uintptr_t addr, uint8_t* buffer, size_t bytes) override;
-
-  bool ReadWord(uintptr_t ptr, word_t* out_value) override;
+  ARM_REG_SP = ARM_REG_R13,
+  ARM_REG_LR = ARM_REG_R14,
+  ARM_REG_PC = ARM_REG_R15,
 };
 
-#endif // _LIBBACKTRACE_BACKTRACE_PTRACE_H
+}  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_MACHINE_ARM_H
