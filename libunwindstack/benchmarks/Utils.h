@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,26 @@
  * limitations under the License.
  */
 
-#ifndef _LIBUNWINDSTACK_MEMORY_LOCAL_H
-#define _LIBUNWINDSTACK_MEMORY_LOCAL_H
+#ifndef _LIBUNWINDSTACK_UTILS_H
+#define _LIBUNWINDSTACK_UTILS_H
 
 #include <stdint.h>
 
-#include <unwindstack/Memory.h>
+#include <string>
 
-namespace unwindstack {
+std::string GetElfFile();
 
-class MemoryLocal : public Memory {
- public:
-  MemoryLocal() = default;
-  virtual ~MemoryLocal() = default;
+std::string GetSymbolSortedElfFile();
 
-  bool IsLocal() const override { return true; }
+std::string GetCompressedElfFile();
 
-  size_t Read(uint64_t addr, void* dst, size_t size) override;
-  long ReadTag(uint64_t addr) override;
-};
+#if defined(__BIONIC__)
 
-}  // namespace unwindstack
+#include <meminfo/procmeminfo.h>
+#include <procinfo/process_map.h>
 
-#endif  // _LIBUNWINDSTACK_MEMORY_LOCAL_H
+void GatherRss(uint64_t* rss_bytes);
+
+#endif
+
+#endif  // _LIBUNWINDSTACK_UTILS_h
