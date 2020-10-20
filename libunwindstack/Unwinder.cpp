@@ -164,6 +164,7 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
       step_pc = regs_->pc();
       rel_pc = step_pc;
       last_error_.code = ERROR_INVALID_MAP;
+      elf = nullptr;
     } else {
       if (ShouldStop(map_suffixes_to_ignore, map_info->name)) {
         break;
