@@ -41,6 +41,7 @@ libbacktrace_sources = [
 cc_library_headers {
     name: "libbacktrace_headers",
     vendor_available: true,
+    host_supported: true,
     recovery_available: true,
     native_bridge_supported: true,
     export_include_dirs: ["include"],
@@ -48,6 +49,14 @@ cc_library_headers {
         "//apex_available:platform",
         "//apex_available:anyapex",
     ],
+    target: {
+        linux_glibc: {
+            enabled: true,
+        },
+        linux_bionic: {
+            enabled: true,
+        },
+    },
     min_sdk_version: "apex_inherit",
 }
 
