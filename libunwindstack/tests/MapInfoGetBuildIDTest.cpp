@@ -54,6 +54,8 @@ class MapInfoGetBuildIDTest : public ::testing::Test {
         new MapInfo(nullptr, nullptr, 0x1000, 0x20000, 0, PROT_READ | PROT_WRITE, tf_->path));
   }
 
+  void TearDown() override { delete memory_; }
+
   void MultipleThreadTest(std::string expected_build_id);
 
   MemoryFake* memory_;
