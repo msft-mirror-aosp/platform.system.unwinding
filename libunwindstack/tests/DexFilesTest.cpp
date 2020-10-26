@@ -153,7 +153,7 @@ void DexFilesTest::WriteEntry64(uint64_t entry_addr, uint64_t next, uint64_t pre
 }
 
 void DexFilesTest::WriteDex(uint64_t dex_file) {
-  memory_->SetMemory(dex_file, kDexData, sizeof(kDexData) * sizeof(uint32_t));
+  memory_->SetMemory(dex_file, kDexData, sizeof(kDexData));
 }
 
 TEST_F(DexFilesTest, get_method_information_invalid) {
