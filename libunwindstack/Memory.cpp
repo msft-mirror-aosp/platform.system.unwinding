@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
@@ -368,7 +369,15 @@ size_t MemoryRange::Read(uint64_t addr, void* dst, size_t size) {
 }
 
 void MemoryRanges::Insert(MemoryRange* memory) {
-  maps_.emplace(memory->offset() + memory->length(), memory);
+  uint64_t last_addr;
+  if (__builtin_add_overflow(memory->offset(), memory->length(), &last_addr)) {
+    // This should never happen in the real world. However, it is possible
+    // that an offset in a mapped in segment could be crafted such that
+    // this value overflows. In that case, clamp the value to the max uint64
+    // value.
+    last_addr = UINT64_MAX;
+  }
+  maps_.emplace(last_addr, memory);
 }
 
 size_t MemoryRanges::Read(uint64_t addr, void* dst, size_t size) {
