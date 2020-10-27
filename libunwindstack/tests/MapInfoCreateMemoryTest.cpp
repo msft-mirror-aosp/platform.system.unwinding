@@ -411,4 +411,37 @@ TEST_F(MapInfoCreateMemoryTest, rosegment_from_file) {
   EXPECT_TRUE(memcmp(&ehdr, &ehdr_mem, sizeof(ehdr)) == 0);
 }
 
+TEST_F(MapInfoCreateMemoryTest, valid_rosegment_offset_overflow) {
+  Maps maps;
+  maps.Add(0x500, 0x600, 0, PROT_READ, "something_else", 0);
+  maps.Add(0x1000, 0x2000, 0, PROT_READ, "/only/in/memory.so", 0);
+  maps.Add(0x3000, 0x4000, 0xfffffffffffff000UL, PROT_READ | PROT_EXEC, "/only/in/memory.so", 0);
+
+  Elf64_Ehdr ehdr = {};
+  TestInitEhdr<Elf64_Ehdr>(&ehdr, ELFCLASS64, EM_AARCH64);
+  memory_->SetMemory(0x1000, &ehdr, sizeof(ehdr));
+  memory_->SetMemoryBlock(0x1000 + sizeof(ehdr), 0x1000 - sizeof(ehdr), 0xab);
+
+  // Set the memory in the r-x map.
+  memory_->SetMemoryBlock(0x3000, 0x2000, 0x5d);
+
+  MapInfo* map_info = maps.Find(0x3000);
+  ASSERT_TRUE(map_info != nullptr);
+
+  std::unique_ptr<Memory> mem(map_info->CreateMemory(process_memory_));
+  ASSERT_TRUE(mem.get() != nullptr);
+  EXPECT_TRUE(map_info->memory_backed_elf);
+  EXPECT_EQ(0xfffffffffffff000UL, map_info->elf_offset);
+  EXPECT_EQ(0xfffffffffffff000UL, map_info->offset);
+  EXPECT_EQ(0U, map_info->elf_start_offset);
+
+  // Verify that reading values from this memory works properly.
+  std::vector<uint8_t> buffer(0x2000);
+  size_t bytes = mem->Read(0xfffffffffffff000UL, buffer.data(), buffer.size());
+  ASSERT_EQ(0x1000UL, bytes);
+  for (size_t i = 0; i < bytes; i++) {
+    ASSERT_EQ(0x5d, buffer[i]) << "Failed at byte " << i;
+  }
+}
+
 }  // namespace unwindstack
