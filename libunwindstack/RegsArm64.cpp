@@ -19,10 +19,6 @@
 
 #include <functional>
 
-#if defined(__BIONIC__)
-#include <bionic/pac.h>
-#endif
-
 #include <unwindstack/Elf.h>
 #include <unwindstack/MachineArm64.h>
 #include <unwindstack/MapInfo.h>
@@ -60,9 +56,12 @@ void RegsArm64::set_pc(uint64_t pc) {
   if ((0 != pc) && IsRASigned()) {
     if (pac_mask_) {
       pc &= ~pac_mask_;
+#if defined(__aarch64__)
     } else {
-#if defined(__BIONIC__)
-      pc = __bionic_clear_pac_bits(pc);
+      register uint64_t x30 __asm("x30") = pc;
+      // This is XPACLRI.
+      asm("hint 0x7" : "+r"(x30));
+      pc = x30;
 #endif
     }
   }
