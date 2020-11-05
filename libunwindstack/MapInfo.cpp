@@ -157,6 +157,8 @@ Memory* MapInfo::CreateMemory(const std::shared_ptr<Memory>& process_memory) {
     return nullptr;
   }
 
+  memory_backed_elf = true;
+
   // Need to verify that this elf is valid. It's possible that
   // only part of the elf file to be mapped into memory is in the executable
   // map. In this case, there will be another read-only map that includes the
@@ -164,8 +166,24 @@ Memory* MapInfo::CreateMemory(const std::shared_ptr<Memory>& process_memory) {
   // option is used.
   std::unique_ptr<MemoryRange> memory(new MemoryRange(process_memory, start, end - start, 0));
   if (Elf::IsValidElf(memory.get())) {
-    memory_backed_elf = true;
-    return memory.release();
+    // Might need to peek at the next map to create a memory object that
+    // includes that map too.
+    if (offset != 0 || name.empty() || next_real_map == nullptr ||
+        offset >= next_real_map->offset || next_real_map->name != name) {
+      return memory.release();
+    }
+
+    // There is a possibility that the elf object has already been created
+    // in the next map. Since this should be a very uncommon path, just
+    // redo the work. If this happens, the elf for this map will eventually
+    // be discarded.
+    MemoryRanges* ranges = new MemoryRanges;
+    ranges->Insert(new MemoryRange(process_memory, start, end - start, 0));
+    ranges->Insert(new MemoryRange(process_memory, next_real_map->start,
+                                   next_real_map->end - next_real_map->start,
+                                   next_real_map->offset - offset));
+
+    return ranges;
   }
 
   // Find the read-only map by looking at the previous map. The linker
@@ -174,6 +192,7 @@ Memory* MapInfo::CreateMemory(const std::shared_ptr<Memory>& process_memory) {
   // break something.
   if (offset == 0 || name.empty() || prev_real_map == nullptr || prev_real_map->name != name ||
       prev_real_map->offset >= offset) {
+    memory_backed_elf = false;
     return nullptr;
   }
 
@@ -188,7 +207,6 @@ Memory* MapInfo::CreateMemory(const std::shared_ptr<Memory>& process_memory) {
                                  prev_real_map->end - prev_real_map->start, 0));
   ranges->Insert(new MemoryRange(process_memory, start, end - start, elf_offset));
 
-  memory_backed_elf = true;
   return ranges;
 }
 
@@ -245,6 +263,9 @@ Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum exp
     if (prev_real_map->elf.get() == nullptr) {
       prev_real_map->elf = elf;
       prev_real_map->memory_backed_elf = memory_backed_elf;
+    } else {
+      // Discard this elf, and use the elf from the previous map instead.
+      elf = prev_real_map->elf;
     }
   }
   return elf.get();
