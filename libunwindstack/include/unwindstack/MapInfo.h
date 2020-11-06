@@ -41,7 +41,9 @@ struct MapInfo {
         prev_map(prev_map),
         prev_real_map(prev_real_map),
         load_bias(INT64_MAX),
-        build_id(0) {}
+        build_id(0) {
+    if (prev_real_map != nullptr) prev_real_map->next_real_map = this;
+  }
   MapInfo(MapInfo* prev_map, MapInfo* prev_real_map, uint64_t start, uint64_t end, uint64_t offset,
           uint64_t flags, const std::string& name)
       : start(start),
@@ -52,7 +54,9 @@ struct MapInfo {
         prev_map(prev_map),
         prev_real_map(prev_real_map),
         load_bias(INT64_MAX),
-        build_id(0) {}
+        build_id(0) {
+    if (prev_real_map != nullptr) prev_real_map->next_real_map = this;
+  }
   ~MapInfo();
 
   uint64_t start = 0;
@@ -81,6 +85,9 @@ struct MapInfo {
   // The last map's prev_map would point to the 2000-3000 map, while the
   // prev_real_map would point to the 1000-2000 map.
   MapInfo* prev_real_map = nullptr;
+
+  // Same as above but set to point to the next map.
+  MapInfo* next_real_map = nullptr;
 
   std::atomic_int64_t load_bias;
 
