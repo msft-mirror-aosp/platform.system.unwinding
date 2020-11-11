@@ -36,6 +36,7 @@ namespace unwindstack {
 
 // Forward declarations.
 class Elf;
+class ThreadEntry;
 
 struct FrameData {
   size_t num;
@@ -179,12 +180,30 @@ class UnwinderFromPid : public Unwinder {
   void Unwind(const std::vector<std::string>* initial_map_names_to_skip = nullptr,
               const std::vector<std::string>* map_suffixes_to_ignore = nullptr) override;
 
- private:
+ protected:
   pid_t pid_;
   std::unique_ptr<Maps> maps_ptr_;
   std::unique_ptr<JitDebug> jit_debug_ptr_;
   std::unique_ptr<DexFiles> dex_files_ptr_;
   bool initted_ = false;
+};
+
+class ThreadUnwinder : public UnwinderFromPid {
+ public:
+  explicit ThreadUnwinder(size_t max_frames);
+  ThreadUnwinder(size_t max_frames, const ThreadUnwinder* unwinder);
+  virtual ~ThreadUnwinder() = default;
+
+  void SetObjects(ThreadUnwinder* unwinder);
+
+  void Unwind(const std::vector<std::string>*, const std::vector<std::string>*) override {}
+
+  void UnwindWithSignal(int signal, pid_t tid,
+                        const std::vector<std::string>* initial_map_names_to_skip = nullptr,
+                        const std::vector<std::string>* map_suffixes_to_ignore = nullptr);
+
+ protected:
+  ThreadEntry* SendSignalToThread(int signal, pid_t tid);
 };
 
 }  // namespace unwindstack
