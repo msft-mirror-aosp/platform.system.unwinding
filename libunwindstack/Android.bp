@@ -66,12 +66,15 @@ cc_defaults {
         "RegsX86_64.cpp",
         "RegsMips.cpp",
         "RegsMips64.cpp",
-        "Unwinder.cpp",
         "Symbols.cpp",
+        "ThreadEntry.cpp",
+        "ThreadUnwinder.cpp",
+        "Unwinder.cpp",
     ],
 
     cflags: [
         "-Wexit-time-destructors",
+        "-fno-c++-static-destructors",
     ],
 
     target: {
@@ -89,6 +92,7 @@ cc_defaults {
                     cflags: ["-DANDROID_EXPERIMENTAL_MTE"],
                 },
             },
+            static_libs: ["libasync_safe"],
         },
         linux_bionic: {
             header_libs: ["bionic_libc_platform_headers"],
@@ -357,7 +361,8 @@ cc_defaults {
     host_supported: true,
     defaults: ["libunwindstack_flags"],
     cflags: [
-        "-Wno-exit-time-destructors",
+        "-Wexit-time-destructors",
+        "-fno-c++-static-destructors",
         "-g",
     ],
     shared_libs: [
