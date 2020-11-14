@@ -85,7 +85,7 @@ cc_defaults {
                 "-g",
             ],
         },
-        android: {
+        bionic: {
             header_libs: ["bionic_libc_platform_headers"],
             product_variables: {
                 experimental_mte: {
@@ -93,14 +93,6 @@ cc_defaults {
                 },
             },
             static_libs: ["libasync_safe"],
-        },
-        linux_bionic: {
-            header_libs: ["bionic_libc_platform_headers"],
-            product_variables: {
-                experimental_mte: {
-                    cflags: ["-DANDROID_EXPERIMENTAL_MTE"],
-                },
-            },
         },
     },
 
