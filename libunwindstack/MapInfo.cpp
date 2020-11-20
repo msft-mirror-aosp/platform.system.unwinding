@@ -320,7 +320,7 @@ MapInfo::~MapInfo() {
   }
 }
 
-std::string MapInfo::GetBuildID() {
+const std::string& MapInfo::GetBuildID() {
   uintptr_t id = build_id.load();
   if (id != 0) {
     return *reinterpret_cast<std::string*>(id);
