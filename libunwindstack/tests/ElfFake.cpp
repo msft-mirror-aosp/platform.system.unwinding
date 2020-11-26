@@ -23,6 +23,7 @@
 #include <unwindstack/ElfInterface.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
+#include <unwindstack/SharedString.h>
 
 #include "ElfFake.h"
 #include "RegsFake.h"
@@ -32,14 +33,14 @@ namespace unwindstack {
 std::deque<FunctionData> ElfInterfaceFake::functions_;
 std::deque<StepData> ElfInterfaceFake::steps_;
 
-bool ElfInterfaceFake::GetFunctionName(uint64_t, std::string* name, uint64_t* offset) {
+bool ElfInterfaceFake::GetFunctionName(uint64_t, SharedString* name, uint64_t* offset) {
   if (functions_.empty()) {
     return false;
   }
-  auto entry = functions_.front();
-  functions_.pop_front();
-  *name = entry.name;
+  auto& entry = functions_.front();
+  *name = SharedString(std::move(entry.name));
   *offset = entry.offset;
+  functions_.pop_front();
   return true;
 }
 

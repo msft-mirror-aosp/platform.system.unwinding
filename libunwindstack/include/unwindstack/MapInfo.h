@@ -25,6 +25,7 @@
 #include <string>
 
 #include <unwindstack/Elf.h>
+#include <unwindstack/SharedString.h>
 
 namespace unwindstack {
 
@@ -106,7 +107,7 @@ struct MapInfo {
 
   Memory* CreateMemory(const std::shared_ptr<Memory>& process_memory);
 
-  bool GetFunctionName(uint64_t addr, std::string* name, uint64_t* func_offset);
+  bool GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset);
 
   // Returns the raw build id read from the elf data.
   const std::string& GetBuildID();

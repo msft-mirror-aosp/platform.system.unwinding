@@ -258,7 +258,7 @@ TEST(DexFileTest, get_method) {
   std::unique_ptr<DexFile> dex_file(DexFile::Create(0x4000, &memory, &info));
   ASSERT_TRUE(dex_file != nullptr);
 
-  std::string method;
+  SharedString method;
   uint64_t method_offset;
   ASSERT_TRUE(dex_file->GetFunctionName(0x4102, &method, &method_offset));
   EXPECT_EQ("Main.<init>", method);
@@ -276,7 +276,7 @@ TEST(DexFileTest, get_method_empty) {
   std::unique_ptr<DexFile> dex_file(DexFile::Create(0x4000, &memory, &info));
   ASSERT_TRUE(dex_file != nullptr);
 
-  std::string method;
+  SharedString method;
   uint64_t method_offset;
   EXPECT_FALSE(dex_file->GetFunctionName(0x100000, &method, &method_offset));
 
@@ -295,7 +295,7 @@ TEST(DexFileTest, get_method_from_cache) {
   std::unique_ptr<DexFile> dex_file = DexFile::Create(0x4000, &memory, &info);
   EXPECT_TRUE(dex_file != nullptr);
 
-  std::string method;
+  SharedString method;
   uint64_t method_offset;
   ASSERT_TRUE(dex_file->GetFunctionName(0x4118, &method, &method_offset));
   EXPECT_EQ("Main.main", method);
