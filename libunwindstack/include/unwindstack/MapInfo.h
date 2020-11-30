@@ -94,7 +94,7 @@ struct MapInfo {
   // This is a pointer to a new'd std::string.
   // Using an atomic value means that we don't need to lock and will
   // make it easier to move to a fine grained lock in the future.
-  std::atomic_uintptr_t build_id;
+  std::atomic<std::string*> build_id;
 
   // Set to true if the elf file data is coming from memory.
   bool memory_backed_elf = false;
