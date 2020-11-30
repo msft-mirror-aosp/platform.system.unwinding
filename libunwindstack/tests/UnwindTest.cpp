@@ -57,6 +57,7 @@ static volatile bool g_ready_for_remote;
 static volatile bool g_signal_ready_for_remote;
 static std::atomic_bool g_finish;
 static std::atomic_uintptr_t g_ucontext;
+static std::atomic_int g_waiters;
 
 static void ResetGlobals() {
   g_ready = false;
@@ -64,6 +65,7 @@ static void ResetGlobals() {
   g_signal_ready_for_remote = false;
   g_finish = false;
   g_ucontext = 0;
+  g_waiters = 0;
 }
 
 static std::vector<const char*> kFunctionOrder{"OuterFunction", "MiddleFunction", "InnerFunction"};
@@ -111,9 +113,8 @@ static std::string ErrorMsg(const std::vector<const char*>& function_names, Unwi
          function_names.front() + "\n" + "Unwind data:\n" + unwind;
 }
 
-static void VerifyUnwind(Unwinder* unwinder, std::vector<const char*> expected_function_names) {
-  unwinder->Unwind();
-
+static void VerifyUnwindFrames(Unwinder* unwinder,
+                               std::vector<const char*> expected_function_names) {
   for (auto& frame : unwinder->frames()) {
     if (frame.function_name == expected_function_names.back()) {
       expected_function_names.pop_back();
@@ -124,6 +125,12 @@ static void VerifyUnwind(Unwinder* unwinder, std::vector<const char*> expected_f
   }
 
   ASSERT_TRUE(expected_function_names.empty()) << ErrorMsg(expected_function_names, unwinder);
+}
+
+static void VerifyUnwind(Unwinder* unwinder, std::vector<const char*> expected_function_names) {
+  unwinder->Unwind();
+
+  VerifyUnwindFrames(unwinder, expected_function_names);
 }
 
 static void VerifyUnwind(pid_t pid, Maps* maps, Regs* regs,
@@ -138,43 +145,49 @@ static void VerifyUnwind(pid_t pid, Maps* maps, Regs* regs,
 // off. If this doesn't happen, then all of the calls will be optimized
 // away.
 extern "C" void InnerFunction(TestTypeEnum test_type) {
-  if (test_type == TEST_TYPE_LOCAL_WAIT_FOR_FINISH) {
-    while (!g_finish.load()) {
+  // Use a switch statement to force the compiler to create unwinding information
+  // for each case.
+  switch (test_type) {
+    case TEST_TYPE_LOCAL_WAIT_FOR_FINISH: {
+      g_waiters++;
+      while (!g_finish.load()) {
+      }
+      break;
     }
-    return;
-  }
-  if (test_type == TEST_TYPE_REMOTE || test_type == TEST_TYPE_REMOTE_WITH_INVALID_CALL) {
-    g_ready_for_remote = true;
-    g_ready = true;
-    if (test_type == TEST_TYPE_REMOTE_WITH_INVALID_CALL) {
-      void (*crash_func)() = nullptr;
-      crash_func();
-    }
-    // Avoid any function calls because not every instruction will be
-    // unwindable.
-    // This method of looping is only used when testing a remote unwind.
-    while (true) {
-    }
-    return;
-  }
 
-  std::unique_ptr<Unwinder> unwinder;
-  std::unique_ptr<Regs> regs(Regs::CreateFromLocal());
-  RegsGetLocal(regs.get());
-  std::unique_ptr<Maps> maps;
+    case TEST_TYPE_REMOTE:
+    case TEST_TYPE_REMOTE_WITH_INVALID_CALL: {
+      g_ready_for_remote = true;
+      g_ready = true;
+      if (test_type == TEST_TYPE_REMOTE_WITH_INVALID_CALL) {
+        void (*crash_func)() = nullptr;
+        crash_func();
+      }
+      while (true) {
+      }
+      break;
+    }
 
-  if (test_type == TEST_TYPE_LOCAL_UNWINDER) {
-    maps.reset(new LocalMaps());
-    ASSERT_TRUE(maps->Parse());
-    auto process_memory(Memory::CreateProcessMemory(getpid()));
-    unwinder.reset(new Unwinder(512, maps.get(), regs.get(), process_memory));
-  } else {
-    UnwinderFromPid* unwinder_from_pid = new UnwinderFromPid(512, getpid());
-    ASSERT_TRUE(unwinder_from_pid->Init(regs->Arch()));
-    unwinder_from_pid->SetRegs(regs.get());
-    unwinder.reset(unwinder_from_pid);
+    default: {
+      std::unique_ptr<Unwinder> unwinder;
+      std::unique_ptr<Regs> regs(Regs::CreateFromLocal());
+      RegsGetLocal(regs.get());
+      std::unique_ptr<Maps> maps;
+
+      if (test_type == TEST_TYPE_LOCAL_UNWINDER) {
+        maps.reset(new LocalMaps());
+        ASSERT_TRUE(maps->Parse());
+        auto process_memory(Memory::CreateProcessMemory(getpid()));
+        unwinder.reset(new Unwinder(512, maps.get(), regs.get(), process_memory));
+      } else {
+        UnwinderFromPid* unwinder_from_pid = new UnwinderFromPid(512, getpid());
+        unwinder_from_pid->SetRegs(regs.get());
+        unwinder.reset(unwinder_from_pid);
+      }
+      VerifyUnwind(unwinder.get(), kFunctionOrder);
+      break;
+    }
   }
-  VerifyUnwind(unwinder.get(), kFunctionOrder);
 }
 
 extern "C" void MiddleFunction(TestTypeEnum test_type) {
@@ -283,7 +296,6 @@ TEST_F(UnwindTest, unwind_from_pid_remote) {
   ASSERT_TRUE(regs.get() != nullptr);
 
   UnwinderFromPid unwinder(512, pid);
-  ASSERT_TRUE(unwinder.Init(regs->Arch()));
   unwinder.SetRegs(regs.get());
 
   VerifyUnwind(&unwinder, kFunctionOrder);
@@ -335,7 +347,6 @@ static void RemoteUnwindFromPid(void* data) {
   ASSERT_TRUE(regs.get() != nullptr);
 
   UnwinderFromPid unwinder(512, *pid);
-  ASSERT_TRUE(unwinder.Init(regs->Arch()));
   unwinder.SetRegs(regs.get());
 
   VerifyUnwind(&unwinder, kFunctionOrder);
@@ -471,6 +482,142 @@ TEST_F(UnwindTest, multiple_threads_unwind_same_map) {
   }
   wait = false;
   for (auto thread : threads) {
+    thread->join();
+    delete thread;
+  }
+}
+
+TEST_F(UnwindTest, thread_unwind) {
+  ResetGlobals();
+
+  std::atomic_int tid(0);
+  std::thread thread([&tid]() {
+    tid = android::base::GetThreadId();
+    OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
+  });
+
+  while (tid.load() == 0)
+    ;
+
+  ThreadUnwinder unwinder(512);
+  ASSERT_TRUE(unwinder.Init());
+  unwinder.UnwindWithSignal(SIGRTMIN, tid);
+  VerifyUnwindFrames(&unwinder, kFunctionOrder);
+
+  g_finish = true;
+  thread.join();
+}
+
+TEST_F(UnwindTest, thread_unwind_cur_pid) {
+  ThreadUnwinder unwinder(512);
+  ASSERT_TRUE(unwinder.Init());
+  unwinder.UnwindWithSignal(SIGRTMIN, getpid());
+  EXPECT_EQ(0U, unwinder.NumFrames());
+  EXPECT_EQ(ERROR_UNSUPPORTED, unwinder.LastErrorCode());
+}
+
+static std::thread* CreateUnwindThread(std::atomic_int& tid, ThreadUnwinder& unwinder,
+                                       std::atomic_bool& start_unwinding,
+                                       std::atomic_int& unwinders) {
+  return new std::thread([&tid, &unwinder, &start_unwinding, &unwinders]() {
+    while (!start_unwinding.load())
+      ;
+
+    ThreadUnwinder thread_unwinder(512, &unwinder);
+    thread_unwinder.UnwindWithSignal(SIGRTMIN, tid);
+#if defined(__arm__)
+    // On arm, there is a chance of winding up in case that doesn't unwind.
+    // Identify that case and allow unwinding in that case.
+    for (size_t i = 0; i < 10; i++) {
+      auto frames = thread_unwinder.frames();
+      if (frames.size() > 1 && frames[frames.size() - 1].pc < 1000 &&
+          frames[frames.size() - 2].function_name == "InnerFunction") {
+        thread_unwinder.UnwindWithSignal(SIGRTMIN, tid);
+      } else {
+        break;
+      }
+    }
+#endif
+    VerifyUnwindFrames(&thread_unwinder, kFunctionOrder);
+    ++unwinders;
+  });
+}
+
+TEST_F(UnwindTest, thread_unwind_same_thread_from_threads) {
+  static constexpr size_t kNumThreads = 300;
+  ResetGlobals();
+
+  std::atomic_int tid(0);
+  std::thread thread([&tid]() {
+    tid = android::base::GetThreadId();
+    OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
+  });
+
+  while (g_waiters.load() != 1)
+    ;
+
+  ThreadUnwinder unwinder(512);
+  ASSERT_TRUE(unwinder.Init());
+
+  std::atomic_bool start_unwinding(false);
+  std::vector<std::thread*> threads;
+  std::atomic_int unwinders(0);
+  for (size_t i = 0; i < kNumThreads; i++) {
+    threads.push_back(CreateUnwindThread(tid, unwinder, start_unwinding, unwinders));
+  }
+
+  start_unwinding = true;
+  while (unwinders.load() != kNumThreads)
+    ;
+
+  for (auto* thread : threads) {
+    thread->join();
+    delete thread;
+  }
+
+  g_finish = true;
+  thread.join();
+}
+
+TEST_F(UnwindTest, thread_unwind_multiple_thread_from_threads) {
+  static constexpr size_t kNumThreads = 100;
+  ResetGlobals();
+
+  std::atomic_int tids[kNumThreads] = {};
+  std::vector<std::thread*> threads;
+  for (size_t i = 0; i < kNumThreads; i++) {
+    std::thread* thread = new std::thread([&tids, i]() {
+      tids[i] = android::base::GetThreadId();
+      OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
+    });
+    threads.push_back(thread);
+  }
+
+  while (g_waiters.load() != kNumThreads)
+    ;
+
+  ThreadUnwinder unwinder(512);
+  ASSERT_TRUE(unwinder.Init());
+
+  std::atomic_bool start_unwinding(false);
+  std::vector<std::thread*> unwinder_threads;
+  std::atomic_int unwinders(0);
+  for (size_t i = 0; i < kNumThreads; i++) {
+    unwinder_threads.push_back(CreateUnwindThread(tids[i], unwinder, start_unwinding, unwinders));
+  }
+
+  start_unwinding = true;
+  while (unwinders.load() != kNumThreads)
+    ;
+
+  for (auto* thread : unwinder_threads) {
+    thread->join();
+    delete thread;
+  }
+
+  g_finish = true;
+
+  for (auto* thread : threads) {
     thread->join();
     delete thread;
   }

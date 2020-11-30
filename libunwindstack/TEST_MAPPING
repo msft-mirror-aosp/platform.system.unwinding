@@ -5,6 +5,12 @@
     },
     {
       "name": "CtsSimpleperfTestCases"
+    },
+    {
+      "name": "debuggerd_test"
+    },
+    {
+      "name": "CtsPerfettoTestCases"
     }
   ]
 }

@@ -36,6 +36,14 @@
 #define EM_AARCH64 183
 #endif
 
+#if __has_feature(address_sanitizer)
+// There is a test that tries to allocate a large value, allow it to fail
+// if asan is enabled.
+extern "C" const char* __asan_default_options() {
+  return "allocator_may_return_null=1";
+}
+#endif
+
 namespace unwindstack {
 
 class ElfInterfaceTest : public ::testing::Test {

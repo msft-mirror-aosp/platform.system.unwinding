@@ -66,12 +66,15 @@ cc_defaults {
         "RegsX86_64.cpp",
         "RegsMips.cpp",
         "RegsMips64.cpp",
-        "Unwinder.cpp",
         "Symbols.cpp",
+        "ThreadEntry.cpp",
+        "ThreadUnwinder.cpp",
+        "Unwinder.cpp",
     ],
 
     cflags: [
         "-Wexit-time-destructors",
+        "-fno-c++-static-destructors",
     ],
 
     target: {
@@ -82,21 +85,14 @@ cc_defaults {
                 "-g",
             ],
         },
-        android: {
+        bionic: {
             header_libs: ["bionic_libc_platform_headers"],
             product_variables: {
                 experimental_mte: {
                     cflags: ["-DANDROID_EXPERIMENTAL_MTE"],
                 },
             },
-        },
-        linux_bionic: {
-            header_libs: ["bionic_libc_platform_headers"],
-            product_variables: {
-                experimental_mte: {
-                    cflags: ["-DANDROID_EXPERIMENTAL_MTE"],
-                },
-            },
+            static_libs: ["libasync_safe"],
         },
     },
 
@@ -124,6 +120,7 @@ cc_library {
     name: "libunwindstack",
     vendor_available: true,
     recovery_available: true,
+    vendor_ramdisk_available: true,
     // TODO(b/153609531): remove when no longer needed.
     native_bridge_supported: true,
     vndk: {
@@ -131,7 +128,6 @@ cc_library {
         support_system_process: true,
     },
     defaults: ["libunwindstack_defaults"],
-
     srcs: ["DexFile.cpp"],
     cflags: ["-DDEXFILE_SUPPORT"],
     shared_libs: ["libdexfile_support"],
@@ -147,6 +143,11 @@ cc_library {
             exclude_srcs: ["DexFile.cpp"],
             exclude_shared_libs: ["libdexfile_support"],
         },
+        vendor_ramdisk: {
+            cflags: ["-UDEXFILE_SUPPORT"],
+            exclude_srcs: ["DexFile.cpp"],
+            exclude_shared_libs: ["libdexfile_support"],
+        },
         native_bridge: {
             cflags: ["-UDEXFILE_SUPPORT"],
             exclude_srcs: ["DexFile.cpp"],
@@ -156,8 +157,8 @@ cc_library {
 
     apex_available: [
         "//apex_available:platform",
+        "com.android.art",
         "com.android.art.debug",
-        "com.android.art.release",
     ],
 }
 
@@ -165,12 +166,14 @@ cc_library {
 cc_library_static {
     name: "libunwindstack_no_dex",
     recovery_available: true,
+    vendor_ramdisk_available: true,
     defaults: ["libunwindstack_defaults"],
 
     visibility: [
+        "//external/gwp_asan",
         "//system/core/debuggerd",
         "//system/core/init",
-        "//system/core/libbacktrace",
+        "//system/unwinding/libbacktrace",
     ],
     apex_available: [
         "//apex_available:platform",
@@ -296,6 +299,8 @@ cc_defaults {
         "tests/files/offline/shared_lib_in_apk_memory_only_arm64/*",
         "tests/files/offline/shared_lib_in_apk_single_map_arm64/*",
         "tests/files/offline/signal_load_bias_arm/*",
+        "tests/files/offline/signal_fde_x86/*",
+        "tests/files/offline/signal_fde_x86_64/*",
         "tests/files/offline/straddle_arm/*",
         "tests/files/offline/straddle_arm64/*",
     ],
@@ -348,7 +353,8 @@ cc_defaults {
     host_supported: true,
     defaults: ["libunwindstack_flags"],
     cflags: [
-        "-Wno-exit-time-destructors",
+        "-Wexit-time-destructors",
+        "-fno-c++-static-destructors",
         "-g",
     ],
     shared_libs: [
@@ -489,4 +495,3 @@ cc_binary_host {
         "tests/GenGnuDebugdata.cpp",
     ],
 }
-

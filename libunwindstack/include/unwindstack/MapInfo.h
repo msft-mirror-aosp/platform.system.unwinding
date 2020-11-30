@@ -41,7 +41,9 @@ struct MapInfo {
         prev_map(prev_map),
         prev_real_map(prev_real_map),
         load_bias(INT64_MAX),
-        build_id(0) {}
+        build_id(0) {
+    if (prev_real_map != nullptr) prev_real_map->next_real_map = this;
+  }
   MapInfo(MapInfo* prev_map, MapInfo* prev_real_map, uint64_t start, uint64_t end, uint64_t offset,
           uint64_t flags, const std::string& name)
       : start(start),
@@ -52,7 +54,9 @@ struct MapInfo {
         prev_map(prev_map),
         prev_real_map(prev_real_map),
         load_bias(INT64_MAX),
-        build_id(0) {}
+        build_id(0) {
+    if (prev_real_map != nullptr) prev_real_map->next_real_map = this;
+  }
   ~MapInfo();
 
   uint64_t start = 0;
@@ -82,6 +86,9 @@ struct MapInfo {
   // prev_real_map would point to the 1000-2000 map.
   MapInfo* prev_real_map = nullptr;
 
+  // Same as above but set to point to the next map.
+  MapInfo* next_real_map = nullptr;
+
   std::atomic_int64_t load_bias;
 
   // This is a pointer to a new'd std::string.
@@ -102,7 +109,7 @@ struct MapInfo {
   bool GetFunctionName(uint64_t addr, std::string* name, uint64_t* func_offset);
 
   // Returns the raw build id read from the elf data.
-  std::string GetBuildID();
+  const std::string& GetBuildID();
 
   // Returns the printable version of the build id (hex dump of raw data).
   std::string GetPrintableBuildID();
