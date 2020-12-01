@@ -314,16 +314,16 @@ uint64_t MapInfo::GetLoadBias(const std::shared_ptr<Memory>& process_memory) {
 }
 
 MapInfo::~MapInfo() {
-  uintptr_t id = build_id.load();
-  if (id != 0) {
-    delete reinterpret_cast<std::string*>(id);
+  std::string* id = build_id.load();
+  if (id != nullptr) {
+    delete id;
   }
 }
 
 const std::string& MapInfo::GetBuildID() {
-  uintptr_t id = build_id.load();
-  if (id != 0) {
-    return *reinterpret_cast<std::string*>(id);
+  std::string* id = build_id.load();
+  if (id != nullptr) {
+    return *id;
   }
 
   // No need to lock, at worst if multiple threads do this at the same
@@ -348,13 +348,15 @@ const std::string& MapInfo::GetBuildID() {
     }
   }
 
-  id = reinterpret_cast<uintptr_t>(cur_build_id.get());
-  uintptr_t expected_id = 0;
-  if (build_id.compare_exchange_weak(expected_id, id)) {
+  std::string* expected_id = nullptr;
+  // Strong version since we need to reliably return the stored pointer.
+  if (build_id.compare_exchange_strong(expected_id, cur_build_id.get())) {
     // Value saved, so make sure the memory is not freed.
-    cur_build_id.release();
+    return *cur_build_id.release();
+  } else {
+    // The expected value is set to the stored value on failure.
+    return *expected_id;
   }
-  return *reinterpret_cast<std::string*>(id);
 }
 
 std::string MapInfo::GetPrintableBuildID() {
