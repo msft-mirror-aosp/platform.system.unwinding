@@ -119,6 +119,7 @@ cc_defaults {
 cc_library {
     name: "libunwindstack",
     vendor_available: true,
+    product_available: true,
     recovery_available: true,
     vendor_ramdisk_available: true,
     // TODO(b/153609531): remove when no longer needed.
@@ -134,6 +135,11 @@ cc_library {
 
     target: {
         vendor: {
+            cflags: ["-UDEXFILE_SUPPORT"],
+            exclude_srcs: ["DexFile.cpp"],
+            exclude_shared_libs: ["libdexfile_support"],
+        },
+        product: {
             cflags: ["-UDEXFILE_SUPPORT"],
             exclude_srcs: ["DexFile.cpp"],
             exclude_shared_libs: ["libdexfile_support"],
