@@ -30,7 +30,7 @@
 #include "Utils.h"
 
 static void BenchmarkSymbolLookup(benchmark::State& state, std::vector<uint64_t> offsets,
-                                  std::string elf_file, bool expect_found) {
+                                  std::string elf_file, bool expect_found, uint32_t runs = 1) {
 #if defined(__BIONIC__)
   uint64_t rss_bytes = 0;
 #endif
@@ -50,14 +50,16 @@ static void BenchmarkSymbolLookup(benchmark::State& state, std::vector<uint64_t>
     uint64_t alloc_bytes_before = mallinfo().uordblks;
     state.ResumeTiming();
 
-    for (auto pc : offsets) {
-      std::string name;
-      uint64_t offset;
-      bool found = elf.GetFunctionName(pc, &name, &offset);
-      if (expect_found && !found) {
-        errx(1, "expected pc 0x%" PRIx64 " present, but not found.", pc);
-      } else if (!expect_found && found) {
-        errx(1, "expected pc 0x%" PRIx64 " not present, but found.", pc);
+    std::string name;
+    uint64_t offset;
+    for (size_t i = 0; i < runs; i++) {
+      for (auto pc : offsets) {
+        bool found = elf.GetFunctionName(pc, &name, &offset);
+        if (expect_found && !found) {
+          errx(1, "expected pc 0x%" PRIx64 " present, but not found.", pc);
+        } else if (!expect_found && found) {
+          errx(1, "expected pc 0x%" PRIx64 " not present, but found.", pc);
+        }
       }
     }
 
@@ -80,8 +82,8 @@ static void BenchmarkSymbolLookup(benchmark::State& state, std::vector<uint64_t>
 }
 
 static void BenchmarkSymbolLookup(benchmark::State& state, uint64_t pc, std::string elf_file,
-                                  bool expect_found) {
-  BenchmarkSymbolLookup(state, std::vector<uint64_t>{pc}, elf_file, expect_found);
+                                  bool expect_found, uint32_t runs = 1) {
+  BenchmarkSymbolLookup(state, std::vector<uint64_t>{pc}, elf_file, expect_found, runs);
 }
 
 void BM_symbol_not_present(benchmark::State& state) {
@@ -95,7 +97,7 @@ void BM_symbol_find_single(benchmark::State& state) {
 BENCHMARK(BM_symbol_find_single);
 
 void BM_symbol_find_single_many_times(benchmark::State& state) {
-  BenchmarkSymbolLookup(state, std::vector<uint64_t>(15, 0x22b2bc), GetElfFile(), true);
+  BenchmarkSymbolLookup(state, 0x22b2bc, GetElfFile(), true, 4096);
 }
 BENCHMARK(BM_symbol_find_single_many_times);
 
@@ -117,7 +119,7 @@ void BM_symbol_find_single_from_sorted(benchmark::State& state) {
 BENCHMARK(BM_symbol_find_single_from_sorted);
 
 void BM_symbol_find_single_many_times_from_sorted(benchmark::State& state) {
-  BenchmarkSymbolLookup(state, std::vector<uint64_t>(15, 0x138638), GetSymbolSortedElfFile(), true);
+  BenchmarkSymbolLookup(state, 0x138638, GetSymbolSortedElfFile(), true, 4096);
 }
 BENCHMARK(BM_symbol_find_single_many_times_from_sorted);
 
