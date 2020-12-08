@@ -41,45 +41,40 @@ static bool IsFunc(const SymType* entry) {
   return entry->st_shndx != SHN_UNDEF && ELF32_ST_TYPE(entry->st_info) == STT_FUNC;
 }
 
-// Read symbol entry from memory and cache it so we don't have to read it again.
-template <typename SymType>
-inline __attribute__((__always_inline__)) const Symbols::Info* Symbols::ReadFuncInfo(
-    uint32_t symbol_index, Memory* elf_memory) {
-  auto it = symbols_.find(symbol_index);
-  if (it != symbols_.end()) {
-    return &it->second;
-  }
-  SymType sym;
-  if (!elf_memory->ReadFully(offset_ + symbol_index * entry_size_, &sym, sizeof(sym))) {
-    return nullptr;
-  }
-  if (!IsFunc(&sym)) {
-    // We need the address for binary search, but we don't want it to be matched.
-    sym.st_size = 0;
-  }
-  Info info{.addr = sym.st_value, .size = static_cast<uint32_t>(sym.st_size), .name = sym.st_name};
-  return &symbols_.emplace(symbol_index, info).first->second;
-}
-
 // Binary search the symbol table to find function containing the given address.
 // Without remap, the symbol table is assumed to be sorted and accessed directly.
 // If the symbol table is not sorted this method might fail but should not crash.
 // When the indices are remapped, they are guaranteed to be sorted by address.
 template <typename SymType, bool RemapIndices>
 const Symbols::Info* Symbols::BinarySearch(uint64_t addr, Memory* elf_memory) {
-  size_t first = 0;
-  size_t last = RemapIndices ? remap_->size() : count_;
+  // Fast-path: Check if the symbol has been already read from memory.
+  // Otherwise use the cache iterator to constrain the binary search range.
+  // (the symbol must be in the gap between this and the previous iterator)
+  auto it = symbols_.upper_bound(addr);
+  if (it != symbols_.end() && it->second.addr <= addr) {
+    return &it->second;
+  }
+  uint32_t count = RemapIndices ? remap_->size() : count_;
+  uint32_t last = (it != symbols_.end()) ? it->second.index : count;
+  uint32_t first = (it != symbols_.begin()) ? std::prev(it)->second.index + 1 : 0;
+
   while (first < last) {
-    size_t current = first + (last - first) / 2;
-    size_t symbol_index = RemapIndices ? remap_.value()[current] : current;
-    const Info* info = ReadFuncInfo<SymType>(symbol_index, elf_memory);
-    if (info == nullptr) {
+    uint32_t current = first + (last - first) / 2;
+    uint32_t symbol_index = RemapIndices ? remap_.value()[current] : current;
+    SymType sym;
+    if (!elf_memory->ReadFully(offset_ + symbol_index * entry_size_, &sym, sizeof(sym))) {
       return nullptr;
     }
-    if (addr < info->addr) {
+    Info info{
+        .index = current,
+        .addr = sym.st_value,
+        .name = IsFunc(&sym) ? sym.st_name : 0,  // Mark non-functions as invalid.
+    };
+    it = symbols_.emplace(sym.st_value + sym.st_size, info).first;
+    if (addr < sym.st_value) {
       last = current;
-    } else if (addr < info->addr + info->size) {
-      return info;
+    } else if (addr < sym.st_value + sym.st_size) {
+      return (it->second.name != 0) ? &it->second : nullptr;
     } else {
       first = current + 1;
     }
