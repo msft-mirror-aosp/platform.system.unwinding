@@ -19,9 +19,9 @@
 
 #include <stdint.h>
 
+#include <map>
 #include <optional>
 #include <string>
-#include <unordered_map>
 
 namespace unwindstack {
 
@@ -30,9 +30,9 @@ class Memory;
 
 class Symbols {
   struct Info {
-    uint64_t addr;  // Symbol address.
-    uint32_t size;  // Symbol size in bytes. Zero if not a function.
-    uint32_t name;  // Offset in .strtab.
+    uint64_t addr;   // Symbol address.
+    uint32_t index;  // Index into *sorted* symbol table.
+    uint32_t name;   // Offset in .strtab, or 0 if the symbol is not a function.
   };
 
  public:
@@ -52,9 +52,6 @@ class Symbols {
   }
 
  private:
-  template <typename SymType>
-  const Info* ReadFuncInfo(uint32_t symbol_index, Memory* elf_memory);
-
   template <typename SymType, bool RemapIndices>
   const Info* BinarySearch(uint64_t addr, Memory* elf_memory);
 
@@ -67,7 +64,7 @@ class Symbols {
   const uint64_t str_offset_;
   const uint64_t str_end_;
 
-  std::unordered_map<uint32_t, Info> symbols_;  // Cache of read symbols (keyed by symbol index).
+  std::map<uint64_t, Info> symbols_;  // Cache of read symbols (keyed by function *end* address).
   std::optional<std::vector<uint32_t>> remap_;  // Indices of function symbols sorted by address.
 };
 
