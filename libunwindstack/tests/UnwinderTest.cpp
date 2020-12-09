@@ -1728,8 +1728,9 @@ TEST_F(UnwinderTest, build_frame_pc_in_jit) {
   sym.st_info = STT_FUNC;
   sym.st_value = 0x100300;
   sym.st_size = 0x100;
+  sym.st_name = 1;
   memory_->SetMemory(0xf7300, &sym, sizeof(sym));
-  memory_->SetMemory(0xf7400, "FakeJitFunction");
+  memory_->SetMemory(0xf7401, "FakeJitFunction");
 
   RegsFake regs(10);
   regs.FakeSetArch(ARCH_ARM);
