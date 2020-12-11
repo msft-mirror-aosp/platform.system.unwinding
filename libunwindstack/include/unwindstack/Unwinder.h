@@ -69,13 +69,9 @@ class Unwinder {
         maps_(maps),
         regs_(regs),
         process_memory_(process_memory),
-        arch_(regs->Arch()) {
-    frames_.reserve(max_frames);
-  }
+        arch_(regs->Arch()) {}
   Unwinder(size_t max_frames, Maps* maps, std::shared_ptr<Memory> process_memory)
-      : max_frames_(max_frames), maps_(maps), process_memory_(process_memory) {
-    frames_.reserve(max_frames);
-  }
+      : max_frames_(max_frames), maps_(maps), process_memory_(process_memory) {}
 
   virtual ~Unwinder() = default;
 
@@ -84,7 +80,9 @@ class Unwinder {
 
   size_t NumFrames() const { return frames_.size(); }
 
-  const std::vector<FrameData>& frames() { return frames_; }
+  // Returns frames after unwinding.
+  // Intentionally mutable (which can be used to swap in reserved memory before unwinding).
+  std::vector<FrameData>& frames() { return frames_; }
 
   std::vector<FrameData> ConsumeFrames() {
     std::vector<FrameData> frames = std::move(frames_);
@@ -136,10 +134,8 @@ class Unwinder {
   FrameData BuildFrameFromPcOnly(uint64_t pc);
 
  protected:
-  Unwinder(size_t max_frames) : max_frames_(max_frames) { frames_.reserve(max_frames); }
-  Unwinder(size_t max_frames, ArchEnum arch) : max_frames_(max_frames), arch_(arch) {
-    frames_.reserve(max_frames);
-  }
+  Unwinder(size_t max_frames) : max_frames_(max_frames) {}
+  Unwinder(size_t max_frames, ArchEnum arch) : max_frames_(max_frames), arch_(arch) {}
 
   void ClearErrors() {
     warnings_ = WARNING_NONE;
