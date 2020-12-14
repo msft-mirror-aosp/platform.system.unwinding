@@ -66,8 +66,8 @@ const Symbols::Info* Symbols::BinarySearch(uint64_t addr, Memory* elf_memory) {
       return nullptr;
     }
     Info info{
-        .index = current,
         .addr = sym.st_value,
+        .index = current,
         .name = IsFunc(&sym) ? sym.st_name : 0,  // Mark non-functions as invalid.
     };
     it = symbols_.emplace(sym.st_value + sym.st_size, info).first;
