@@ -87,11 +87,6 @@ cc_defaults {
         },
         bionic: {
             header_libs: ["bionic_libc_platform_headers"],
-            product_variables: {
-                experimental_mte: {
-                    cflags: ["-DANDROID_EXPERIMENTAL_MTE"],
-                },
-            },
             static_libs: ["libasync_safe"],
         },
     },
@@ -314,19 +309,9 @@ cc_defaults {
     target: {
         android: {
             header_libs: ["bionic_libc_platform_headers"],
-            product_variables: {
-                experimental_mte: {
-                    cflags: ["-DANDROID_EXPERIMENTAL_MTE"],
-                },
-            },
         },
         linux_bionic: {
             header_libs: ["bionic_libc_platform_headers"],
-            product_variables: {
-                experimental_mte: {
-                    cflags: ["-DANDROID_EXPERIMENTAL_MTE"],
-                },
-            },
         },
     },
 }
