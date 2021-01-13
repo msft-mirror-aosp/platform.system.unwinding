@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-#if defined(ANDROID_EXPERIMENTAL_MTE)
-
 #include <sys/ptrace.h>
 #include <sys/uio.h>
 
+#ifdef __ANDROID__
 #include <bionic/mte.h>
-#include <bionic/mte_kernel.h>
+#endif
 
 #include "MemoryLocal.h"
 #include "MemoryRemote.h"
@@ -60,5 +59,3 @@ long MemoryLocal::ReadTag(uint64_t addr) {
 }
 
 }  // namespace unwindstack
-
-#endif
