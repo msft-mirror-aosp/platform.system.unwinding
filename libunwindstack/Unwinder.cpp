@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <memory>
 
 #include <android-base/file.h>
 #include <android-base/stringprintf.h>
@@ -61,7 +62,7 @@ void Unwinder::FillInDexFrame() {
   frame->pc = dex_pc;
   frame->sp = regs_->sp();
 
-  MapInfo* info = maps_->Find(dex_pc);
+  std::shared_ptr<MapInfo> info = maps_->Find(dex_pc);
   if (info != nullptr) {
     frame->map_start = info->start();
     frame->map_end = info->end();
@@ -167,7 +168,7 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
     uint64_t cur_pc = regs_->pc();
     uint64_t cur_sp = regs_->sp();
 
-    MapInfo* map_info = maps_->Find(regs_->pc());
+    std::shared_ptr<MapInfo> map_info = maps_->Find(regs_->pc());
     uint64_t pc_adjustment = 0;
     uint64_t step_pc;
     uint64_t rel_pc;
@@ -190,7 +191,7 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
         elf_from_memory_not_file_ = true;
       }
       step_pc = regs_->pc();
-      rel_pc = elf->GetRelPc(step_pc, map_info);
+      rel_pc = elf->GetRelPc(step_pc, map_info.get());
       // Everyone except elf data in gdb jit debug maps uses the relative pc.
       if (!(map_info->flags() & MAPS_FLAGS_JIT_SYMFILE_MAP)) {
         step_pc = rel_pc;
@@ -232,7 +233,7 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
         }
       }
 
-      frame = FillInFrame(map_info, elf, rel_pc, pc_adjustment);
+      frame = FillInFrame(map_info.get(), elf, rel_pc, pc_adjustment);
 
       // Once a frame is added, stop skipping frames.
       initial_map_names_to_skip = nullptr;
@@ -249,7 +250,7 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
         // some of the speculative frames.
         in_device_map = true;
       } else {
-        MapInfo* sp_info = maps_->Find(regs_->sp());
+        auto sp_info = maps_->Find(regs_->sp());
         if (sp_info != nullptr && sp_info->flags() & MAPS_FLAGS_DEVICE_MAP) {
           // Do not stop here, fall through in case we are
           // in the speculative unwind path and need to remove
@@ -363,7 +364,7 @@ std::string Unwinder::FormatFrame(const FrameData& frame) const {
     data += ')';
   }
 
-  MapInfo* map_info = maps_->Find(frame.map_start);
+  std::shared_ptr<MapInfo> map_info = maps_->Find(frame.map_start);
   if (map_info != nullptr && display_build_id_) {
     std::string build_id = map_info->GetPrintableBuildID();
     if (!build_id.empty()) {
@@ -447,7 +448,7 @@ FrameData Unwinder::BuildFrameFromPcOnly(uint64_t pc, ArchEnum arch, Maps* maps,
                                          bool resolve_names) {
   FrameData frame;
 
-  MapInfo* map_info = maps->Find(pc);
+  std::shared_ptr<MapInfo> map_info = maps->Find(pc);
   if (map_info == nullptr || arch == ARCH_UNKNOWN) {
     frame.pc = pc;
     frame.rel_pc = pc;
@@ -456,7 +457,7 @@ FrameData Unwinder::BuildFrameFromPcOnly(uint64_t pc, ArchEnum arch, Maps* maps,
 
   Elf* elf = map_info->GetElf(process_memory, arch);
 
-  uint64_t relative_pc = elf->GetRelPc(pc, map_info);
+  uint64_t relative_pc = elf->GetRelPc(pc, map_info.get());
 
   uint64_t pc_adjustment = GetPcAdjustment(relative_pc, elf, arch);
   relative_pc -= pc_adjustment;
