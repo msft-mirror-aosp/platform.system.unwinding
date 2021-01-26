@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#if defined(ANDROID_EXPERIMENTAL_MTE)
-
 #include <sys/mman.h>
 #include <sys/types.h>
 
 #include <gtest/gtest.h>
 
+#ifdef __ANDROID__
 #include <bionic/mte.h>
+#endif
 
 #include "MemoryLocal.h"
 #include "MemoryRemote.h"
@@ -30,19 +30,21 @@
 namespace unwindstack {
 
 static uintptr_t CreateTagMapping() {
+#if defined(__aarch64__)
   uintptr_t mapping =
       reinterpret_cast<uintptr_t>(mmap(nullptr, getpagesize(), PROT_READ | PROT_WRITE | PROT_MTE,
                                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
   if (reinterpret_cast<void*>(mapping) == MAP_FAILED) {
     return 0;
   }
-#if defined(__aarch64__)
   __asm__ __volatile__(".arch_extension mte; stg %0, [%0]"
                        :
                        : "r"(mapping + (1ULL << 56))
                        : "memory");
-#endif
   return mapping;
+#else
+  return 0;
+#endif
 }
 
 TEST(MemoryMteTest, remote_read_tag) {
@@ -95,5 +97,3 @@ TEST(MemoryMteTest, local_read_tag) {
 }
 
 }  // namespace unwindstack
-
-#endif
