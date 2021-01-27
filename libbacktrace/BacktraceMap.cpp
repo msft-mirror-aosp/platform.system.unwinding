@@ -122,15 +122,15 @@ bool BacktraceMap::Build() {
   pclose(fp);
   return true;
 #else
-  return android::procinfo::ReadProcessMaps(
-      pid_, [&](uint64_t start, uint64_t end, uint16_t flags, uint64_t, ino_t, const char* name) {
-        maps_.resize(maps_.size() + 1);
-        backtrace_map_t& map = maps_.back();
-        map.start = start;
-        map.end = end;
-        map.flags = flags;
-        map.name = name;
-      });
+  return android::procinfo::ReadProcessMaps(pid_,
+                  [&](const android::procinfo::MapInfo& mapinfo) {
+    maps_.resize(maps_.size() + 1);
+    backtrace_map_t& map = maps_.back();
+    map.start = mapinfo.start;
+    map.end = mapinfo.end;
+    map.flags = mapinfo.flags;
+    map.name = mapinfo.name;
+  });
 #endif
 }
 
