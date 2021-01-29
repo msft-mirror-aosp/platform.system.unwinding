@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
@@ -334,16 +335,6 @@ size_t MemoryLocal::Read(uint64_t addr, void* dst, size_t size) {
   return ProcessVmRead(getpid(), addr, dst, size);
 }
 
-#if !defined(ANDROID_EXPERIMENTAL_MTE)
-long MemoryRemote::ReadTag(uint64_t) {
-  return -1;
-}
-
-long MemoryLocal::ReadTag(uint64_t) {
-  return -1;
-}
-#endif
-
 MemoryRange::MemoryRange(const std::shared_ptr<Memory>& memory, uint64_t begin, uint64_t length,
                          uint64_t offset)
     : memory_(memory), begin_(begin), length_(length), offset_(offset) {}
@@ -368,7 +359,15 @@ size_t MemoryRange::Read(uint64_t addr, void* dst, size_t size) {
 }
 
 void MemoryRanges::Insert(MemoryRange* memory) {
-  maps_.emplace(memory->offset() + memory->length(), memory);
+  uint64_t last_addr;
+  if (__builtin_add_overflow(memory->offset(), memory->length(), &last_addr)) {
+    // This should never happen in the real world. However, it is possible
+    // that an offset in a mapped in segment could be crafted such that
+    // this value overflows. In that case, clamp the value to the max uint64
+    // value.
+    last_addr = UINT64_MAX;
+  }
+  maps_.emplace(last_addr, memory);
 }
 
 size_t MemoryRanges::Read(uint64_t addr, void* dst, size_t size) {

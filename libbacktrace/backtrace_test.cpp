@@ -1405,6 +1405,14 @@ static void VerifyUnreadableElfBacktrace(void* func) {
 typedef int (*test_func_t)(int, int, int, int, void (*)(void*), void*);
 
 TEST_F(BacktraceTest, unwind_through_unreadable_elf_local) {
+#if defined(__arm__)
+  // The exidx information does not include unwind information for the test
+  // library. The debug_frame is not findable because the symbol table
+  // that includes the ".debug_frame" name is also not in memory.
+  // So skip this test for arm.
+  GTEST_SKIP() << "Arm library does not contain unwind information in memory.";
+#endif
+
   TemporaryDir td;
   std::string tmp_so_name;
   ASSERT_NO_FATAL_FAILURE(CopySharedLibrary(td.path, &tmp_so_name));
@@ -1422,6 +1430,14 @@ TEST_F(BacktraceTest, unwind_through_unreadable_elf_local) {
 }
 
 TEST_F(BacktraceTest, unwind_through_unreadable_elf_remote) {
+#if defined(__arm__)
+  // The exidx information does not include unwind information for the test
+  // library. The debug_frame is not findable because the symbol table
+  // that includes the ".debug_frame" name is also not in memory.
+  // So skip this test for arm.
+  GTEST_SKIP() << "Arm library does not contain unwind information in memory.";
+#endif
+
   TemporaryDir td;
   std::string tmp_so_name;
   ASSERT_NO_FATAL_FAILURE(CopySharedLibrary(td.path, &tmp_so_name));
