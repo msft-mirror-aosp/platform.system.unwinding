@@ -40,16 +40,16 @@ inline __attribute__((__always_inline__)) void AsmGetRegs(void* reg_data) {
       "nop\n"
       ".code 32\n"
       "stmia %[base], {r0-r12}\n"
-      "add %[base], #52\n"
-      "mov r1, r13\n"
-      "mov r2, r14\n"
-      "mov r3, r15\n"
-      "stmia %[base], {r1-r3}\n"
+      "add r2, %[base], #52\n"
+      "mov r3, r13\n"
+      "mov r4, r14\n"
+      "mov r5, r15\n"
+      "stmia r2, {r3-r5}\n"
       "orr %[base], pc, #1\n"
       "bx %[base]\n"
-      : [base] "+r"(reg_data)
+      : [ base ] "+r"(reg_data)
       :
-      : "memory");
+      : "r2", "r3", "r4", "r5", "memory");
 }
 
 #elif defined(__aarch64__)
