@@ -41,6 +41,7 @@ libbacktrace_sources = [
 cc_library_headers {
     name: "libbacktrace_headers",
     vendor_available: true,
+    product_available: true,
     host_supported: true,
     recovery_available: true,
     vendor_ramdisk_available: true,
@@ -105,7 +106,8 @@ cc_defaults {
 
 cc_library {
     name: "libbacktrace",
-    vendor_available: false,
+    vendor_available: true,
+    product_available: true,
     // TODO(b/153609531): remove when no longer needed.
     native_bridge_supported: true,
     recovery_available: true,
@@ -116,6 +118,7 @@ cc_library {
     vndk: {
         enabled: true,
         support_system_process: true,
+        private: true,
     },
     host_supported: true,
     defaults: ["libbacktrace_defaults"],
@@ -127,6 +130,9 @@ cc_library {
             ],
         },
         vendor: {
+            cflags: ["-DNO_LIBDEXFILE_SUPPORT"],
+        },
+        product: {
             cflags: ["-DNO_LIBDEXFILE_SUPPORT"],
         },
         recovery: {
