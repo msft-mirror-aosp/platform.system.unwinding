@@ -36,11 +36,14 @@ class MemoryBuffer : public Memory {
   uint8_t* GetPtr(size_t offset);
 
   bool Resize(size_t size) {
-    raw_ = reinterpret_cast<uint8_t*>(realloc(raw_, size));
-    if (raw_ == nullptr) {
+    void* new_raw = realloc(raw_, size);
+    if (new_raw == nullptr) {
+      free(raw_);
+      raw_ = nullptr;
       size_ = 0;
       return false;
     }
+    raw_ = reinterpret_cast<uint8_t*>(new_raw);
     size_ = size;
     return true;
   }
