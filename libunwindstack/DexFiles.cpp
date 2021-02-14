@@ -172,8 +172,8 @@ bool DexFiles::GetAddr(size_t index, uint64_t* addr) {
 }
 
 #if defined(DEXFILE_SUPPORT)
-void DexFiles::GetMethodInformation(Maps* maps, MapInfo* info, uint64_t dex_pc,
-                                    std::string* method_name, uint64_t* method_offset) {
+void DexFiles::GetFunctionName(Maps* maps, MapInfo* info, uint64_t dex_pc, std::string* method_name,
+                               uint64_t* method_offset) {
   std::lock_guard<std::mutex> guard(lock_);
   if (!initialized_) {
     Init(maps);
@@ -187,14 +187,13 @@ void DexFiles::GetMethodInformation(Maps* maps, MapInfo* info, uint64_t dex_pc,
     }
 
     DexFile* dex_file = Find(addr, info);
-    if (dex_file != nullptr &&
-        dex_file->GetMethodInformation(dex_pc - addr, method_name, method_offset)) {
+    if (dex_file != nullptr && dex_file->GetFunctionName(dex_pc, method_name, method_offset)) {
       break;
     }
   }
 }
 #else
-void DexFiles::GetMethodInformation(Maps*, MapInfo*, uint64_t, std::string*, uint64_t*) {}
+void DexFiles::GetFunctionName(Maps*, MapInfo*, uint64_t, std::string*, uint64_t*) {}
 #endif
 
 }  // namespace unwindstack
