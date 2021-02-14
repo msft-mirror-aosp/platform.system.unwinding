@@ -50,8 +50,7 @@ class JitDebugTest : public ::testing::Test {
   }
 
   void Init(ArchEnum arch) {
-    jit_debug_.reset(new JitDebug(process_memory_));
-    jit_debug_->SetArch(arch);
+    jit_debug_ = CreateJitDebug(arch, process_memory_);
 
     maps_.reset(
         new BufferMaps("1000-4000 ---s 00000000 00:00 0 /fake/elf1\n"
@@ -318,8 +317,7 @@ TEST_F(JitDebugTest, get_multiple_jit_debug_descriptors_valid) {
 
   // Now clear the descriptor entry for the first one.
   WriteDescriptor32(0x11800, 0);
-  jit_debug_.reset(new JitDebug(process_memory_));
-  jit_debug_->SetArch(ARCH_ARM);
+  jit_debug_ = CreateJitDebug(ARCH_ARM, process_memory_);
 
   ASSERT_TRUE(jit_debug_->Find(maps_.get(), 0x1500) == nullptr);
   ASSERT_TRUE(jit_debug_->Find(maps_.get(), 0x2000) != nullptr);
@@ -333,7 +331,7 @@ TEST_F(JitDebugTest, get_elf_x86) {
   WriteDescriptor32(0x11800, 0x200000);
   WriteEntry32Pack(0x200000, 0, 0, 0x4000, 0x1000);
 
-  jit_debug_->SetArch(ARCH_X86);
+  jit_debug_ = CreateJitDebug(ARCH_X86, process_memory_);
   Elf* elf = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf != nullptr);
 
@@ -394,8 +392,7 @@ TEST_F(JitDebugTest, get_elf_search_libs) {
 
   // Only search a given named list of libs.
   std::vector<std::string> libs{"libart.so"};
-  jit_debug_.reset(new JitDebug(process_memory_, libs));
-  jit_debug_->SetArch(ARCH_ARM);
+  jit_debug_ = CreateJitDebug(ARCH_ARM, process_memory_, libs);
   EXPECT_TRUE(jit_debug_->Find(maps_.get(), 0x1500) == nullptr);
 
   // Change the name of the map that includes the value and verify this works.
@@ -403,11 +400,10 @@ TEST_F(JitDebugTest, get_elf_search_libs) {
   map_info->name = "/system/lib/libart.so";
   map_info = maps_->Get(6);
   map_info->name = "/system/lib/libart.so";
-  jit_debug_.reset(new JitDebug(process_memory_, libs));
+  jit_debug_ = CreateJitDebug(ARCH_ARM, process_memory_, libs);
   // Make sure that clearing our copy of the libs doesn't affect the
   // JitDebug object.
   libs.clear();
-  jit_debug_->SetArch(ARCH_ARM);
   EXPECT_TRUE(jit_debug_->Find(maps_.get(), 0x1500) != nullptr);
 }
 
