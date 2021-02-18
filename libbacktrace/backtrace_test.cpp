@@ -1210,9 +1210,9 @@ static void CopySharedLibrary(const char* tmp_dir, std::string* tmp_so_name) {
   std::string test_lib(testing::internal::GetArgvs()[0]);
   auto const value = test_lib.find_last_of('/');
   if (value == std::string::npos) {
-    test_lib = "../backtrace_test_libs/";
+    test_lib = "./";
   } else {
-    test_lib = test_lib.substr(0, value + 1) + "../backtrace_test_libs/";
+    test_lib = test_lib.substr(0, value + 1) + "./";
   }
   test_lib += "libbacktrace_test.so";
 
