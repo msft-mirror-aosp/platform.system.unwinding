@@ -179,7 +179,6 @@ cc_test_library {
     shared_libs: [
         "libunwindstack",
     ],
-    relative_install_path: "backtrace_test_libs",
 
     target: {
         linux_glibc: {
@@ -200,6 +199,9 @@ cc_test {
     isolated: true,
     defaults: ["libbacktrace_common"],
     host_supported: true,
+    test_options: {
+        unit_test: true,
+    },
     srcs: [
         "backtrace_test.cpp",
     ],
@@ -219,20 +221,22 @@ cc_test {
 
     group_static_libs: true,
 
-    // So that the dlopen can find the libbacktrace_test.so.
-    ldflags: [
-        "-Wl,--rpath,${ORIGIN}/../backtrace_test_libs",
-    ],
+    target: {
+        android: {
+            // So that the dlopen can find the libbacktrace_test.so.
+            ldflags: [
+                "-Wl,--rpath,${ORIGIN}",
+            ],
+        },
+    },
 
     test_suites: ["device-tests"],
     data: [
+        ":libbacktrace_test",
         "testdata/arm/*",
         "testdata/arm64/*",
         "testdata/x86/*",
         "testdata/x86_64/*",
-    ],
-    required: [
-        "libbacktrace_test",
     ],
 }
 
