@@ -143,6 +143,25 @@ TEST_F(ElfTest, elf_invalid) {
   EXPECT_EQ(ERROR_INVALID_ELF, elf.GetLastErrorCode());
 }
 
+TEST_F(ElfTest, elf_invalid_check_error_values) {
+  ElfFake elf(memory_);
+  elf.FakeSetValid(false);
+
+  EXPECT_EQ(ERROR_INVALID_ELF, elf.GetLastErrorCode());
+  EXPECT_EQ(0U, elf.GetLastErrorAddress());
+
+  ErrorData error = {};
+  elf.GetLastError(&error);
+  EXPECT_EQ(ERROR_INVALID_ELF, error.code);
+  EXPECT_EQ(0U, error.address);
+
+  error.code = ERROR_MEMORY_INVALID;
+  error.address = 0x100;
+  elf.GetLastError(&error);
+  EXPECT_EQ(ERROR_INVALID_ELF, error.code);
+  EXPECT_EQ(0U, error.address);
+}
+
 TEST_F(ElfTest, elf32_invalid_machine) {
   Elf elf(memory_);
 
@@ -515,16 +534,6 @@ TEST_F(ElfTest, is_valid_pc_from_gnu_debugdata) {
   EXPECT_CALL(*gnu_interface, IsValidPc(0x1500)).WillOnce(::testing::Return(true));
 
   EXPECT_TRUE(elf.IsValidPc(0x1500));
-}
-
-TEST_F(ElfTest, error_code_not_valid) {
-  ElfFake elf(memory_);
-  elf.FakeSetValid(false);
-
-  ErrorData error{ERROR_MEMORY_INVALID, 0x100};
-  elf.GetLastError(&error);
-  EXPECT_EQ(ERROR_MEMORY_INVALID, error.code);
-  EXPECT_EQ(0x100U, error.address);
 }
 
 TEST_F(ElfTest, error_code_valid) {
