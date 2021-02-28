@@ -17,7 +17,7 @@
 #include <sys/ptrace.h>
 #include <sys/uio.h>
 
-#ifdef __ANDROID__
+#ifdef __BIONIC__
 #include <bionic/mte.h>
 #endif
 
