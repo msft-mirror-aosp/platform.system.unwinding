@@ -157,6 +157,9 @@ std::string Elf::GetBuildID() {
 void Elf::GetLastError(ErrorData* data) {
   if (valid_) {
     *data = interface_->last_error();
+  } else {
+    data->code = ERROR_INVALID_ELF;
+    data->address = 0;
   }
 }
 
