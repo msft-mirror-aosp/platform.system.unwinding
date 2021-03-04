@@ -14,6 +14,16 @@
 // limitations under the License.
 //
 
+package {
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "system_unwinding_license"
+    // to get the below license kinds:
+    //   SPDX-license-identifier-Apache-2.0
+    //   SPDX-license-identifier-BSD
+    default_applicable_licenses: ["system_unwinding_license"],
+}
+
 cc_defaults {
     name: "libunwindstack_flags",
 
@@ -185,7 +195,7 @@ cc_library_static {
 //-------------------------------------------------------------------------
 // Unit Tests
 //-------------------------------------------------------------------------
-cc_test_library {
+cc_library_shared {
     name: "libunwindstack_local",
     defaults: ["libunwindstack_flags"],
     srcs: ["tests/TestLocal.cpp"],
@@ -198,7 +208,6 @@ cc_test_library {
     shared_libs: [
         "libunwindstack",
     ],
-    relative_install_path: "libunwindstack_test",
 }
 
 cc_defaults {
@@ -228,6 +237,7 @@ cc_defaults {
         "tests/ElfTestUtils.cpp",
         "tests/IsolatedSettings.cpp",
         "tests/JitDebugTest.cpp",
+        "tests/LocalUnwinderTest.cpp",
         "tests/LocalUpdatableMapsTest.cpp",
         "tests/LogFake.cpp",
         "tests/MapInfoCreateMemoryTest.cpp",
@@ -317,23 +327,12 @@ cc_defaults {
 }
 
 cc_test {
-    name: "libunwindstack_test",
-    defaults: ["libunwindstack_testlib_flags"],
-    isolated: true,
-
-    srcs: [
-        "tests/LocalUnwinderTest.cpp",
-    ],
-    required: [
-        "libunwindstack_local",
-    ],
-}
-
-// Skip LocalUnwinderTest until atest understands required properly.
-cc_test {
     name: "libunwindstack_unit_test",
     defaults: ["libunwindstack_testlib_flags"],
     isolated: true,
+    data: [
+        ":libunwindstack_local",
+    ],
 }
 
 //-------------------------------------------------------------------------
