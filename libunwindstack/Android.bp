@@ -171,6 +171,7 @@ cc_library {
         "com.android.art",
         "com.android.art.debug",
     ],
+    min_sdk_version: "29",
 }
 
 // Static library without DEX support to avoid dependencies on the ART APEX.
