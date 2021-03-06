@@ -119,6 +119,7 @@ cc_library {
         "//apex_available:platform",
         "//apex_available:anyapex",
     ],
+    min_sdk_version: "apex_inherit",
     vndk: {
         enabled: true,
         support_system_process: true,
