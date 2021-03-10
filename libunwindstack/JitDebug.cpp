@@ -181,7 +181,7 @@ void JitDebug::Init(Maps* maps) {
   FindAndReadVariable(maps, "__jit_debug_descriptor");
 }
 
-Elf* JitDebug::GetElf(Maps* maps, uint64_t pc) {
+Elf* JitDebug::Find(Maps* maps, uint64_t pc) {
   // Use a single lock, this object should be used so infrequently that
   // a fine grain lock is unnecessary.
   std::lock_guard<std::mutex> guard(lock_);
