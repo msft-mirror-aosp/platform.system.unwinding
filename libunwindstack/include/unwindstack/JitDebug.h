@@ -40,7 +40,7 @@ class JitDebug : public Global {
   JitDebug(std::shared_ptr<Memory>& memory, std::vector<std::string>& search_libs);
   virtual ~JitDebug();
 
-  Elf* GetElf(Maps* maps, uint64_t pc);
+  Elf* Find(Maps* maps, uint64_t pc);
 
  private:
   void Init(Maps* maps);
