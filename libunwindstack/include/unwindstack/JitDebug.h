@@ -66,6 +66,9 @@ class JitDebug : public Global {
   std::mutex lock_;
 };
 
+std::unique_ptr<JitDebug> CreateJitDebug(ArchEnum arch, std::shared_ptr<Memory>& memory,
+                                         std::vector<std::string> search_libs = {});
+
 }  // namespace unwindstack
 
 #endif  // _LIBUNWINDSTACK_JIT_DEBUG_H

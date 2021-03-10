@@ -74,6 +74,9 @@ class DexFiles : public Global {
   std::vector<uint64_t> addrs_;
 };
 
+std::unique_ptr<DexFiles> CreateDexFiles(ArchEnum arch, std::shared_ptr<Memory>& memory,
+                                         std::vector<std::string> search_libs = {});
+
 }  // namespace unwindstack
 
 #endif  // _LIBUNWINDSTACK_DEX_FILES_H
