@@ -27,6 +27,8 @@
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 
+#include "Check.h"
+
 #if defined(DEXFILE_SUPPORT)
 #include "DexFile.h"
 #endif
@@ -195,5 +197,13 @@ void DexFiles::GetFunctionName(Maps* maps, MapInfo* info, uint64_t dex_pc, std::
 #else
 void DexFiles::GetFunctionName(Maps*, MapInfo*, uint64_t, std::string*, uint64_t*) {}
 #endif
+
+std::unique_ptr<DexFiles> CreateDexFiles(ArchEnum arch, std::shared_ptr<Memory>& memory,
+                                         std::vector<std::string> search_libs) {
+  CHECK(arch != ARCH_UNKNOWN);
+  std::unique_ptr<DexFiles> dex_files(new DexFiles(memory, search_libs));
+  dex_files->SetArch(arch);
+  return dex_files;
+}
 
 }  // namespace unwindstack
