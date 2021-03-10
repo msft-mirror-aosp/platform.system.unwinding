@@ -397,11 +397,11 @@ bool UnwinderFromPid::Init() {
 
   process_memory_ = Memory::CreateProcessMemoryCached(pid_);
 
-  jit_debug_ptr_.reset(new JitDebug(process_memory_));
+  jit_debug_ptr_ = CreateJitDebug(arch_, process_memory_);
   jit_debug_ = jit_debug_ptr_.get();
   SetJitDebug(jit_debug_);
 #if defined(DEXFILE_SUPPORT)
-  dex_files_ptr_.reset(new DexFiles(process_memory_));
+  dex_files_ptr_ = CreateDexFiles(arch_, process_memory_);
   dex_files_ = dex_files_ptr_.get();
   SetDexFiles(dex_files_);
 #endif
