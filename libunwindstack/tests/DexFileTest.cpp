@@ -34,7 +34,7 @@
 namespace unwindstack {
 
 TEST(DexFileTest, from_file_open_non_exist) {
-  EXPECT_TRUE(DexFileFromFile::Create(0, "/file/does/not/exist") == nullptr);
+  EXPECT_TRUE(DexFileFromFile::Create(0, 0, "/file/does/not/exist") == nullptr);
 }
 
 TEST(DexFileTest, from_file_open_too_small) {
@@ -44,13 +44,13 @@ TEST(DexFileTest, from_file_open_too_small) {
   ASSERT_EQ(size_t{10}, static_cast<size_t>(TEMP_FAILURE_RETRY(write(tf.fd, kDexData, 10))));
 
   // Header too small.
-  EXPECT_TRUE(DexFileFromFile::Create(0, tf.path) == nullptr);
+  EXPECT_TRUE(DexFileFromFile::Create(0, 0, tf.path) == nullptr);
 
   // Header correct, file too small.
   ASSERT_EQ(0, lseek(tf.fd, 0, SEEK_SET));
   ASSERT_EQ(sizeof(kDexData) - 1,
             static_cast<size_t>(TEMP_FAILURE_RETRY(write(tf.fd, kDexData, sizeof(kDexData) - 1))));
-  EXPECT_TRUE(DexFileFromFile::Create(0, tf.path) == nullptr);
+  EXPECT_TRUE(DexFileFromFile::Create(0, 0, tf.path) == nullptr);
 }
 
 TEST(DexFileTest, from_file_open) {
@@ -60,7 +60,7 @@ TEST(DexFileTest, from_file_open) {
   ASSERT_EQ(sizeof(kDexData),
             static_cast<size_t>(TEMP_FAILURE_RETRY(write(tf.fd, kDexData, sizeof(kDexData)))));
 
-  EXPECT_TRUE(DexFileFromFile::Create(0, tf.path) != nullptr);
+  EXPECT_TRUE(DexFileFromFile::Create(0, 0, tf.path) != nullptr);
 }
 
 TEST(DexFileTest, from_file_open_non_zero_offset) {
@@ -71,7 +71,7 @@ TEST(DexFileTest, from_file_open_non_zero_offset) {
   ASSERT_EQ(sizeof(kDexData),
             static_cast<size_t>(TEMP_FAILURE_RETRY(write(tf.fd, kDexData, sizeof(kDexData)))));
 
-  EXPECT_TRUE(DexFileFromFile::Create(0x100, tf.path) != nullptr);
+  EXPECT_TRUE(DexFileFromFile::Create(0, 0x100, tf.path) != nullptr);
 }
 
 static constexpr size_t kNumLeakLoops = 5000;
@@ -100,7 +100,7 @@ TEST(DexFileTest, from_file_no_leak) {
   size_t first_allocated_bytes = 0;
   size_t last_allocated_bytes = 0;
   for (size_t i = 0; i < kNumLeakLoops; i++) {
-    EXPECT_TRUE(DexFileFromFile::Create(0, tf.path) != nullptr);
+    EXPECT_TRUE(DexFileFromFile::Create(0, 0, tf.path) != nullptr);
     ASSERT_NO_FATAL_FAILURE(CheckForLeak(i, &first_allocated_bytes, &last_allocated_bytes));
   }
 }
@@ -260,11 +260,11 @@ TEST(DexFileTest, get_method) {
 
   std::string method;
   uint64_t method_offset;
-  ASSERT_TRUE(dex_file->GetMethodInformation(0x102, &method, &method_offset));
+  ASSERT_TRUE(dex_file->GetFunctionName(0x4102, &method, &method_offset));
   EXPECT_EQ("Main.<init>", method);
   EXPECT_EQ(2U, method_offset);
 
-  ASSERT_TRUE(dex_file->GetMethodInformation(0x118, &method, &method_offset));
+  ASSERT_TRUE(dex_file->GetFunctionName(0x4118, &method, &method_offset));
   EXPECT_EQ("Main.main", method);
   EXPECT_EQ(0U, method_offset);
 }
@@ -278,9 +278,9 @@ TEST(DexFileTest, get_method_empty) {
 
   std::string method;
   uint64_t method_offset;
-  EXPECT_FALSE(dex_file->GetMethodInformation(0x100000, &method, &method_offset));
+  EXPECT_FALSE(dex_file->GetFunctionName(0x100000, &method, &method_offset));
 
-  EXPECT_FALSE(dex_file->GetMethodInformation(0x98, &method, &method_offset));
+  EXPECT_FALSE(dex_file->GetFunctionName(0x98, &method, &method_offset));
 }
 
 }  // namespace unwindstack
