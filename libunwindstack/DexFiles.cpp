@@ -140,7 +140,7 @@ void DexFiles::Init(Maps* maps) {
 }
 
 #if defined(DEXFILE_SUPPORT)
-DexFile* DexFiles::GetDexFile(uint64_t dex_file_offset, MapInfo* info) {
+DexFile* DexFiles::Find(uint64_t dex_file_offset, MapInfo* info) {
   // Lock while processing the data.
   DexFile* dex_file;
   auto entry = files_.find(dex_file_offset);
@@ -154,7 +154,7 @@ DexFile* DexFiles::GetDexFile(uint64_t dex_file_offset, MapInfo* info) {
   return dex_file;
 }
 #else
-DexFile* DexFiles::GetDexFile(uint64_t, MapInfo*) {
+DexFile* DexFiles::Find(uint64_t, MapInfo*) {
   return nullptr;
 }
 #endif
@@ -186,7 +186,7 @@ void DexFiles::GetMethodInformation(Maps* maps, MapInfo* info, uint64_t dex_pc,
       continue;
     }
 
-    DexFile* dex_file = GetDexFile(addr, info);
+    DexFile* dex_file = Find(addr, info);
     if (dex_file != nullptr &&
         dex_file->GetMethodInformation(dex_pc - addr, method_name, method_offset)) {
       break;

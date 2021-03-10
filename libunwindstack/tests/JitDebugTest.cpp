@@ -242,20 +242,20 @@ void JitDebugTest::WriteEntry64(uint64_t addr, uint64_t prev, uint64_t next, uin
 }
 
 TEST_F(JitDebugTest, get_elf_invalid) {
-  Elf* elf = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf == nullptr);
 }
 
 TEST_F(JitDebugTest, get_elf_no_global_variable) {
   maps_.reset(new BufferMaps(""));
-  Elf* elf = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf == nullptr);
 }
 
 TEST_F(JitDebugTest, get_elf_no_valid_descriptor_in_memory) {
   CreateElf<Elf32_Ehdr, Elf32_Shdr>(0x4000, ELFCLASS32, EM_ARM, 0x1500, 0x200);
 
-  Elf* elf = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf == nullptr);
 }
 
@@ -264,7 +264,7 @@ TEST_F(JitDebugTest, get_elf_no_valid_code_entry) {
 
   WriteDescriptor32(0x11800, 0x200000);
 
-  Elf* elf = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf == nullptr);
 }
 
@@ -273,7 +273,7 @@ TEST_F(JitDebugTest, get_elf_invalid_descriptor_first_entry) {
 
   WriteDescriptor32(0x11800, 0);
 
-  Elf* elf = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf == nullptr);
 }
 
@@ -284,7 +284,7 @@ TEST_F(JitDebugTest, get_elf_invalid_descriptor_version) {
   // Set the version to an invalid value.
   memory_->SetData32(0x11800, 2);
 
-  Elf* elf = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf == nullptr);
 }
 
@@ -294,12 +294,12 @@ TEST_F(JitDebugTest, get_elf_32) {
   WriteDescriptor32(0x11800, 0x200000);
   WriteEntry32Pad(0x200000, 0, 0, 0x4000, 0x1000);
 
-  Elf* elf = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf != nullptr);
 
   // Clear the memory and verify all of the data is cached.
   memory_->Clear();
-  Elf* elf2 = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf2 = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf2 != nullptr);
   EXPECT_EQ(elf, elf2);
 }
@@ -313,16 +313,16 @@ TEST_F(JitDebugTest, get_multiple_jit_debug_descriptors_valid) {
   WriteDescriptor32(0x100800, 0x201000);
   WriteEntry32Pad(0x201000, 0, 0, 0x5000, 0x1000);
 
-  ASSERT_TRUE(jit_debug_->GetElf(maps_.get(), 0x1500) != nullptr);
-  ASSERT_TRUE(jit_debug_->GetElf(maps_.get(), 0x2000) == nullptr);
+  ASSERT_TRUE(jit_debug_->Find(maps_.get(), 0x1500) != nullptr);
+  ASSERT_TRUE(jit_debug_->Find(maps_.get(), 0x2000) == nullptr);
 
   // Now clear the descriptor entry for the first one.
   WriteDescriptor32(0x11800, 0);
   jit_debug_.reset(new JitDebug(process_memory_));
   jit_debug_->SetArch(ARCH_ARM);
 
-  ASSERT_TRUE(jit_debug_->GetElf(maps_.get(), 0x1500) == nullptr);
-  ASSERT_TRUE(jit_debug_->GetElf(maps_.get(), 0x2000) != nullptr);
+  ASSERT_TRUE(jit_debug_->Find(maps_.get(), 0x1500) == nullptr);
+  ASSERT_TRUE(jit_debug_->Find(maps_.get(), 0x2000) != nullptr);
 }
 
 TEST_F(JitDebugTest, get_elf_x86) {
@@ -334,12 +334,12 @@ TEST_F(JitDebugTest, get_elf_x86) {
   WriteEntry32Pack(0x200000, 0, 0, 0x4000, 0x1000);
 
   jit_debug_->SetArch(ARCH_X86);
-  Elf* elf = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf != nullptr);
 
   // Clear the memory and verify all of the data is cached.
   memory_->Clear();
-  Elf* elf2 = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf2 = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf2 != nullptr);
   EXPECT_EQ(elf, elf2);
 }
@@ -352,12 +352,12 @@ TEST_F(JitDebugTest, get_elf_64) {
   WriteDescriptor64(0x11800, 0x200000);
   WriteEntry64(0x200000, 0, 0, 0x4000, 0x1000);
 
-  Elf* elf = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf != nullptr);
 
   // Clear the memory and verify all of the data is cached.
   memory_->Clear();
-  Elf* elf2 = jit_debug_->GetElf(maps_.get(), 0x1500);
+  Elf* elf2 = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf2 != nullptr);
   EXPECT_EQ(elf, elf2);
 }
@@ -370,20 +370,20 @@ TEST_F(JitDebugTest, get_elf_multiple_entries) {
   WriteEntry32Pad(0x200000, 0, 0x200100, 0x4000, 0x1000);
   WriteEntry32Pad(0x200100, 0x200100, 0, 0x5000, 0x1000);
 
-  Elf* elf_2 = jit_debug_->GetElf(maps_.get(), 0x2400);
+  Elf* elf_2 = jit_debug_->Find(maps_.get(), 0x2400);
   ASSERT_TRUE(elf_2 != nullptr);
 
-  Elf* elf_1 = jit_debug_->GetElf(maps_.get(), 0x1600);
+  Elf* elf_1 = jit_debug_->Find(maps_.get(), 0x1600);
   ASSERT_TRUE(elf_1 != nullptr);
 
   // Clear the memory and verify all of the data is cached.
   memory_->Clear();
-  EXPECT_EQ(elf_1, jit_debug_->GetElf(maps_.get(), 0x1500));
-  EXPECT_EQ(elf_1, jit_debug_->GetElf(maps_.get(), 0x16ff));
-  EXPECT_EQ(elf_2, jit_debug_->GetElf(maps_.get(), 0x2300));
-  EXPECT_EQ(elf_2, jit_debug_->GetElf(maps_.get(), 0x26ff));
-  EXPECT_EQ(nullptr, jit_debug_->GetElf(maps_.get(), 0x1700));
-  EXPECT_EQ(nullptr, jit_debug_->GetElf(maps_.get(), 0x2700));
+  EXPECT_EQ(elf_1, jit_debug_->Find(maps_.get(), 0x1500));
+  EXPECT_EQ(elf_1, jit_debug_->Find(maps_.get(), 0x16ff));
+  EXPECT_EQ(elf_2, jit_debug_->Find(maps_.get(), 0x2300));
+  EXPECT_EQ(elf_2, jit_debug_->Find(maps_.get(), 0x26ff));
+  EXPECT_EQ(nullptr, jit_debug_->Find(maps_.get(), 0x1700));
+  EXPECT_EQ(nullptr, jit_debug_->Find(maps_.get(), 0x2700));
 }
 
 TEST_F(JitDebugTest, get_elf_search_libs) {
@@ -396,7 +396,7 @@ TEST_F(JitDebugTest, get_elf_search_libs) {
   std::vector<std::string> libs{"libart.so"};
   jit_debug_.reset(new JitDebug(process_memory_, libs));
   jit_debug_->SetArch(ARCH_ARM);
-  EXPECT_TRUE(jit_debug_->GetElf(maps_.get(), 0x1500) == nullptr);
+  EXPECT_TRUE(jit_debug_->Find(maps_.get(), 0x1500) == nullptr);
 
   // Change the name of the map that includes the value and verify this works.
   MapInfo* map_info = maps_->Get(5);
@@ -408,7 +408,7 @@ TEST_F(JitDebugTest, get_elf_search_libs) {
   // JitDebug object.
   libs.clear();
   jit_debug_->SetArch(ARCH_ARM);
-  EXPECT_TRUE(jit_debug_->GetElf(maps_.get(), 0x1500) != nullptr);
+  EXPECT_TRUE(jit_debug_->Find(maps_.get(), 0x1500) != nullptr);
 }
 
 }  // namespace unwindstack
