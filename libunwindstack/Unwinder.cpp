@@ -89,8 +89,7 @@ void Unwinder::FillInDexFrame() {
     return;
   }
 
-  dex_files_->GetMethodInformation(maps_, info, dex_pc, &frame->function_name,
-                                   &frame->function_offset);
+  dex_files_->GetFunctionName(maps_, info, dex_pc, &frame->function_name, &frame->function_offset);
 #endif
 }
 
@@ -193,7 +192,7 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
       // using the jit debug information.
       if (!elf->valid() && jit_debug_ != nullptr) {
         uint64_t adjusted_jit_pc = regs_->pc() - pc_adjustment;
-        Elf* jit_elf = jit_debug_->GetElf(maps_, adjusted_jit_pc);
+        Elf* jit_elf = jit_debug_->Find(maps_, adjusted_jit_pc);
         if (jit_elf != nullptr) {
           // The jit debug information requires a non relative adjusted pc.
           step_pc = adjusted_jit_pc;
@@ -398,11 +397,11 @@ bool UnwinderFromPid::Init() {
 
   process_memory_ = Memory::CreateProcessMemoryCached(pid_);
 
-  jit_debug_ptr_.reset(new JitDebug(process_memory_));
+  jit_debug_ptr_ = CreateJitDebug(arch_, process_memory_);
   jit_debug_ = jit_debug_ptr_.get();
   SetJitDebug(jit_debug_);
 #if defined(DEXFILE_SUPPORT)
-  dex_files_ptr_.reset(new DexFiles(process_memory_));
+  dex_files_ptr_ = CreateDexFiles(arch_, process_memory_);
   dex_files_ = dex_files_ptr_.get();
   SetDexFiles(dex_files_);
 #endif
@@ -443,7 +442,7 @@ FrameData Unwinder::BuildFrameFromPcOnly(uint64_t pc, ArchEnum arch, Maps* maps,
   // If we don't have a valid ELF file, check the JIT.
   if (!elf->valid() && jit_debug != nullptr) {
     uint64_t jit_pc = pc - pc_adjustment;
-    Elf* jit_elf = jit_debug->GetElf(maps, jit_pc);
+    Elf* jit_elf = jit_debug->Find(maps, jit_pc);
     if (jit_elf != nullptr) {
       debug_pc = jit_pc;
       elf = jit_elf;
