@@ -33,23 +33,27 @@ class DexFile : protected art_api::dex::DexFile {
  public:
   virtual ~DexFile() = default;
 
-  bool GetMethodInformation(uint64_t dex_offset, std::string* method_name, uint64_t* method_offset);
+  bool GetFunctionName(uint64_t dex_pc, std::string* method_name, uint64_t* method_offset);
 
   static std::unique_ptr<DexFile> Create(uint64_t dex_file_offset_in_memory, Memory* memory,
                                          MapInfo* info);
 
  protected:
-  DexFile(std::unique_ptr<art_api::dex::DexFile>& art_dex_file)
-      : art_api::dex::DexFile(art_dex_file) {}
+  DexFile(uint64_t base_addr, std::unique_ptr<art_api::dex::DexFile>& art_dex_file)
+      : art_api::dex::DexFile(art_dex_file), base_addr_(base_addr) {}
+
+  uint64_t base_addr_ = 0;  // Absolute address where this DEX file is in memory.
 };
 
 class DexFileFromFile : public DexFile {
  public:
-  static std::unique_ptr<DexFileFromFile> Create(uint64_t dex_file_offset_in_file,
+  static std::unique_ptr<DexFileFromFile> Create(uint64_t base_addr,
+                                                 uint64_t dex_file_offset_in_file,
                                                  const std::string& file);
 
  private:
-  DexFileFromFile(std::unique_ptr<art_api::dex::DexFile>& art_dex_file) : DexFile(art_dex_file) {}
+  DexFileFromFile(uint64_t base_addr, std::unique_ptr<art_api::dex::DexFile>& art_dex_file)
+      : DexFile(base_addr, art_dex_file) {}
 };
 
 class DexFileFromMemory : public DexFile {
@@ -59,9 +63,9 @@ class DexFileFromMemory : public DexFile {
                                                    size_t max_size);
 
  private:
-  DexFileFromMemory(std::unique_ptr<art_api::dex::DexFile>& art_dex_file,
+  DexFileFromMemory(uint64_t base_addr, std::unique_ptr<art_api::dex::DexFile>& art_dex_file,
                     std::vector<uint8_t>&& memory)
-      : DexFile(art_dex_file), memory_(std::move(memory)) {}
+      : DexFile(base_addr, art_dex_file), memory_(std::move(memory)) {}
 
   std::vector<uint8_t> memory_;
 };

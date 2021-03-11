@@ -27,6 +27,8 @@
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 
+#include "Check.h"
+
 #if defined(DEXFILE_SUPPORT)
 #include "DexFile.h"
 #endif
@@ -140,7 +142,7 @@ void DexFiles::Init(Maps* maps) {
 }
 
 #if defined(DEXFILE_SUPPORT)
-DexFile* DexFiles::GetDexFile(uint64_t dex_file_offset, MapInfo* info) {
+DexFile* DexFiles::Find(uint64_t dex_file_offset, MapInfo* info) {
   // Lock while processing the data.
   DexFile* dex_file;
   auto entry = files_.find(dex_file_offset);
@@ -154,7 +156,7 @@ DexFile* DexFiles::GetDexFile(uint64_t dex_file_offset, MapInfo* info) {
   return dex_file;
 }
 #else
-DexFile* DexFiles::GetDexFile(uint64_t, MapInfo*) {
+DexFile* DexFiles::Find(uint64_t, MapInfo*) {
   return nullptr;
 }
 #endif
@@ -172,8 +174,8 @@ bool DexFiles::GetAddr(size_t index, uint64_t* addr) {
 }
 
 #if defined(DEXFILE_SUPPORT)
-void DexFiles::GetMethodInformation(Maps* maps, MapInfo* info, uint64_t dex_pc,
-                                    std::string* method_name, uint64_t* method_offset) {
+void DexFiles::GetFunctionName(Maps* maps, MapInfo* info, uint64_t dex_pc, std::string* method_name,
+                               uint64_t* method_offset) {
   std::lock_guard<std::mutex> guard(lock_);
   if (!initialized_) {
     Init(maps);
@@ -186,15 +188,22 @@ void DexFiles::GetMethodInformation(Maps* maps, MapInfo* info, uint64_t dex_pc,
       continue;
     }
 
-    DexFile* dex_file = GetDexFile(addr, info);
-    if (dex_file != nullptr &&
-        dex_file->GetMethodInformation(dex_pc - addr, method_name, method_offset)) {
+    DexFile* dex_file = Find(addr, info);
+    if (dex_file != nullptr && dex_file->GetFunctionName(dex_pc, method_name, method_offset)) {
       break;
     }
   }
 }
 #else
-void DexFiles::GetMethodInformation(Maps*, MapInfo*, uint64_t, std::string*, uint64_t*) {}
+void DexFiles::GetFunctionName(Maps*, MapInfo*, uint64_t, std::string*, uint64_t*) {}
 #endif
+
+std::unique_ptr<DexFiles> CreateDexFiles(ArchEnum arch, std::shared_ptr<Memory>& memory,
+                                         std::vector<std::string> search_libs) {
+  CHECK(arch != ARCH_UNKNOWN);
+  std::unique_ptr<DexFiles> dex_files(new DexFiles(memory, search_libs));
+  dex_files->SetArch(arch);
+  return dex_files;
+}
 
 }  // namespace unwindstack
