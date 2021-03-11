@@ -24,6 +24,7 @@
 #include <unwindstack/JitDebug.h>
 #include <unwindstack/Maps.h>
 
+#include "Check.h"
 #include "MemoryRange.h"
 
 // This implements the JIT Compilation Interface.
@@ -181,7 +182,7 @@ void JitDebug::Init(Maps* maps) {
   FindAndReadVariable(maps, "__jit_debug_descriptor");
 }
 
-Elf* JitDebug::GetElf(Maps* maps, uint64_t pc) {
+Elf* JitDebug::Find(Maps* maps, uint64_t pc) {
   // Use a single lock, this object should be used so infrequently that
   // a fine grain lock is unnecessary.
   std::lock_guard<std::mutex> guard(lock_);
@@ -217,6 +218,14 @@ Elf* JitDebug::GetElf(Maps* maps, uint64_t pc) {
     }
   }
   return nullptr;
+}
+
+std::unique_ptr<JitDebug> CreateJitDebug(ArchEnum arch, std::shared_ptr<Memory>& memory,
+                                         std::vector<std::string> search_libs) {
+  CHECK(arch != ARCH_UNKNOWN);
+  std::unique_ptr<JitDebug> jit_debug(new JitDebug(memory, search_libs));
+  jit_debug->SetArch(arch);
+  return jit_debug;
 }
 
 }  // namespace unwindstack
