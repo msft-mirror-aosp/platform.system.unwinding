@@ -161,7 +161,7 @@ TEST_F(DexFilesTest, get_method_information_invalid) {
   uint64_t method_offset = 0x124;
   MapInfo* info = maps_->Get(kMapDexFileEntries);
 
-  dex_files_->GetMethodInformation(maps_.get(), info, 0, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0, &method_name, &method_offset);
   EXPECT_EQ("nothing", method_name);
   EXPECT_EQ(0x124U, method_offset);
 }
@@ -175,7 +175,7 @@ TEST_F(DexFilesTest, get_method_information_32) {
   WriteEntry32(0x200000, 0, 0, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 }
@@ -191,7 +191,7 @@ TEST_F(DexFilesTest, get_method_information_64) {
   WriteEntry64(0x200000, 0, 0, 0x301000);
   WriteDex(0x301000);
 
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x301102, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x301102, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(2U, method_offset);
 }
@@ -206,7 +206,7 @@ TEST_F(DexFilesTest, get_method_information_not_first_entry_32) {
   WriteEntry32(0x200100, 0, 0x200000, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x300104, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x300104, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(4U, method_offset);
 }
@@ -223,7 +223,7 @@ TEST_F(DexFilesTest, get_method_information_not_first_entry_64) {
   WriteEntry64(0x200100, 0, 0x200000, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x300106, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x300106, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(6U, method_offset);
 }
@@ -237,13 +237,13 @@ TEST_F(DexFilesTest, get_method_information_cached) {
   WriteEntry32(0x200000, 0, 0, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 
   // Clear all memory and make sure that data is acquired from the cache.
   memory_->Clear();
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 }
@@ -263,7 +263,7 @@ TEST_F(DexFilesTest, get_method_information_search_libs) {
   dex_files_.reset(new DexFiles(process_memory_, libs));
   dex_files_->SetArch(ARCH_ARM);
 
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x300104, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x300104, &method_name, &method_offset);
   EXPECT_EQ("nothing", method_name);
   EXPECT_EQ(0x124U, method_offset);
 
@@ -278,7 +278,7 @@ TEST_F(DexFilesTest, get_method_information_search_libs) {
   // DexFiles object.
   libs.clear();
 
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x300104, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x300104, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(4U, method_offset);
 }
@@ -295,7 +295,7 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_32) {
   WriteEntry32(0x200000, 0, 0, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 
@@ -305,7 +305,7 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_32) {
   method_name = "fail";
   method_offset = 0x123;
   WriteDescriptor32(0xc800, 0x100000);
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
   EXPECT_EQ("fail", method_name);
   EXPECT_EQ(0x123U, method_offset);
 }
@@ -324,7 +324,7 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_64) {
   WriteEntry64(0x200000, 0, 0, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 
@@ -334,7 +334,7 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_64) {
   method_name = "fail";
   method_offset = 0x123;
   WriteDescriptor64(0xc800, 0x100000);
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
   EXPECT_EQ("fail", method_name);
   EXPECT_EQ(0x123U, method_offset);
 }
@@ -348,7 +348,7 @@ TEST_F(DexFilesTest, get_method_information_with_empty_map) {
   WriteEntry32(0x506000, 0, 0, 0x510000);
   WriteDex(0x510000);
 
-  dex_files_->GetMethodInformation(maps_.get(), info, 0x510100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), info, 0x510100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 }

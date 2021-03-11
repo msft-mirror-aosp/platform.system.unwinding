@@ -42,10 +42,10 @@ class DexFiles : public Global {
   DexFiles(std::shared_ptr<Memory>& memory, std::vector<std::string>& search_libs);
   virtual ~DexFiles();
 
-  DexFile* GetDexFile(uint64_t dex_file_offset, MapInfo* info);
+  DexFile* Find(uint64_t dex_file_offset, MapInfo* info);
 
-  void GetMethodInformation(Maps* maps, MapInfo* info, uint64_t dex_pc, std::string* method_name,
-                            uint64_t* method_offset);
+  void GetFunctionName(Maps* maps, MapInfo* info, uint64_t dex_pc, std::string* method_name,
+                       uint64_t* method_offset);
 
  private:
   void Init(Maps* maps);
@@ -73,6 +73,9 @@ class DexFiles : public Global {
   bool (DexFiles::*read_entry_func_)() = nullptr;
   std::vector<uint64_t> addrs_;
 };
+
+std::unique_ptr<DexFiles> CreateDexFiles(ArchEnum arch, std::shared_ptr<Memory>& memory,
+                                         std::vector<std::string> search_libs = {});
 
 }  // namespace unwindstack
 
