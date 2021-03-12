@@ -20,59 +20,17 @@
 #include <stdint.h>
 
 #include <memory>
-#include <mutex>
-#include <string>
-#include <unordered_map>
 #include <vector>
 
-#include <unwindstack/Global.h>
-#include <unwindstack/Memory.h>
+#include <GlobalDebugInterface.h>
 
 namespace unwindstack {
 
-// Forward declarations.
-class DexFile;
-class Maps;
-struct MapInfo;
 enum ArchEnum : uint8_t;
+class DexFile;
+class Memory;
 
-class DexFiles : public Global {
- public:
-  explicit DexFiles(std::shared_ptr<Memory>& memory);
-  DexFiles(std::shared_ptr<Memory>& memory, std::vector<std::string>& search_libs);
-  virtual ~DexFiles();
-
-  DexFile* Find(uint64_t dex_file_offset, MapInfo* info);
-
-  void GetFunctionName(Maps* maps, MapInfo* info, uint64_t dex_pc, std::string* method_name,
-                       uint64_t* method_offset);
-
- private:
-  void Init(Maps* maps);
-
-  bool GetAddr(size_t index, uint64_t* addr);
-
-  uint64_t ReadEntryPtr32(uint64_t addr);
-
-  uint64_t ReadEntryPtr64(uint64_t addr);
-
-  bool ReadEntry32();
-
-  bool ReadEntry64();
-
-  bool ReadVariableData(uint64_t ptr_offset) override;
-
-  void ProcessArch() override;
-
-  std::mutex lock_;
-  bool initialized_ = false;
-  std::unordered_map<uint64_t, std::unique_ptr<DexFile>> files_;
-
-  uint64_t entry_addr_ = 0;
-  uint64_t (DexFiles::*read_entry_ptr_func_)(uint64_t) = nullptr;
-  bool (DexFiles::*read_entry_func_)() = nullptr;
-  std::vector<uint64_t> addrs_;
-};
+using DexFiles = GlobalDebugInterface<DexFile>;
 
 std::unique_ptr<DexFiles> CreateDexFiles(ArchEnum arch, std::shared_ptr<Memory>& memory,
                                          std::vector<std::string> search_libs = {});
