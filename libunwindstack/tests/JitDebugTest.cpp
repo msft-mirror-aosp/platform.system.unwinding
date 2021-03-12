@@ -97,7 +97,7 @@ class JitDebugTest : public ::testing::Test {
     ehdr.e_shstrndx = 1;
     ehdr.e_shoff = sh_offset;
     ehdr.e_shentsize = sizeof(ShdrType);
-    ehdr.e_shnum = 3;
+    ehdr.e_shnum = 4;
     memory_->SetMemory(offset, &ehdr, sizeof(ehdr));
 
     ShdrType shdr;
@@ -113,6 +113,7 @@ class JitDebugTest : public ::testing::Test {
     shdr.sh_size = 0x100;
     memory_->SetMemory(offset + sh_offset, &shdr, sizeof(shdr));
     memory_->SetMemory(offset + 0x500, ".debug_frame");
+    memory_->SetMemory(offset + 0x550, ".text");
 
     sh_offset += sizeof(shdr);
     memset(&shdr, 0, sizeof(shdr));
@@ -121,6 +122,15 @@ class JitDebugTest : public ::testing::Test {
     shdr.sh_addr = 0x600;
     shdr.sh_offset = 0x600;
     shdr.sh_size = 0x200;
+    memory_->SetMemory(offset + sh_offset, &shdr, sizeof(shdr));
+
+    sh_offset += sizeof(shdr);
+    memset(&shdr, 0, sizeof(shdr));
+    shdr.sh_type = SHT_NOBITS;
+    shdr.sh_name = 0x50;
+    shdr.sh_addr = pc;
+    shdr.sh_offset = 0;
+    shdr.sh_size = size;
     memory_->SetMemory(offset + sh_offset, &shdr, sizeof(shdr));
 
     // Now add a single cie/fde.
@@ -295,6 +305,11 @@ TEST_F(JitDebugTest, get_elf_32) {
 
   Elf* elf = jit_debug_->Find(maps_.get(), 0x1500);
   ASSERT_TRUE(elf != nullptr);
+  uint64_t text_addr;
+  uint64_t text_size;
+  ASSERT_TRUE(elf->GetTextRange(&text_addr, &text_size));
+  ASSERT_EQ(text_addr, 0x1500u);
+  ASSERT_EQ(text_size, 0x200u);
 
   // Clear the memory and verify all of the data is cached.
   memory_->Clear();
