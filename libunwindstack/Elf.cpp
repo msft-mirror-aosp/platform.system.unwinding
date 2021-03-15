@@ -157,6 +157,9 @@ std::string Elf::GetBuildID() {
 void Elf::GetLastError(ErrorData* data) {
   if (valid_) {
     *data = interface_->last_error();
+  } else {
+    data->code = ERROR_INVALID_ELF;
+    data->address = 0;
   }
 }
 
@@ -248,6 +251,24 @@ bool Elf::IsValidPc(uint64_t pc) {
   }
 
   if (gnu_debugdata_interface_ != nullptr && gnu_debugdata_interface_->IsValidPc(pc)) {
+    return true;
+  }
+
+  return false;
+}
+
+bool Elf::GetTextRange(uint64_t* addr, uint64_t* size) {
+  if (!valid_) {
+    return false;
+  }
+
+  if (interface_->GetTextRange(addr, size)) {
+    *addr += load_bias_;
+    return true;
+  }
+
+  if (gnu_debugdata_interface_ != nullptr && gnu_debugdata_interface_->GetTextRange(addr, size)) {
+    *addr += load_bias_;
     return true;
   }
 
