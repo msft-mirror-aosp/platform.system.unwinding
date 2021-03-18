@@ -41,6 +41,7 @@ enum ErrorCode : uint8_t {
                                 // not exist.
   ERROR_THREAD_TIMEOUT,         // Timeout trying to unwind a local thread.
   ERROR_SYSTEM_CALL,            // System call failed while unwinding.
+  ERROR_MAX = ERROR_SYSTEM_CALL,
 };
 
 static inline const char* GetErrorCodeString(ErrorCode error) {
