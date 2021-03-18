@@ -365,8 +365,6 @@ std::string Unwinder::FormatFrame(size_t frame_num) const {
 }
 
 void Unwinder::SetJitDebug(JitDebug* jit_debug) {
-  CHECK(arch_ != ARCH_UNKNOWN);
-  jit_debug->SetArch(arch_);
   jit_debug_ = jit_debug;
 }
 
