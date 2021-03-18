@@ -72,7 +72,7 @@ void PrintRegInformation(DwarfSection* section, Memory* memory, uint64_t pc, uin
     return;
   }
 
-  dwarf_loc_regs_t regs;
+  DwarfLocations regs;
   if (!section->GetCfaLocationInfo(pc, fde, &regs, arch)) {
     printf("  Cannot get location information.\n");
     return;

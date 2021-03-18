@@ -41,7 +41,7 @@ constexpr typename DwarfCfa<AddressType>::process_func DwarfCfa<AddressType>::kC
 
 template <typename AddressType>
 bool DwarfCfa<AddressType>::GetLocationInfo(uint64_t pc, uint64_t start_offset, uint64_t end_offset,
-                                            dwarf_loc_regs_t* loc_regs) {
+                                            DwarfLocations* loc_regs) {
   if (cie_loc_regs_ != nullptr) {
     for (const auto& entry : *cie_loc_regs_) {
       (*loc_regs)[entry.first] = entry.second;
@@ -320,12 +320,12 @@ bool DwarfCfa<AddressType>::Log(uint32_t indent, uint64_t pc, uint64_t start_off
 
 // Static data.
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_nop(dwarf_loc_regs_t*) {
+bool DwarfCfa<AddressType>::cfa_nop(DwarfLocations*) {
   return true;
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_set_loc(dwarf_loc_regs_t*) {
+bool DwarfCfa<AddressType>::cfa_set_loc(DwarfLocations*) {
   AddressType cur_pc = cur_pc_;
   AddressType new_pc = operands_[0];
   if (new_pc < cur_pc) {
@@ -340,20 +340,20 @@ bool DwarfCfa<AddressType>::cfa_set_loc(dwarf_loc_regs_t*) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_advance_loc(dwarf_loc_regs_t*) {
+bool DwarfCfa<AddressType>::cfa_advance_loc(DwarfLocations*) {
   cur_pc_ += operands_[0] * fde_->cie->code_alignment_factor;
   return true;
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_offset(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_offset(DwarfLocations* loc_regs) {
   AddressType reg = operands_[0];
   (*loc_regs)[reg] = {.type = DWARF_LOCATION_OFFSET, .values = {operands_[1]}};
   return true;
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_restore(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_restore(DwarfLocations* loc_regs) {
   AddressType reg = operands_[0];
   if (cie_loc_regs_ == nullptr) {
     log(0, "restore while processing cie");
@@ -370,21 +370,21 @@ bool DwarfCfa<AddressType>::cfa_restore(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_undefined(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_undefined(DwarfLocations* loc_regs) {
   AddressType reg = operands_[0];
   (*loc_regs)[reg] = {.type = DWARF_LOCATION_UNDEFINED};
   return true;
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_same_value(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_same_value(DwarfLocations* loc_regs) {
   AddressType reg = operands_[0];
   loc_regs->erase(reg);
   return true;
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_register(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_register(DwarfLocations* loc_regs) {
   AddressType reg = operands_[0];
   AddressType reg_dst = operands_[1];
   (*loc_regs)[reg] = {.type = DWARF_LOCATION_REGISTER, .values = {reg_dst}};
@@ -392,13 +392,13 @@ bool DwarfCfa<AddressType>::cfa_register(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_remember_state(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_remember_state(DwarfLocations* loc_regs) {
   loc_reg_state_.push(*loc_regs);
   return true;
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_restore_state(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_restore_state(DwarfLocations* loc_regs) {
   if (loc_reg_state_.size() == 0) {
     log(0, "Warning: Attempt to restore without remember.");
     return true;
@@ -409,13 +409,13 @@ bool DwarfCfa<AddressType>::cfa_restore_state(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_def_cfa(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_def_cfa(DwarfLocations* loc_regs) {
   (*loc_regs)[CFA_REG] = {.type = DWARF_LOCATION_REGISTER, .values = {operands_[0], operands_[1]}};
   return true;
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_def_cfa_register(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_def_cfa_register(DwarfLocations* loc_regs) {
   auto cfa_location = loc_regs->find(CFA_REG);
   if (cfa_location == loc_regs->end() || cfa_location->second.type != DWARF_LOCATION_REGISTER) {
     log(0, "Attempt to set new register, but cfa is not already set to a register.");
@@ -428,7 +428,7 @@ bool DwarfCfa<AddressType>::cfa_def_cfa_register(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_def_cfa_offset(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_def_cfa_offset(DwarfLocations* loc_regs) {
   // Changing the offset if this is not a register is illegal.
   auto cfa_location = loc_regs->find(CFA_REG);
   if (cfa_location == loc_regs->end() || cfa_location->second.type != DWARF_LOCATION_REGISTER) {
@@ -441,7 +441,7 @@ bool DwarfCfa<AddressType>::cfa_def_cfa_offset(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_def_cfa_expression(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_def_cfa_expression(DwarfLocations* loc_regs) {
   // There is only one type of expression for CFA evaluation and the DWARF
   // specification is unclear whether it returns the address or the
   // dereferenced value. GDB expects the value, so will we.
@@ -451,7 +451,7 @@ bool DwarfCfa<AddressType>::cfa_def_cfa_expression(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_expression(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_expression(DwarfLocations* loc_regs) {
   AddressType reg = operands_[0];
   (*loc_regs)[reg] = {.type = DWARF_LOCATION_EXPRESSION,
                       .values = {operands_[1], memory_->cur_offset()}};
@@ -459,7 +459,7 @@ bool DwarfCfa<AddressType>::cfa_expression(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_offset_extended_sf(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_offset_extended_sf(DwarfLocations* loc_regs) {
   AddressType reg = operands_[0];
   SignedType value = static_cast<SignedType>(operands_[1]) * fde_->cie->data_alignment_factor;
   (*loc_regs)[reg] = {.type = DWARF_LOCATION_OFFSET, .values = {static_cast<uint64_t>(value)}};
@@ -467,7 +467,7 @@ bool DwarfCfa<AddressType>::cfa_offset_extended_sf(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_def_cfa_sf(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_def_cfa_sf(DwarfLocations* loc_regs) {
   SignedType offset = static_cast<SignedType>(operands_[1]) * fde_->cie->data_alignment_factor;
   (*loc_regs)[CFA_REG] = {.type = DWARF_LOCATION_REGISTER,
                           .values = {operands_[0], static_cast<uint64_t>(offset)}};
@@ -475,7 +475,7 @@ bool DwarfCfa<AddressType>::cfa_def_cfa_sf(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_def_cfa_offset_sf(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_def_cfa_offset_sf(DwarfLocations* loc_regs) {
   // Changing the offset if this is not a register is illegal.
   auto cfa_location = loc_regs->find(CFA_REG);
   if (cfa_location == loc_regs->end() || cfa_location->second.type != DWARF_LOCATION_REGISTER) {
@@ -489,7 +489,7 @@ bool DwarfCfa<AddressType>::cfa_def_cfa_offset_sf(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_val_offset(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_val_offset(DwarfLocations* loc_regs) {
   AddressType reg = operands_[0];
   SignedType offset = static_cast<SignedType>(operands_[1]) * fde_->cie->data_alignment_factor;
   (*loc_regs)[reg] = {.type = DWARF_LOCATION_VAL_OFFSET, .values = {static_cast<uint64_t>(offset)}};
@@ -497,7 +497,7 @@ bool DwarfCfa<AddressType>::cfa_val_offset(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_val_offset_sf(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_val_offset_sf(DwarfLocations* loc_regs) {
   AddressType reg = operands_[0];
   SignedType offset = static_cast<SignedType>(operands_[1]) * fde_->cie->data_alignment_factor;
   (*loc_regs)[reg] = {.type = DWARF_LOCATION_VAL_OFFSET, .values = {static_cast<uint64_t>(offset)}};
@@ -505,7 +505,7 @@ bool DwarfCfa<AddressType>::cfa_val_offset_sf(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_val_expression(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_val_expression(DwarfLocations* loc_regs) {
   AddressType reg = operands_[0];
   (*loc_regs)[reg] = {.type = DWARF_LOCATION_VAL_EXPRESSION,
                       .values = {operands_[1], memory_->cur_offset()}};
@@ -513,7 +513,7 @@ bool DwarfCfa<AddressType>::cfa_val_expression(dwarf_loc_regs_t* loc_regs) {
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_gnu_negative_offset_extended(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_gnu_negative_offset_extended(DwarfLocations* loc_regs) {
   AddressType reg = operands_[0];
   SignedType offset = -static_cast<SignedType>(operands_[1]);
   (*loc_regs)[reg] = {.type = DWARF_LOCATION_OFFSET, .values = {static_cast<uint64_t>(offset)}};
@@ -521,7 +521,7 @@ bool DwarfCfa<AddressType>::cfa_gnu_negative_offset_extended(dwarf_loc_regs_t* l
 }
 
 template <typename AddressType>
-bool DwarfCfa<AddressType>::cfa_aarch64_negate_ra_state(dwarf_loc_regs_t* loc_regs) {
+bool DwarfCfa<AddressType>::cfa_aarch64_negate_ra_state(DwarfLocations* loc_regs) {
   // Only supported on aarch64.
   if (arch_ != ARCH_ARM64) {
     last_error_.code = DWARF_ERROR_ILLEGAL_VALUE;
