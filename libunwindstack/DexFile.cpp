@@ -121,27 +121,28 @@ std::unique_ptr<DexFileFromMemory> DexFileFromMemory::Create(uint64_t dex_file_o
   std::vector<uint8_t> backing_memory;
 
   for (size_t size = 0;;) {
+    const size_t old_size = size;  // The call below may increase the size.
     std::string error_msg;
     std::unique_ptr<art_api::dex::DexFile> art_dex_file =
         OpenFromMemory(backing_memory.data(), &size, name, &error_msg);
     if (size > max_size) {
       return nullptr;
     }
+    if (size > old_size) {
+      // Read more memory and retry.
+      backing_memory.resize(size);
+      if (!memory->ReadFully(dex_file_offset_in_memory, backing_memory.data(),
+                             backing_memory.size())) {
+        return nullptr;
+      }
+      continue;
+    }
 
     if (art_dex_file != nullptr) {
       return std::unique_ptr<DexFileFromMemory>(new DexFileFromMemory(
           dex_file_offset_in_memory, art_dex_file, std::move(backing_memory)));
     }
-
-    if (!error_msg.empty()) {
-      return nullptr;
-    }
-
-    backing_memory.resize(size);
-    if (!memory->ReadFully(dex_file_offset_in_memory, backing_memory.data(),
-                           backing_memory.size())) {
-      return nullptr;
-    }
+    return nullptr;
   }
 }
 
