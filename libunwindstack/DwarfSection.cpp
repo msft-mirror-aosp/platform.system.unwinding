@@ -50,7 +50,7 @@ bool DwarfSection::Step(uint64_t pc, Regs* regs, Memory* process_memory, bool* f
     }
 
     // Now get the location information for this pc.
-    dwarf_loc_regs_t loc_regs;
+    DwarfLocations loc_regs;
     if (!GetCfaLocationInfo(pc, fde, &loc_regs, regs->Arch())) {
       return false;
     }
@@ -412,7 +412,7 @@ bool DwarfSectionImpl<AddressType>::EvalExpression(const DwarfLocation& loc, Mem
 
 template <typename AddressType>
 struct EvalInfo {
-  const dwarf_loc_regs_t* loc_regs;
+  const DwarfLocations* loc_regs;
   const DwarfCie* cie;
   Memory* regular_memory;
   AddressType cfa;
@@ -483,7 +483,7 @@ bool DwarfSectionImpl<AddressType>::EvalRegister(const DwarfLocation* loc, uint3
 
 template <typename AddressType>
 bool DwarfSectionImpl<AddressType>::Eval(const DwarfCie* cie, Memory* regular_memory,
-                                         const dwarf_loc_regs_t& loc_regs, Regs* regs,
+                                         const DwarfLocations& loc_regs, Regs* regs,
                                          bool* finished) {
   RegsImpl<AddressType>* cur_regs = reinterpret_cast<RegsImpl<AddressType>*>(regs);
   if (cie->return_address_register >= cur_regs->total_regs()) {
@@ -576,7 +576,7 @@ bool DwarfSectionImpl<AddressType>::Eval(const DwarfCie* cie, Memory* regular_me
 
 template <typename AddressType>
 bool DwarfSectionImpl<AddressType>::GetCfaLocationInfo(uint64_t pc, const DwarfFde* fde,
-                                                       dwarf_loc_regs_t* loc_regs, ArchEnum arch) {
+                                                       DwarfLocations* loc_regs, ArchEnum arch) {
   DwarfCfa<AddressType> cfa(&memory_, fde, arch);
 
   // Look for the cached copy of the cie data.
