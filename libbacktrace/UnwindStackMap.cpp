@@ -49,16 +49,20 @@ bool UnwindStackMap::Build() {
     } else {
       // Create a remote regs, to figure out the architecture.
       std::unique_ptr<unwindstack::Regs> regs(unwindstack::Regs::RemoteGet(pid_));
-      arch_ = regs->Arch();
+      if (regs.get() != nullptr) {
+        arch_ = regs->Arch();
+      }
     }
   }
 
   // Create a JitDebug object for getting jit unwind information.
-  std::vector<std::string> search_libs_{"libart.so", "libartd.so"};
-  jit_debug_ = CreateJitDebug(arch_, process_memory_, search_libs_);
+  if (arch_ != unwindstack::ARCH_UNKNOWN) {
+    std::vector<std::string> search_libs_{"libart.so", "libartd.so"};
+    jit_debug_ = CreateJitDebug(arch_, process_memory_, search_libs_);
 #if !defined(NO_LIBDEXFILE_SUPPORT)
-  dex_files_ = CreateDexFiles(arch_, process_memory_, search_libs_);
+    dex_files_ = CreateDexFiles(arch_, process_memory_, search_libs_);
 #endif
+  }
 
   if (!stack_maps_->Parse()) {
     return false;
