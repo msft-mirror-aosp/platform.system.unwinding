@@ -89,7 +89,7 @@ class DwarfSection {
 
   virtual bool Init(uint64_t offset, uint64_t size, int64_t section_bias) = 0;
 
-  virtual bool Eval(const DwarfCie*, Memory*, const dwarf_loc_regs_t&, Regs*, bool*) = 0;
+  virtual bool Eval(const DwarfCie*, Memory*, const DwarfLocations&, Regs*, bool*) = 0;
 
   virtual bool Log(uint8_t indent, uint64_t pc, const DwarfFde* fde, ArchEnum arch) = 0;
 
@@ -97,7 +97,7 @@ class DwarfSection {
 
   virtual const DwarfFde* GetFdeFromPc(uint64_t pc) = 0;
 
-  virtual bool GetCfaLocationInfo(uint64_t pc, const DwarfFde* fde, dwarf_loc_regs_t* loc_regs,
+  virtual bool GetCfaLocationInfo(uint64_t pc, const DwarfFde* fde, DwarfLocations* loc_regs,
                                   ArchEnum arch) = 0;
 
   virtual uint64_t GetCieOffsetFromFde32(uint32_t pointer) = 0;
@@ -117,8 +117,8 @@ class DwarfSection {
 
   std::unordered_map<uint64_t, DwarfFde> fde_entries_;
   std::unordered_map<uint64_t, DwarfCie> cie_entries_;
-  std::unordered_map<uint64_t, dwarf_loc_regs_t> cie_loc_regs_;
-  std::map<uint64_t, dwarf_loc_regs_t> loc_regs_;  // Single row indexed by pc_end.
+  std::unordered_map<uint64_t, DwarfLocations> cie_loc_regs_;
+  std::map<uint64_t, DwarfLocations> loc_regs_;  // Single row indexed by pc_end.
 };
 
 template <typename AddressType>
@@ -139,10 +139,10 @@ class DwarfSectionImpl : public DwarfSection {
 
   bool EvalRegister(const DwarfLocation* loc, uint32_t reg, AddressType* reg_ptr, void* info);
 
-  bool Eval(const DwarfCie* cie, Memory* regular_memory, const dwarf_loc_regs_t& loc_regs,
-            Regs* regs, bool* finished) override;
+  bool Eval(const DwarfCie* cie, Memory* regular_memory, const DwarfLocations& loc_regs, Regs* regs,
+            bool* finished) override;
 
-  bool GetCfaLocationInfo(uint64_t pc, const DwarfFde* fde, dwarf_loc_regs_t* loc_regs,
+  bool GetCfaLocationInfo(uint64_t pc, const DwarfFde* fde, DwarfLocations* loc_regs,
                           ArchEnum arch) override;
 
   bool Log(uint8_t indent, uint64_t pc, const DwarfFde* fde, ArchEnum arch) override;

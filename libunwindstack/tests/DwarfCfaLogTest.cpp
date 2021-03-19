@@ -313,7 +313,7 @@ TYPED_TEST_P(DwarfCfaLogTest, cfa_undefined) {
   ASSERT_EQ("", GetFakeLogBuf());
 
   ResetLogs();
-  dwarf_loc_regs_t cie_loc_regs;
+  DwarfLocations cie_loc_regs;
   this->memory_.SetMemory(0x1a00, std::vector<uint8_t>{0x07, 0x81, 0x01});
 
   ASSERT_TRUE(this->cfa_->Log(0, this->fde_.pc_start, 0x1a00, 0x1a03));
