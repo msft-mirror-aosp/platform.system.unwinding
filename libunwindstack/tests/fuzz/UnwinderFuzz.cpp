@@ -81,7 +81,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
   size_t max_frames = data_provider.ConsumeIntegralInRange<size_t>(0, 5000);
 
-  std::unique_ptr<JitDebug> jit_debug_ptr = std::make_unique<JitDebug>(memory);
+  std::unique_ptr<JitDebug> jit_debug_ptr = CreateJitDebug(arch, memory);
 
   // Create instance
   Unwinder unwinder(max_frames, maps.get(), regs.get(), memory);
