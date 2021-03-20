@@ -34,7 +34,7 @@ class MockDwarfSection : public DwarfSection {
 
   MOCK_METHOD(bool, Init, (uint64_t, uint64_t, int64_t), (override));
 
-  MOCK_METHOD(bool, Eval, (const DwarfCie*, Memory*, const dwarf_loc_regs_t&, Regs*, bool*),
+  MOCK_METHOD(bool, Eval, (const DwarfCie*, Memory*, const DwarfLocations&, Regs*, bool*),
               (override));
 
   MOCK_METHOD(bool, Log, (uint8_t, uint64_t, const DwarfFde*, ArchEnum arch), (override));
@@ -43,8 +43,8 @@ class MockDwarfSection : public DwarfSection {
 
   MOCK_METHOD(const DwarfFde*, GetFdeFromPc, (uint64_t), (override));
 
-  MOCK_METHOD(bool, GetCfaLocationInfo,
-              (uint64_t, const DwarfFde*, dwarf_loc_regs_t*, ArchEnum arch), (override));
+  MOCK_METHOD(bool, GetCfaLocationInfo, (uint64_t, const DwarfFde*, DwarfLocations*, ArchEnum arch),
+              (override));
 
   MOCK_METHOD(uint64_t, GetCieOffsetFromFde32, (uint32_t), (override));
 
@@ -118,8 +118,8 @@ TEST_F(DwarfSectionTest, Step_pass) {
   ASSERT_TRUE(section_->Step(0x1000, &regs_, &process, &finished, &is_signal_frame));
 }
 
-static bool MockGetCfaLocationInfo(::testing::Unused, const DwarfFde* fde,
-                                   dwarf_loc_regs_t* loc_regs, ArchEnum) {
+static bool MockGetCfaLocationInfo(::testing::Unused, const DwarfFde* fde, DwarfLocations* loc_regs,
+                                   ArchEnum) {
   loc_regs->pc_start = fde->pc_start;
   loc_regs->pc_end = fde->pc_end;
   return true;
