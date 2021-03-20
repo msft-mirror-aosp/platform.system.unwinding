@@ -77,7 +77,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_illegal) {
       continue;
     }
     this->memory_.SetMemory(0x2000, std::vector<uint8_t>{i});
-    dwarf_loc_regs_t loc_regs;
+    DwarfLocations loc_regs;
 
     ASSERT_FALSE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x2000, 0x2001, &loc_regs));
     ASSERT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->cfa_->LastErrorCode());
@@ -90,7 +90,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_illegal) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_nop) {
   this->memory_.SetMemory(0x2000, std::vector<uint8_t>{0x00});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x2000, 0x2001, &loc_regs));
   ASSERT_EQ(0x2001U, this->dmem_->cur_offset());
@@ -103,7 +103,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_nop) {
 // This test needs to be examined.
 TYPED_TEST_P(DwarfCfaTest, cfa_offset) {
   this->memory_.SetMemory(0x2000, std::vector<uint8_t>{0x83, 0x04});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x2000, 0x2002, &loc_regs));
   ASSERT_EQ(0x2002U, this->dmem_->cur_offset());
@@ -134,7 +134,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_offset) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_offset_extended) {
   this->memory_.SetMemory(0x500, std::vector<uint8_t>{0x05, 0x03, 0x02});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x500, 0x503, &loc_regs));
   ASSERT_EQ(0x503U, this->dmem_->cur_offset());
@@ -165,7 +165,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_offset_extended) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_offset_extended_sf) {
   this->memory_.SetMemory(0x500, std::vector<uint8_t>{0x11, 0x05, 0x10});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x500, 0x503, &loc_regs));
   ASSERT_EQ(0x503U, this->dmem_->cur_offset());
@@ -197,7 +197,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_offset_extended_sf) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_restore) {
   this->memory_.SetMemory(0x2000, std::vector<uint8_t>{0xc2});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_FALSE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x2000, 0x2001, &loc_regs));
   ASSERT_EQ(DWARF_ERROR_ILLEGAL_STATE, this->cfa_->LastErrorCode());
@@ -208,7 +208,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_restore) {
   ASSERT_EQ("", GetFakeLogBuf());
 
   ResetLogs();
-  dwarf_loc_regs_t cie_loc_regs;
+  DwarfLocations cie_loc_regs;
   cie_loc_regs[2] = {.type = DWARF_LOCATION_REGISTER, .values = {0, 0}};
   this->cfa_->set_cie_loc_regs(&cie_loc_regs);
   this->memory_.SetMemory(0x3000, std::vector<uint8_t>{0x82, 0x04, 0xc2});
@@ -226,7 +226,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_restore) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_restore_extended) {
   this->memory_.SetMemory(0x4000, std::vector<uint8_t>{0x06, 0x08});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_FALSE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x4000, 0x4002, &loc_regs));
   ASSERT_EQ(DWARF_ERROR_ILLEGAL_STATE, this->cfa_->LastErrorCode());
@@ -239,7 +239,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_restore_extended) {
   ResetLogs();
   loc_regs.clear();
   this->memory_.SetMemory(0x5000, std::vector<uint8_t>{0x05, 0x82, 0x02, 0x04, 0x06, 0x82, 0x02});
-  dwarf_loc_regs_t cie_loc_regs;
+  DwarfLocations cie_loc_regs;
   cie_loc_regs[258] = {.type = DWARF_LOCATION_REGISTER, .values = {0, 0}};
   this->cfa_->set_cie_loc_regs(&cie_loc_regs);
 
@@ -273,7 +273,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_set_loc) {
 
   this->memory_.SetMemory(0x50, buffer, sizeof(buffer));
   ResetLogs();
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
   ASSERT_TRUE(
       this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x50, 0x51 + sizeof(TypeParam), &loc_regs));
   ASSERT_EQ(0x51 + sizeof(TypeParam), this->dmem_->cur_offset());
@@ -303,7 +303,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_set_loc) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_advance_loc1) {
   this->memory_.SetMemory(0x200, std::vector<uint8_t>{0x02, 0x04});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x200, 0x202, &loc_regs));
   ASSERT_EQ(0x202U, this->dmem_->cur_offset());
@@ -316,7 +316,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_advance_loc1) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_advance_loc2) {
   this->memory_.SetMemory(0x600, std::vector<uint8_t>{0x03, 0x04, 0x03});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x600, 0x603, &loc_regs));
   ASSERT_EQ(0x603U, this->dmem_->cur_offset());
@@ -329,7 +329,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_advance_loc2) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_advance_loc4) {
   this->memory_.SetMemory(0x500, std::vector<uint8_t>{0x04, 0x04, 0x03, 0x02, 0x01});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x500, 0x505, &loc_regs));
   ASSERT_EQ(0x505U, this->dmem_->cur_offset());
@@ -342,7 +342,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_advance_loc4) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_undefined) {
   this->memory_.SetMemory(0xa00, std::vector<uint8_t>{0x07, 0x09});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0xa00, 0xa02, &loc_regs));
   ASSERT_EQ(0xa02U, this->dmem_->cur_offset());
@@ -371,7 +371,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_undefined) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_same) {
   this->memory_.SetMemory(0x100, std::vector<uint8_t>{0x08, 0x7f});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   loc_regs[127] = {.type = DWARF_LOCATION_REGISTER, .values = {0, 0}};
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x102, &loc_regs));
@@ -398,7 +398,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_same) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_register) {
   this->memory_.SetMemory(0x300, std::vector<uint8_t>{0x09, 0x02, 0x01});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x300, 0x303, &loc_regs));
   ASSERT_EQ(0x303U, this->dmem_->cur_offset());
@@ -429,7 +429,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_register) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_state) {
   this->memory_.SetMemory(0x300, std::vector<uint8_t>{0x0a});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x300, 0x301, &loc_regs));
   ASSERT_EQ(0x301U, this->dmem_->cur_offset());
@@ -516,7 +516,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_state) {
 // restored, the gcc unwinder does, and libunwind does too.
 TYPED_TEST_P(DwarfCfaTest, cfa_state_cfa_offset_restore) {
   this->memory_.SetMemory(0x3000, std::vector<uint8_t>{0x0a, 0x0e, 0x40, 0x0b});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
   loc_regs[CFA_REG] = {.type = DWARF_LOCATION_REGISTER, .values = {5, 100}};
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x3000, 0x3004, &loc_regs));
@@ -532,7 +532,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_state_cfa_offset_restore) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa) {
   this->memory_.SetMemory(0x100, std::vector<uint8_t>{0x0c, 0x7f, 0x74});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x103, &loc_regs));
   ASSERT_EQ(0x103U, this->dmem_->cur_offset());
@@ -561,7 +561,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa_sf) {
   this->memory_.SetMemory(0x100, std::vector<uint8_t>{0x12, 0x30, 0x25});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x103, &loc_regs));
   ASSERT_EQ(0x103U, this->dmem_->cur_offset());
@@ -591,7 +591,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa_sf) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa_register) {
   this->memory_.SetMemory(0x100, std::vector<uint8_t>{0x0d, 0x72});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   // This fails because the cfa is not defined as a register.
   ASSERT_FALSE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x102, &loc_regs));
@@ -634,7 +634,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa_register) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa_offset) {
   this->memory_.SetMemory(0x100, std::vector<uint8_t>{0x0e, 0x59});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   // This fails because the cfa is not defined as a register.
   ASSERT_FALSE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x102, &loc_regs));
@@ -677,7 +677,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa_offset) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa_offset_sf) {
   this->memory_.SetMemory(0x100, std::vector<uint8_t>{0x13, 0x23});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   // This fails because the cfa is not defined as a register.
   ASSERT_FALSE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x102, &loc_regs));
@@ -720,7 +720,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa_offset_sf) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa_expression) {
   this->memory_.SetMemory(0x100, std::vector<uint8_t>{0x0f, 0x04, 0x01, 0x02, 0x03, 0x04});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x106, &loc_regs));
   ASSERT_EQ(0x106U, this->dmem_->cur_offset());
@@ -748,7 +748,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_def_cfa_expression) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_expression) {
   this->memory_.SetMemory(0x100, std::vector<uint8_t>{0x10, 0x04, 0x02, 0x40, 0x20});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x105, &loc_regs));
   ASSERT_EQ(0x105U, this->dmem_->cur_offset());
@@ -785,7 +785,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_expression) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_val_offset) {
   this->memory_.SetMemory(0x100, std::vector<uint8_t>{0x14, 0x45, 0x54});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x103, &loc_regs));
   ASSERT_EQ(0x103U, this->dmem_->cur_offset());
@@ -816,7 +816,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_val_offset) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_val_offset_sf) {
   this->memory_.SetMemory(0x100, std::vector<uint8_t>{0x15, 0x56, 0x12});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x103, &loc_regs));
   ASSERT_EQ(0x103U, this->dmem_->cur_offset());
@@ -848,7 +848,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_val_offset_sf) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_val_expression) {
   this->memory_.SetMemory(0x100, std::vector<uint8_t>{0x16, 0x05, 0x02, 0x10, 0x20});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x105, &loc_regs));
   ASSERT_EQ(0x105U, this->dmem_->cur_offset());
@@ -886,7 +886,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_val_expression) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_gnu_args_size) {
   this->memory_.SetMemory(0x2000, std::vector<uint8_t>{0x2e, 0x04});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x2000, 0x2002, &loc_regs));
   ASSERT_EQ(0x2002U, this->dmem_->cur_offset());
@@ -909,7 +909,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_gnu_args_size) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_gnu_negative_offset_extended) {
   this->memory_.SetMemory(0x500, std::vector<uint8_t>{0x2f, 0x08, 0x10});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x500, 0x503, &loc_regs));
   ASSERT_EQ(0x503U, this->dmem_->cur_offset());
@@ -940,7 +940,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_gnu_negative_offset_extended) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_register_override) {
   this->memory_.SetMemory(0x300, std::vector<uint8_t>{0x09, 0x02, 0x01, 0x09, 0x02, 0x04});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x300, 0x306, &loc_regs));
   ASSERT_EQ(0x306U, this->dmem_->cur_offset());
@@ -956,7 +956,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_register_override) {
 
 TYPED_TEST_P(DwarfCfaTest, cfa_aarch64_negate_ra_state) {
   this->memory_.SetMemory(0x2000, std::vector<uint8_t>{0x2d});
-  dwarf_loc_regs_t loc_regs;
+  DwarfLocations loc_regs;
 
   ASSERT_FALSE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x2000, 0x2001, &loc_regs));
   ASSERT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->cfa_->LastErrorCode());
