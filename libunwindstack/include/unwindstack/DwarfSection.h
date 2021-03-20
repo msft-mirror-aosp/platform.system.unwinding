@@ -148,7 +148,10 @@ class DwarfSectionImpl : public DwarfSection {
   bool Log(uint8_t indent, uint64_t pc, const DwarfFde* fde, ArchEnum arch) override;
 
  protected:
-  bool GetNextCieOrFde(const DwarfFde** fde_entry);
+  using DwarfFdeMap =
+      std::map</*end*/ uint64_t, std::pair</*start*/ uint64_t, /*offset*/ uint64_t>>;
+
+  bool GetNextCieOrFde(/*inout*/ uint64_t& offset, /*out*/ std::optional<DwarfFde>& fde);
 
   bool FillInCieHeader(DwarfCie* cie);
 
@@ -161,15 +164,17 @@ class DwarfSectionImpl : public DwarfSection {
   bool EvalExpression(const DwarfLocation& loc, Memory* regular_memory, AddressType* value,
                       RegsInfo<AddressType>* regs_info, bool* is_dex_pc);
 
-  void InsertFde(const DwarfFde* fde);
+  static void InsertFde(uint64_t fde_offset, const DwarfFde* fde, /*out*/ DwarfFdeMap& fdes);
+
+  void BuildFdeIndex();
 
   int64_t section_bias_ = 0;
   uint64_t entries_offset_ = 0;
   uint64_t entries_end_ = 0;
-  uint64_t next_entries_offset_ = 0;
   uint64_t pc_offset_ = 0;
 
-  std::map<uint64_t, std::pair<uint64_t, const DwarfFde*>> fdes_;
+  // Binary search table (similar to .eh_frame_hdr). Contains only FDE offsets to save memory.
+  std::vector<std::pair</*function end address*/ uint64_t, /*FDE offset*/ uint64_t>> fde_index_;
 };
 
 }  // namespace unwindstack
