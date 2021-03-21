@@ -62,13 +62,14 @@ std::unique_ptr<DexFile> DexFile::Create(uint64_t dex_file_offset_in_memory, Mem
     std::unique_ptr<art_api::dex::DexFile> art_dex_file = DexFile::OpenFromMemory(
         reinterpret_cast<void const*>(dex_file_offset_in_memory), &size, info->name, &err_msg);
     if (art_dex_file != nullptr && size <= max_size) {
-      return std::unique_ptr<DexFile>(new DexFile(art_dex_file));
+      return std::unique_ptr<DexFile>(new DexFile(dex_file_offset_in_memory, art_dex_file));
     }
   }
 
   if (!info->name.empty()) {
     std::unique_ptr<DexFile> dex_file =
-        DexFileFromFile::Create(dex_file_offset_in_memory - info->start + info->offset, info->name);
+        DexFileFromFile::Create(dex_file_offset_in_memory,
+                                dex_file_offset_in_memory - info->start + info->offset, info->name);
     if (dex_file) {
       return dex_file;
     }
@@ -76,8 +77,8 @@ std::unique_ptr<DexFile> DexFile::Create(uint64_t dex_file_offset_in_memory, Mem
   return DexFileFromMemory::Create(dex_file_offset_in_memory, memory, info->name, max_size);
 }
 
-bool DexFile::GetMethodInformation(uint64_t dex_offset, std::string* method_name,
-                                   uint64_t* method_offset) {
+bool DexFile::GetFunctionName(uint64_t dex_pc, std::string* method_name, uint64_t* method_offset) {
+  uint64_t dex_offset = dex_pc - base_addr_;  // Convert absolute PC to file-relative offset.
   art_api::dex::MethodInfo method_info = GetMethodInfoForOffset(dex_offset, false);
   if (method_info.offset == 0) {
     return false;
@@ -87,7 +88,8 @@ bool DexFile::GetMethodInformation(uint64_t dex_offset, std::string* method_name
   return true;
 }
 
-std::unique_ptr<DexFileFromFile> DexFileFromFile::Create(uint64_t dex_file_offset_in_file,
+std::unique_ptr<DexFileFromFile> DexFileFromFile::Create(uint64_t base_addr,
+                                                         uint64_t dex_file_offset_in_file,
                                                          const std::string& file) {
   if (UNLIKELY(!HasDexSupport())) {
     return nullptr;
@@ -105,7 +107,7 @@ std::unique_ptr<DexFileFromFile> DexFileFromFile::Create(uint64_t dex_file_offse
     return nullptr;
   }
 
-  return std::unique_ptr<DexFileFromFile>(new DexFileFromFile(art_dex_file));
+  return std::unique_ptr<DexFileFromFile>(new DexFileFromFile(base_addr, art_dex_file));
 }
 
 std::unique_ptr<DexFileFromMemory> DexFileFromMemory::Create(uint64_t dex_file_offset_in_memory,
@@ -119,27 +121,28 @@ std::unique_ptr<DexFileFromMemory> DexFileFromMemory::Create(uint64_t dex_file_o
   std::vector<uint8_t> backing_memory;
 
   for (size_t size = 0;;) {
+    const size_t old_size = size;  // The call below may increase the size.
     std::string error_msg;
     std::unique_ptr<art_api::dex::DexFile> art_dex_file =
         OpenFromMemory(backing_memory.data(), &size, name, &error_msg);
     if (size > max_size) {
       return nullptr;
     }
+    if (size > old_size) {
+      // Read more memory and retry.
+      backing_memory.resize(size);
+      if (!memory->ReadFully(dex_file_offset_in_memory, backing_memory.data(),
+                             backing_memory.size())) {
+        return nullptr;
+      }
+      continue;
+    }
 
     if (art_dex_file != nullptr) {
-      return std::unique_ptr<DexFileFromMemory>(
-          new DexFileFromMemory(art_dex_file, std::move(backing_memory)));
+      return std::unique_ptr<DexFileFromMemory>(new DexFileFromMemory(
+          dex_file_offset_in_memory, art_dex_file, std::move(backing_memory)));
     }
-
-    if (!error_msg.empty()) {
-      return nullptr;
-    }
-
-    backing_memory.resize(size);
-    if (!memory->ReadFully(dex_file_offset_in_memory, backing_memory.data(),
-                           backing_memory.size())) {
-      return nullptr;
-    }
+    return nullptr;
   }
 }
 

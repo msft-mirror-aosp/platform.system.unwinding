@@ -1180,9 +1180,9 @@ TEST_F(UnwinderTest, dex_pc_not_in_map_valid_dex_files) {
   regs_.set_sp(0x10000);
   regs_.FakeSetDexPc(0x50000);
 
-  DexFiles dex_files(process_memory_);
+  std::unique_ptr<DexFiles> dex_files = CreateDexFiles(regs_.Arch(), process_memory_);
   Unwinder unwinder(64, maps_.get(), &regs_, process_memory_);
-  unwinder.SetDexFiles(&dex_files);
+  unwinder.SetDexFiles(dex_files.get());
   unwinder.Unwind();
   EXPECT_EQ(ERROR_NONE, unwinder.LastErrorCode());
   EXPECT_EQ(WARNING_DEX_PC_NOT_IN_MAP, unwinder.warnings());
@@ -1734,9 +1734,9 @@ TEST_F(UnwinderTest, build_frame_pc_in_jit) {
 
   RegsFake regs(10);
   regs.FakeSetArch(ARCH_ARM);
-  JitDebug jit_debug(process_memory_);
+  std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs.Arch(), process_memory_);
   Unwinder unwinder(10, maps_.get(), &regs, process_memory_);
-  unwinder.SetJitDebug(&jit_debug);
+  unwinder.SetJitDebug(jit_debug.get());
 
   FrameData frame = unwinder.BuildFrameFromPcOnly(0x100310);
   EXPECT_EQ(0x10030eU, frame.pc);
@@ -1759,14 +1759,12 @@ TEST_F(UnwinderTest, unwinder_from_pid_init_error) {
 
 TEST_F(UnwinderTest, set_jit_debug_error) {
   Unwinder unwinder(10, maps_.get(), process_memory_);
-  JitDebug jit_debug(process_memory_);
-  ASSERT_DEATH(unwinder.SetJitDebug(&jit_debug), "");
+  ASSERT_DEATH(CreateJitDebug(ARCH_UNKNOWN, process_memory_), "");
 }
 
 TEST_F(UnwinderTest, set_dex_files_error) {
   Unwinder unwinder(10, maps_.get(), process_memory_);
-  DexFiles dex_files(process_memory_);
-  ASSERT_DEATH(unwinder.SetDexFiles(&dex_files), "");
+  ASSERT_DEATH(CreateDexFiles(ARCH_UNKNOWN, process_memory_), "");
 }
 
 }  // namespace unwindstack
