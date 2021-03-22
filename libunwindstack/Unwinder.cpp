@@ -89,7 +89,7 @@ void Unwinder::FillInDexFrame() {
     return;
   }
 
-  dex_files_->GetFunctionName(maps_, info, dex_pc, &frame->function_name, &frame->function_offset);
+  dex_files_->GetFunctionName(maps_, dex_pc, &frame->function_name, &frame->function_offset);
 #endif
 }
 
@@ -369,8 +369,6 @@ void Unwinder::SetJitDebug(JitDebug* jit_debug) {
 }
 
 void Unwinder::SetDexFiles(DexFiles* dex_files) {
-  CHECK(arch_ != ARCH_UNKNOWN);
-  dex_files->SetArch(arch_);
   dex_files_ = dex_files;
 }
 
