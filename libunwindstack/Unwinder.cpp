@@ -19,6 +19,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -190,7 +191,7 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
 
       // If the pc is in an invalid elf file, try and get an Elf object
       // using the jit debug information.
-      if (!elf->valid() && jit_debug_ != nullptr) {
+      if (!elf->valid() && jit_debug_ != nullptr && (map_info->flags & PROT_EXEC)) {
         uint64_t adjusted_jit_pc = regs_->pc() - pc_adjustment;
         Elf* jit_elf = jit_debug_->Find(maps_, adjusted_jit_pc);
         if (jit_elf != nullptr) {
