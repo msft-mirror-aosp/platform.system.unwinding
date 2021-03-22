@@ -766,7 +766,7 @@ const DwarfFde* DwarfSectionImpl<AddressType>::GetFdeFromPc(uint64_t pc) {
 
   // Load the full FDE entry based on the offset.
   const DwarfFde* fde = GetFdeFromOffset(/*fde_offset=*/it->second);
-  return fde->pc_start <= pc ? fde : nullptr;
+  return fde != nullptr && fde->pc_start <= pc ? fde : nullptr;
 }
 
 // Create binary search table to make FDE lookups fast.
