@@ -78,13 +78,33 @@ std::unique_ptr<DexFile> DexFile::Create(uint64_t dex_file_offset_in_memory, Mem
 }
 
 bool DexFile::GetFunctionName(uint64_t dex_pc, std::string* method_name, uint64_t* method_offset) {
-  uint64_t dex_offset = dex_pc - base_addr_;  // Convert absolute PC to file-relative offset.
+  // Convert absolute PC to file-relative offset.
+  uint64_t dex_offset = dex_pc - base_addr_;
+
+  // Lookup the function in the cache.
+  auto it = symbols_.upper_bound(dex_offset);
+  if (it != symbols_.end() && it->second.offset <= dex_offset) {
+    *method_offset = dex_offset - it->second.offset;
+    *method_name = it->second.name;
+    return true;
+  }
+
+  // Lookup the function in the underlying dex file.
   art_api::dex::MethodInfo method_info = GetMethodInfoForOffset(dex_offset, false);
   if (method_info.offset == 0) {
     return false;
   }
-  *method_name = method_info.name;
-  *method_offset = dex_offset - method_info.offset;
+
+  // Store the function in the cache.
+  Info info{
+      .offset = static_cast<uint32_t>(method_info.offset),
+      .name = std::string(method_info.name),
+  };
+  it = symbols_.emplace(method_info.offset + method_info.len, std::move(info)).first;
+
+  // Return the found function.
+  *method_offset = dex_offset - it->second.offset;
+  *method_name = it->second.name;
   return true;
 }
 
