@@ -30,6 +30,11 @@
 namespace unwindstack {
 
 class DexFile : protected art_api::dex::DexFile {
+  struct Info {
+    uint32_t offset;  // Symbol start offset (relative to start of dex file).
+    std::string name;
+  };
+
  public:
   virtual ~DexFile() = default;
 
@@ -43,6 +48,8 @@ class DexFile : protected art_api::dex::DexFile {
       : art_api::dex::DexFile(art_dex_file), base_addr_(base_addr) {}
 
   uint64_t base_addr_ = 0;  // Absolute address where this DEX file is in memory.
+
+  std::map<uint32_t, Info> symbols_;  // Cache of read symbols (keyed by *end* offset).
 };
 
 class DexFileFromFile : public DexFile {
