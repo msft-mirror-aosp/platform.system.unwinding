@@ -88,6 +88,9 @@ class JitDebugTest : public ::testing::Test {
   template <typename EhdrType, typename ShdrType>
   void CreateElf(uint64_t offset, uint8_t class_type, uint8_t machine_type, uint32_t pc,
                  uint32_t size) {
+    // The whole ELF will be copied (read), so it must be valid (readable) memory.
+    memory_->SetMemoryBlock(offset, 0x1000, 0);
+
     EhdrType ehdr;
     memset(&ehdr, 0, sizeof(ehdr));
     uint64_t sh_offset = sizeof(ehdr);
