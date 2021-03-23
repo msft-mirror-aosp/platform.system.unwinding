@@ -283,4 +283,38 @@ TEST(DexFileTest, get_method_empty) {
   EXPECT_FALSE(dex_file->GetFunctionName(0x98, &method, &method_offset));
 }
 
+TEST(DexFileTest, get_method_from_cache) {
+  TemporaryFile tf;
+  ASSERT_TRUE(tf.fd != -1);
+  ASSERT_EQ(0, lseek(tf.fd, 0, SEEK_SET));
+  ASSERT_EQ(sizeof(kDexData),
+            static_cast<size_t>(TEMP_FAILURE_RETRY(write(tf.fd, kDexData, sizeof(kDexData)))));
+
+  MemoryFake memory;
+  MapInfo info(nullptr, nullptr, 0x4000, 0x10000, 0, 0x5, tf.path);
+  std::unique_ptr<DexFile> dex_file = DexFile::Create(0x4000, &memory, &info);
+  EXPECT_TRUE(dex_file != nullptr);
+
+  std::string method;
+  uint64_t method_offset;
+  ASSERT_TRUE(dex_file->GetFunctionName(0x4118, &method, &method_offset));
+  EXPECT_EQ("Main.main", method);
+  EXPECT_EQ(0U, method_offset);
+
+  // Corrupt the dex file: change the name of the class.
+  int main = std::string(reinterpret_cast<const char*>(kDexData), sizeof(kDexData)).find("Main");
+  ASSERT_EQ(main, lseek(tf.fd, main, SEEK_SET));
+  ASSERT_EQ(4u, static_cast<size_t>(TEMP_FAILURE_RETRY(write(tf.fd, "MAIN", 4))));
+
+  // Check that we see the *old* cached value.
+  ASSERT_TRUE(dex_file->GetFunctionName(0x4118, &method, &method_offset));
+  EXPECT_EQ("Main.main", method);
+  EXPECT_EQ(0U, method_offset);
+
+  // Check that for other methods we see the *new* updated value.
+  ASSERT_TRUE(dex_file->GetFunctionName(0x4102, &method, &method_offset));
+  EXPECT_EQ("MAIN.<init>", method);
+  EXPECT_EQ(2U, method_offset);
+}
+
 }  // namespace unwindstack
