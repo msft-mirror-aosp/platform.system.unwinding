@@ -19,13 +19,18 @@
 #include <unwindstack/Elf.h>
 
 #include "GlobalDebugImpl.h"
+#include "MemoryBuffer.h"
 
 namespace unwindstack {
 
 template <>
 bool GlobalDebugInterface<Elf>::Load(Maps*, std::shared_ptr<Memory>& memory, uint64_t addr,
                                      uint64_t size, /*out*/ std::unique_ptr<Elf>& elf) {
-  elf.reset(new Elf(new MemoryRange(memory, addr, size, 0)));
+  std::unique_ptr<MemoryBuffer> copy(new MemoryBuffer());
+  if (!copy->Resize(size) || !memory->ReadFully(addr, copy->GetPtr(0), size)) {
+    return false;
+  }
+  elf.reset(new Elf(copy.release()));
   return elf->Init() && elf->valid();
 }
 
