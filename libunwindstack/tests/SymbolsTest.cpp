@@ -68,7 +68,7 @@ TYPED_TEST_P(SymbolsTest, function_bounds_check) {
   std::string fake_name("fake_function");
   this->memory_.SetMemory(0x2040, fake_name.c_str(), fake_name.size() + 1);
 
-  std::string name;
+  SharedString name;
   uint64_t func_offset;
   ASSERT_TRUE(symbols.GetName<TypeParam>(0x5000, &this->memory_, &name, &func_offset));
   ASSERT_EQ("fake_function", name);
@@ -96,7 +96,7 @@ TYPED_TEST_P(SymbolsTest, no_symbol) {
   this->memory_.SetMemory(0x2040, fake_name.c_str(), fake_name.size() + 1);
 
   // First verify that we can get the name.
-  std::string name;
+  SharedString name;
   uint64_t func_offset;
   ASSERT_TRUE(symbols.GetName<TypeParam>(0x5000, &this->memory_, &name, &func_offset));
   ASSERT_EQ("fake_function", name);
@@ -142,7 +142,7 @@ TYPED_TEST_P(SymbolsTest, multiple_entries) {
   fake_name = "function_three";
   this->memory_.SetMemory(0x2230, fake_name.c_str(), fake_name.size() + 1);
 
-  std::string name;
+  SharedString name;
   uint64_t func_offset;
   ASSERT_TRUE(symbols.GetName<TypeParam>(0x3005, &this->memory_, &name, &func_offset));
   ASSERT_EQ("function_two", name);
@@ -204,7 +204,7 @@ TYPED_TEST_P(SymbolsTest, multiple_entries_nonstandard_size) {
   fake_name = "function_three";
   this->memory_.SetMemory(0x2230, fake_name.c_str(), fake_name.size() + 1);
 
-  std::string name;
+  SharedString name;
   uint64_t func_offset;
   ASSERT_TRUE(symbols.GetName<TypeParam>(0x3005, &this->memory_, &name, &func_offset));
   ASSERT_EQ("function_two", name);
@@ -239,7 +239,7 @@ TYPED_TEST_P(SymbolsTest, symtab_value_out_of_bounds) {
   std::string fake_name("fake_function");
   this->memory_.SetMemory(0x20fb, fake_name.c_str(), fake_name.size() + 1);
 
-  std::string name;
+  SharedString name;
   uint64_t func_offset;
   // Verify that we can get the function name properly for both entries.
   ASSERT_TRUE(symbols_end_at_200.GetName<TypeParam>(0x5000, &this->memory_, &name, &func_offset));
@@ -274,18 +274,6 @@ TYPED_TEST_P(SymbolsTest, symtab_read_cached) {
   this->memory_.SetMemory(offset, &sym, sizeof(sym));
   offset += sizeof(sym);
 
-  // Do call that should cache all of the entries (except the string data).
-  std::string name;
-  uint64_t func_offset;
-  ASSERT_FALSE(symbols.GetName<TypeParam>(0x5000, &this->memory_, &name, &func_offset));
-  ASSERT_FALSE(symbols.GetName<TypeParam>(0x2000, &this->memory_, &name, &func_offset));
-  ASSERT_FALSE(symbols.GetName<TypeParam>(0x1000, &this->memory_, &name, &func_offset));
-  this->memory_.Clear();
-  ASSERT_FALSE(symbols.GetName<TypeParam>(0x6000, &this->memory_, &name, &func_offset));
-
-  // Clear the memory and only put the symbol data string data in memory.
-  this->memory_.Clear();
-
   std::string fake_name;
   fake_name = "first_entry";
   this->memory_.SetMemory(0xa100, fake_name.c_str(), fake_name.size() + 1);
@@ -293,6 +281,18 @@ TYPED_TEST_P(SymbolsTest, symtab_read_cached) {
   this->memory_.SetMemory(0xa200, fake_name.c_str(), fake_name.size() + 1);
   fake_name = "third_entry";
   this->memory_.SetMemory(0xa300, fake_name.c_str(), fake_name.size() + 1);
+
+  // Do call that should cache all of the entries.
+  SharedString name;
+  uint64_t func_offset;
+  ASSERT_TRUE(symbols.GetName<TypeParam>(0x5000, &this->memory_, &name, &func_offset));
+  ASSERT_TRUE(symbols.GetName<TypeParam>(0x2000, &this->memory_, &name, &func_offset));
+  ASSERT_TRUE(symbols.GetName<TypeParam>(0x1000, &this->memory_, &name, &func_offset));
+  this->memory_.Clear();
+  ASSERT_FALSE(symbols.GetName<TypeParam>(0x6000, &this->memory_, &name, &func_offset));
+
+  // Clear the memory.
+  this->memory_.Clear();
 
   ASSERT_TRUE(symbols.GetName<TypeParam>(0x5001, &this->memory_, &name, &func_offset));
   ASSERT_EQ("first_entry", name);
@@ -357,7 +357,7 @@ TYPED_TEST_P(SymbolsTest, get_global) {
   EXPECT_FALSE(symbols.GetGlobal<TypeParam>(&this->memory_, "function_0", &offset));
   EXPECT_FALSE(symbols.GetGlobal<TypeParam>(&this->memory_, "function_1", &offset));
 
-  std::string name;
+  SharedString name;
   EXPECT_TRUE(symbols.GetName<TypeParam>(0x10002, &this->memory_, &name, &offset));
   EXPECT_EQ("function_0", name);
   EXPECT_EQ(2U, offset);

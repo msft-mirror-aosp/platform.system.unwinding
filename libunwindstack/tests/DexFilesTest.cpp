@@ -174,7 +174,7 @@ void DexFilesTest::WriteDex(uint64_t dex_file) {
 }
 
 TEST_F(DexFilesTest, get_method_information_invalid) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   dex_files_->GetFunctionName(maps_.get(), 0, &method_name, &method_offset);
@@ -183,7 +183,7 @@ TEST_F(DexFilesTest, get_method_information_invalid) {
 }
 
 TEST_F(DexFilesTest, get_method_information_32) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor32(0x100800, 0x200000);
@@ -198,7 +198,7 @@ TEST_F(DexFilesTest, get_method_information_32) {
 TEST_F(DexFilesTest, get_method_information_64) {
   Init(ARCH_ARM64);
 
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor64(0x100800, 0x200000);
@@ -211,7 +211,7 @@ TEST_F(DexFilesTest, get_method_information_64) {
 }
 
 TEST_F(DexFilesTest, get_method_information_not_first_entry_32) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor32(0x100800, 0x200000);
@@ -227,7 +227,7 @@ TEST_F(DexFilesTest, get_method_information_not_first_entry_32) {
 TEST_F(DexFilesTest, get_method_information_not_first_entry_64) {
   Init(ARCH_ARM64);
 
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor64(0x100800, 0x200000);
@@ -241,7 +241,7 @@ TEST_F(DexFilesTest, get_method_information_not_first_entry_64) {
 }
 
 TEST_F(DexFilesTest, get_method_information_cached) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor32(0x100800, 0x200000);
@@ -260,7 +260,7 @@ TEST_F(DexFilesTest, get_method_information_cached) {
 }
 
 TEST_F(DexFilesTest, get_method_information_search_libs) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor32(0x100800, 0x200000);
@@ -292,7 +292,7 @@ TEST_F(DexFilesTest, get_method_information_search_libs) {
 }
 
 TEST_F(DexFilesTest, get_method_information_global_skip_zero_32) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   // First global variable found, but value is zero.
@@ -319,7 +319,7 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_32) {
 TEST_F(DexFilesTest, get_method_information_global_skip_zero_64) {
   Init(ARCH_ARM64);
 
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   // First global variable found, but value is zero.
@@ -344,7 +344,7 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_64) {
 }
 
 TEST_F(DexFilesTest, get_method_information_with_empty_map) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor32(0x503800, 0x506000);
