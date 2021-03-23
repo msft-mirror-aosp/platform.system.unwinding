@@ -79,5 +79,6 @@ void PutElfFilesInMemory(MemoryFake* memory, FuzzedDataProvider* data_provider);
 
 std::unique_ptr<unwindstack::DexFiles> GetDexFiles(FuzzedDataProvider* data_provider,
                                                    std::shared_ptr<unwindstack::Memory> memory,
-                                                   uint max_libraries, uint max_library_length);
+                                                   uint max_libraries, uint max_library_length,
+                                                   unwindstack::ArchEnum arch);
 #endif  // _LIBUNWINDSTACK_UNWINDERCOMPONENTCREATOR_H
