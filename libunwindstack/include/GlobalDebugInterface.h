@@ -31,7 +31,7 @@ class GlobalDebugInterface {
  public:
   virtual ~GlobalDebugInterface() {}
 
-  virtual bool GetFunctionName(Maps* maps, uint64_t pc, std::string* name, uint64_t* offset) = 0;
+  virtual bool GetFunctionName(Maps* maps, uint64_t pc, SharedString* name, uint64_t* offset) = 0;
 
   virtual Symfile* Find(Maps* maps, uint64_t pc) = 0;
 
