@@ -77,7 +77,7 @@ class ElfInterfaceArm : public ElfInterface32 {
 
   bool StepExidx(uint64_t pc, Regs* regs, Memory* process_memory, bool* finished);
 
-  bool GetFunctionName(uint64_t addr, std::string* name, uint64_t* offset) override;
+  bool GetFunctionName(uint64_t addr, SharedString* name, uint64_t* offset) override;
 
   uint64_t start_offset() { return start_offset_; }
 

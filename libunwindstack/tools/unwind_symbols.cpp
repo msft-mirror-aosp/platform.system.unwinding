@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
 
   std::string name;
   if (argc == 3) {
-    std::string cur_name;
+    unwindstack::SharedString cur_name;
     uint64_t func_offset;
     if (!elf.GetFunctionName(func_addr, &cur_name, &func_offset)) {
       printf("No known function at 0x%" PRIx64 "\n", func_addr);
@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     uint64_t start = entry.second.offset;
     uint64_t end = entry.second.table_size;
     for (uint64_t addr = start; addr < end; addr += 4) {
-      std::string cur_name;
+      unwindstack::SharedString cur_name;
       uint64_t func_offset;
       if (elf.GetFunctionName(addr, &cur_name, &func_offset)) {
         if (cur_name != name) {

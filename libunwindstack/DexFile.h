@@ -25,6 +25,8 @@
 #include <utility>
 #include <vector>
 
+#include <unwindstack/SharedString.h>
+
 #include <art_api/dex_file_support.h>
 
 namespace unwindstack {
@@ -32,7 +34,7 @@ namespace unwindstack {
 class DexFile : protected art_api::dex::DexFile {
   struct Info {
     uint32_t offset;  // Symbol start offset (relative to start of dex file).
-    std::string name;
+    SharedString name;
   };
 
  public:
@@ -40,7 +42,7 @@ class DexFile : protected art_api::dex::DexFile {
 
   bool IsValidPc(uint64_t dex_pc);
 
-  bool GetFunctionName(uint64_t dex_pc, std::string* method_name, uint64_t* method_offset);
+  bool GetFunctionName(uint64_t dex_pc, SharedString* method_name, uint64_t* method_offset);
 
   static std::unique_ptr<DexFile> Create(uint64_t dex_file_offset_in_memory, Memory* memory,
                                          MapInfo* info);
