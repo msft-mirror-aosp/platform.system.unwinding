@@ -20,33 +20,17 @@
 #include <stdint.h>
 
 #include <memory>
-#include <mutex>
-#include <string>
 #include <vector>
 
-#include <unwindstack/Global.h>
-#include <unwindstack/Memory.h>
+#include <GlobalDebugInterface.h>
 
 namespace unwindstack {
 
-// Forward declarations.
-class Elf;
-class Maps;
 enum ArchEnum : uint8_t;
+class Elf;
+class Memory;
 
-class JitDebug {
- public:
-  virtual ~JitDebug() {}
-
-  virtual Elf* Find(Maps* maps, uint64_t pc) = 0;
-
- protected:
-  uint64_t entry_addr_ = 0;
-  bool initialized_ = false;
-  std::vector<Elf*> elf_list_;
-
-  std::mutex lock_;
-};
+using JitDebug = GlobalDebugInterface<Elf>;
 
 std::unique_ptr<JitDebug> CreateJitDebug(ArchEnum arch, std::shared_ptr<Memory>& memory,
                                          std::vector<std::string> search_libs = {});
