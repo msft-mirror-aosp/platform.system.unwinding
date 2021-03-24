@@ -70,8 +70,8 @@ static void VerifyReturnAddress(const FrameData& frame) {
   // Now go and find information about the register data and verify that the relative pc results in
   // an undefined register.
   Elf elf(Memory::CreateFileMemory(frame.map_name, 0).release());
-  ASSERT_TRUE(elf.Init()) << "Failed to init elf object from " << frame.map_name;
-  ASSERT_TRUE(elf.valid()) << "Elf " << frame.map_name << " is not valid.";
+  ASSERT_TRUE(elf.Init()) << "Failed to init elf object from " << frame.map_name.c_str();
+  ASSERT_TRUE(elf.valid()) << "Elf " << frame.map_name.c_str() << " is not valid.";
   ElfInterface* interface = elf.interface();
 
   // Only check the eh_frame and the debug_frame since the undefined register

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef _LIBUNWINDSTACK_SYMBOLNAME_H
-#define _LIBUNWINDSTACK_SYMBOLNAME_H
+#ifndef _LIBUNWINDSTACK_SHAREDSTRING_H
+#define _LIBUNWINDSTACK_SHAREDSTRING_H
 
 #include <memory>
 #include <string>
@@ -65,6 +65,12 @@ static inline bool operator!=(const SharedString& a, std::string_view b) {
 static inline bool operator!=(std::string_view a, const SharedString& b) {
   return !(a == b);
 }
+static inline std::string operator+(const SharedString& a, const char* b) {
+  return static_cast<const std::string&>(a) + b;
+}
+static inline std::string operator+(const char* a, const SharedString& b) {
+  return a + static_cast<const std::string&>(b);
+}
 
 }  // namespace unwindstack
-#endif  // _LIBUNWINDSTACK_SYMBOLNAME_H
+#endif  // _LIBUNWINDSTACK_SHAREDSTRING_H
