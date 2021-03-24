@@ -30,6 +30,8 @@ class MemoryFileAtOffset : public Memory {
 
   bool Init(const std::string& file, uint64_t offset, uint64_t size = UINT64_MAX);
 
+  uint8_t* GetPtr(size_t addr = 0) override { return addr < size_ ? data_ + addr : nullptr; }
+
   size_t Read(uint64_t addr, void* dst, size_t size) override;
 
   size_t Size() { return size_; }
