@@ -32,6 +32,7 @@
 #include <unwindstack/Memory.h>
 
 #include "DexFile.h"
+#include "MemoryBuffer.h"
 
 namespace unwindstack {
 
@@ -43,42 +44,47 @@ static bool CheckDexSupport() {
   return true;
 }
 
-static bool HasDexSupport() {
-  static bool has_dex_support = CheckDexSupport();
-  return has_dex_support;
-}
-
-bool DexFile::IsValidPc(uint64_t dex_pc) {
-  return base_addr_ <= dex_pc && dex_pc < base_addr_ + size_;
-}
-
-std::unique_ptr<DexFile> DexFile::Create(uint64_t dex_file_offset_in_memory, Memory* memory,
+std::unique_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size, Memory* memory,
                                          MapInfo* info) {
-  if (UNLIKELY(!HasDexSupport() || info == nullptr)) {
+  static bool has_dex_support = CheckDexSupport();
+  if (!has_dex_support || file_size == 0) {
     return nullptr;
   }
 
-  size_t max_size = info->end - dex_file_offset_in_memory;
-  if (memory->IsLocal()) {
-    size_t size = max_size;
-
-    std::string err_msg;
-    std::unique_ptr<art_api::dex::DexFile> art_dex_file = DexFile::OpenFromMemory(
-        reinterpret_cast<void const*>(dex_file_offset_in_memory), &size, info->name, &err_msg);
-    if (art_dex_file != nullptr && size <= max_size) {
-      return std::unique_ptr<DexFile>(new DexFile(dex_file_offset_in_memory, size, art_dex_file));
+  // Try to map the file directly from disk.
+  std::unique_ptr<Memory> dex_memory;
+  if (info != nullptr && !info->name.empty()) {
+    if (info->start <= base_addr && base_addr < info->end) {
+      uint64_t offset_in_file = (base_addr - info->start) + info->offset;
+      if (file_size <= info->end - base_addr) {
+        dex_memory = Memory::CreateFileMemory(info->name, offset_in_file, file_size);
+        // On error, the results is null and we fall through to the fallback code-path.
+      }
     }
   }
 
-  if (!info->name.empty()) {
-    std::unique_ptr<DexFile> dex_file =
-        DexFileFromFile::Create(dex_file_offset_in_memory,
-                                dex_file_offset_in_memory - info->start + info->offset, info->name);
-    if (dex_file) {
-      return dex_file;
+  // Fallback: make copy in local buffer.
+  if (dex_memory.get() == nullptr) {
+    std::unique_ptr<MemoryBuffer> copy(new MemoryBuffer);
+    if (!copy->Resize(file_size)) {
+      return nullptr;
     }
+    if (!memory->ReadFully(base_addr, copy->GetPtr(0), file_size)) {
+      return nullptr;
+    }
+    dex_memory = std::move(copy);
   }
-  return DexFileFromMemory::Create(dex_file_offset_in_memory, memory, info->name, max_size);
+
+  std::string err_msg;
+  size_t actual_size = file_size;
+  const char* location = info != nullptr ? info->name.c_str() : "";
+  std::unique_ptr<art_api::dex::DexFile> dex =
+      art_api::dex::DexFile::OpenFromMemory(dex_memory->GetPtr(), &actual_size, location, &err_msg);
+  if (dex != nullptr) {
+    return std::unique_ptr<DexFile>(
+        new DexFile(std::move(dex_memory), base_addr, file_size, std::move(dex)));
+  }
+  return nullptr;
 }
 
 bool DexFile::GetFunctionName(uint64_t dex_pc, SharedString* method_name, uint64_t* method_offset) {
@@ -94,7 +100,7 @@ bool DexFile::GetFunctionName(uint64_t dex_pc, SharedString* method_name, uint64
   }
 
   // Lookup the function in the underlying dex file.
-  art_api::dex::MethodInfo method_info = GetMethodInfoForOffset(dex_offset, false);
+  art_api::dex::MethodInfo method_info = dex_->GetMethodInfoForOffset(dex_offset, false);
   if (method_info.offset == 0) {
     return false;
   }
@@ -110,73 +116,6 @@ bool DexFile::GetFunctionName(uint64_t dex_pc, SharedString* method_name, uint64
   *method_offset = dex_offset - it->second.offset;
   *method_name = it->second.name;
   return true;
-}
-
-std::unique_ptr<DexFileFromFile> DexFileFromFile::Create(uint64_t base_addr,
-                                                         uint64_t dex_file_offset_in_file,
-                                                         const std::string& file) {
-  if (UNLIKELY(!HasDexSupport())) {
-    return nullptr;
-  }
-
-  android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(file.c_str(), O_RDONLY | O_CLOEXEC)));
-  if (fd == -1) {
-    return nullptr;
-  }
-  struct stat buf;
-  if (fstat(fd, &buf) == -1) {
-    return nullptr;
-  }
-  uint64_t end = static_cast<uint64_t>(buf.st_size);
-  if (dex_file_offset_in_file >= end) {
-    return nullptr;
-  }
-  uint64_t size = end - dex_file_offset_in_file;
-
-  std::string error_msg;
-  std::unique_ptr<art_api::dex::DexFile> art_dex_file =
-      OpenFromFd(fd, dex_file_offset_in_file, file, &error_msg);
-  if (art_dex_file == nullptr) {
-    return nullptr;
-  }
-
-  return std::unique_ptr<DexFileFromFile>(new DexFileFromFile(base_addr, size, art_dex_file));
-}
-
-std::unique_ptr<DexFileFromMemory> DexFileFromMemory::Create(uint64_t dex_file_offset_in_memory,
-                                                             Memory* memory,
-                                                             const std::string& name,
-                                                             size_t max_size) {
-  if (UNLIKELY(!HasDexSupport())) {
-    return nullptr;
-  }
-
-  std::vector<uint8_t> backing_memory;
-
-  for (size_t size = 0;;) {
-    const size_t old_size = size;  // The call below may increase the size.
-    std::string error_msg;
-    std::unique_ptr<art_api::dex::DexFile> art_dex_file =
-        OpenFromMemory(backing_memory.data(), &size, name, &error_msg);
-    if (size > max_size) {
-      return nullptr;
-    }
-    if (size > old_size) {
-      // Read more memory and retry.
-      backing_memory.resize(size);
-      if (!memory->ReadFully(dex_file_offset_in_memory, backing_memory.data(),
-                             backing_memory.size())) {
-        return nullptr;
-      }
-      continue;
-    }
-
-    if (art_dex_file != nullptr) {
-      return std::unique_ptr<DexFileFromMemory>(new DexFileFromMemory(
-          dex_file_offset_in_memory, size, art_dex_file, std::move(backing_memory)));
-    }
-    return nullptr;
-  }
 }
 
 }  // namespace unwindstack
