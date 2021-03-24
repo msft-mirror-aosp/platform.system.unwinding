@@ -388,12 +388,12 @@ std::vector<std::string> GetStringList(FuzzedDataProvider* data_provider, uint m
 
 std::unique_ptr<DexFiles> GetDexFiles(FuzzedDataProvider* data_provider,
                                       std::shared_ptr<Memory> memory, uint max_library_length,
-                                      uint max_libraries) {
+                                      uint max_libraries, ArchEnum arch) {
   std::vector<std::string> search_libs =
       GetStringList(data_provider, max_library_length, max_libraries);
   if (search_libs.size() <= 0) {
-    return std::make_unique<DexFiles>(memory);
+    return CreateDexFiles(arch, memory);
   }
 
-  return std::make_unique<DexFiles>(memory, search_libs);
+  return CreateDexFiles(arch, memory, search_libs);
 }

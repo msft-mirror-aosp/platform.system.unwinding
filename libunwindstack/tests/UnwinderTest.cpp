@@ -1684,7 +1684,9 @@ TEST_F(UnwinderTest, build_frame_pc_valid_elf) {
 }
 
 TEST_F(UnwinderTest, build_frame_pc_in_jit) {
-  // Create the elf data for the jit debug information.
+  // The whole ELF will be copied (read), so it must be valid (readable) memory.
+  memory_->SetMemoryBlock(0xf7000, 0x1000, 0);
+
   Elf32_Ehdr ehdr = {};
   TestInitEhdr<Elf32_Ehdr>(&ehdr, ELFCLASS32, EM_ARM);
   ehdr.e_phoff = 0x50;
