@@ -28,6 +28,7 @@
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 
+#include "DexFile.h"
 #include "DexFileData.h"
 #include "ElfFake.h"
 #include "MemoryFake.h"
@@ -52,8 +53,7 @@ class DexFilesTest : public ::testing::Test {
   }
 
   void Init(ArchEnum arch) {
-    dex_files_.reset(new DexFiles(process_memory_));
-    dex_files_->SetArch(arch);
+    dex_files_ = CreateDexFiles(arch, process_memory_);
 
     maps_.reset(
         new BufferMaps("1000-4000 ---s 00000000 00:00 0 /fake/elf\n"
@@ -120,14 +120,26 @@ class DexFilesTest : public ::testing::Test {
   std::unique_ptr<BufferMaps> maps_;
 };
 
-void DexFilesTest::WriteDescriptor32(uint64_t addr, uint32_t head) {
-  //   void* first_entry_
-  memory_->SetData32(addr + 12, head);
+void DexFilesTest::WriteDescriptor32(uint64_t addr, uint32_t entry) {
+  //   uint32_t version
+  memory_->SetData32(addr, 1);
+  //   uint32_t action_flag
+  memory_->SetData32(addr + 4, 0);
+  //   uint32_t relevant_entry
+  memory_->SetData32(addr + 8, 0);
+  //   uint32_t first_entry
+  memory_->SetData32(addr + 12, entry);
 }
 
-void DexFilesTest::WriteDescriptor64(uint64_t addr, uint64_t head) {
-  //   void* first_entry_
-  memory_->SetData64(addr + 16, head);
+void DexFilesTest::WriteDescriptor64(uint64_t addr, uint64_t entry) {
+  //   uint32_t version
+  memory_->SetData32(addr, 1);
+  //   uint32_t action_flag
+  memory_->SetData32(addr + 4, 0);
+  //   uint64_t relevant_entry
+  memory_->SetData64(addr + 8, 0);
+  //   uint64_t first_entry
+  memory_->SetData64(addr + 16, entry);
 }
 
 void DexFilesTest::WriteEntry32(uint64_t entry_addr, uint32_t next, uint32_t prev,
@@ -139,6 +151,9 @@ void DexFilesTest::WriteEntry32(uint64_t entry_addr, uint32_t next, uint32_t pre
   memory_->SetData32(entry_addr + 4, prev);
   //   uint32_t dex_file
   memory_->SetData32(entry_addr + 8, dex_file);
+  //   uint32_t dex_size (present in the struct, but we ignore it)
+  memory_->SetData32(entry_addr + 12, 0);  // Align.
+  memory_->SetData64(entry_addr + 16, 0);
 }
 
 void DexFilesTest::WriteEntry64(uint64_t entry_addr, uint64_t next, uint64_t prev,
@@ -150,6 +165,8 @@ void DexFilesTest::WriteEntry64(uint64_t entry_addr, uint64_t next, uint64_t pre
   memory_->SetData64(entry_addr + 8, prev);
   //   uint64_t dex_file
   memory_->SetData64(entry_addr + 16, dex_file);
+  //   uint32_t dex_size (present in the struct, but we ignore it)
+  memory_->SetData64(entry_addr + 24, 0);
 }
 
 void DexFilesTest::WriteDex(uint64_t dex_file) {
@@ -159,9 +176,8 @@ void DexFilesTest::WriteDex(uint64_t dex_file) {
 TEST_F(DexFilesTest, get_method_information_invalid) {
   std::string method_name = "nothing";
   uint64_t method_offset = 0x124;
-  MapInfo* info = maps_->Get(kMapDexFileEntries);
 
-  dex_files_->GetFunctionName(maps_.get(), info, 0, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0, &method_name, &method_offset);
   EXPECT_EQ("nothing", method_name);
   EXPECT_EQ(0x124U, method_offset);
 }
@@ -169,13 +185,12 @@ TEST_F(DexFilesTest, get_method_information_invalid) {
 TEST_F(DexFilesTest, get_method_information_32) {
   std::string method_name = "nothing";
   uint64_t method_offset = 0x124;
-  MapInfo* info = maps_->Get(kMapDexFiles);
 
   WriteDescriptor32(0x100800, 0x200000);
   WriteEntry32(0x200000, 0, 0, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x300100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 }
@@ -185,13 +200,12 @@ TEST_F(DexFilesTest, get_method_information_64) {
 
   std::string method_name = "nothing";
   uint64_t method_offset = 0x124;
-  MapInfo* info = maps_->Get(kMapDexFiles);
 
   WriteDescriptor64(0x100800, 0x200000);
   WriteEntry64(0x200000, 0, 0, 0x301000);
   WriteDex(0x301000);
 
-  dex_files_->GetFunctionName(maps_.get(), info, 0x301102, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x301102, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(2U, method_offset);
 }
@@ -199,14 +213,13 @@ TEST_F(DexFilesTest, get_method_information_64) {
 TEST_F(DexFilesTest, get_method_information_not_first_entry_32) {
   std::string method_name = "nothing";
   uint64_t method_offset = 0x124;
-  MapInfo* info = maps_->Get(kMapDexFiles);
 
   WriteDescriptor32(0x100800, 0x200000);
   WriteEntry32(0x200000, 0x200100, 0, 0x100000);
   WriteEntry32(0x200100, 0, 0x200000, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetFunctionName(maps_.get(), info, 0x300104, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x300104, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(4U, method_offset);
 }
@@ -216,14 +229,13 @@ TEST_F(DexFilesTest, get_method_information_not_first_entry_64) {
 
   std::string method_name = "nothing";
   uint64_t method_offset = 0x124;
-  MapInfo* info = maps_->Get(kMapDexFiles);
 
   WriteDescriptor64(0x100800, 0x200000);
   WriteEntry64(0x200000, 0x200100, 0, 0x100000);
   WriteEntry64(0x200100, 0, 0x200000, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetFunctionName(maps_.get(), info, 0x300106, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x300106, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(6U, method_offset);
 }
@@ -231,19 +243,18 @@ TEST_F(DexFilesTest, get_method_information_not_first_entry_64) {
 TEST_F(DexFilesTest, get_method_information_cached) {
   std::string method_name = "nothing";
   uint64_t method_offset = 0x124;
-  MapInfo* info = maps_->Get(kMapDexFiles);
 
   WriteDescriptor32(0x100800, 0x200000);
   WriteEntry32(0x200000, 0, 0, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x300100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 
   // Clear all memory and make sure that data is acquired from the cache.
   memory_->Clear();
-  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x300100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 }
@@ -251,7 +262,6 @@ TEST_F(DexFilesTest, get_method_information_cached) {
 TEST_F(DexFilesTest, get_method_information_search_libs) {
   std::string method_name = "nothing";
   uint64_t method_offset = 0x124;
-  MapInfo* info = maps_->Get(kMapDexFiles);
 
   WriteDescriptor32(0x100800, 0x200000);
   WriteEntry32(0x200000, 0x200100, 0, 0x100000);
@@ -260,17 +270,15 @@ TEST_F(DexFilesTest, get_method_information_search_libs) {
 
   // Only search a given named list of libs.
   std::vector<std::string> libs{"libart.so"};
-  dex_files_.reset(new DexFiles(process_memory_, libs));
-  dex_files_->SetArch(ARCH_ARM);
+  dex_files_ = CreateDexFiles(ARCH_ARM, process_memory_, libs);
 
-  dex_files_->GetFunctionName(maps_.get(), info, 0x300104, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x300104, &method_name, &method_offset);
   EXPECT_EQ("nothing", method_name);
   EXPECT_EQ(0x124U, method_offset);
 
   MapInfo* map_info = maps_->Get(kMapGlobal);
   map_info->name = "/system/lib/libart.so";
-  dex_files_.reset(new DexFiles(process_memory_, libs));
-  dex_files_->SetArch(ARCH_ARM);
+  dex_files_ = CreateDexFiles(ARCH_ARM, process_memory_, libs);
   // Set the rw map to the same name or this will not scan this entry.
   map_info = maps_->Get(kMapGlobalRw);
   map_info->name = "/system/lib/libart.so";
@@ -278,7 +286,7 @@ TEST_F(DexFilesTest, get_method_information_search_libs) {
   // DexFiles object.
   libs.clear();
 
-  dex_files_->GetFunctionName(maps_.get(), info, 0x300104, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x300104, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(4U, method_offset);
 }
@@ -286,7 +294,6 @@ TEST_F(DexFilesTest, get_method_information_search_libs) {
 TEST_F(DexFilesTest, get_method_information_global_skip_zero_32) {
   std::string method_name = "nothing";
   uint64_t method_offset = 0x124;
-  MapInfo* info = maps_->Get(kMapDexFiles);
 
   // First global variable found, but value is zero.
   WriteDescriptor32(0xc800, 0);
@@ -295,17 +302,16 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_32) {
   WriteEntry32(0x200000, 0, 0, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x300100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 
   // Verify that second is ignored when first is set to non-zero
-  dex_files_.reset(new DexFiles(process_memory_));
-  dex_files_->SetArch(ARCH_ARM);
+  dex_files_ = CreateDexFiles(ARCH_ARM, process_memory_);
   method_name = "fail";
   method_offset = 0x123;
   WriteDescriptor32(0xc800, 0x100000);
-  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x300100, &method_name, &method_offset);
   EXPECT_EQ("fail", method_name);
   EXPECT_EQ(0x123U, method_offset);
 }
@@ -315,7 +321,6 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_64) {
 
   std::string method_name = "nothing";
   uint64_t method_offset = 0x124;
-  MapInfo* info = maps_->Get(kMapDexFiles);
 
   // First global variable found, but value is zero.
   WriteDescriptor64(0xc800, 0);
@@ -324,17 +329,16 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_64) {
   WriteEntry64(0x200000, 0, 0, 0x300000);
   WriteDex(0x300000);
 
-  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x300100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 
   // Verify that second is ignored when first is set to non-zero
-  dex_files_.reset(new DexFiles(process_memory_));
-  dex_files_->SetArch(ARCH_ARM64);
+  dex_files_ = CreateDexFiles(ARCH_ARM64, process_memory_);
   method_name = "fail";
   method_offset = 0x123;
   WriteDescriptor64(0xc800, 0x100000);
-  dex_files_->GetFunctionName(maps_.get(), info, 0x300100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x300100, &method_name, &method_offset);
   EXPECT_EQ("fail", method_name);
   EXPECT_EQ(0x123U, method_offset);
 }
@@ -342,13 +346,12 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_64) {
 TEST_F(DexFilesTest, get_method_information_with_empty_map) {
   std::string method_name = "nothing";
   uint64_t method_offset = 0x124;
-  MapInfo* info = maps_->Get(kMapDexFilesAfterEmpty);
 
   WriteDescriptor32(0x503800, 0x506000);
   WriteEntry32(0x506000, 0, 0, 0x510000);
   WriteDex(0x510000);
 
-  dex_files_->GetFunctionName(maps_.get(), info, 0x510100, &method_name, &method_offset);
+  dex_files_->GetFunctionName(maps_.get(), 0x510100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 }

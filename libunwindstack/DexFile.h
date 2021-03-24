@@ -30,8 +30,15 @@
 namespace unwindstack {
 
 class DexFile : protected art_api::dex::DexFile {
+  struct Info {
+    uint32_t offset;  // Symbol start offset (relative to start of dex file).
+    std::string name;
+  };
+
  public:
   virtual ~DexFile() = default;
+
+  bool IsValidPc(uint64_t dex_pc);
 
   bool GetFunctionName(uint64_t dex_pc, std::string* method_name, uint64_t* method_offset);
 
@@ -39,10 +46,13 @@ class DexFile : protected art_api::dex::DexFile {
                                          MapInfo* info);
 
  protected:
-  DexFile(uint64_t base_addr, std::unique_ptr<art_api::dex::DexFile>& art_dex_file)
-      : art_api::dex::DexFile(art_dex_file), base_addr_(base_addr) {}
+  DexFile(uint64_t base_addr, uint64_t size, std::unique_ptr<art_api::dex::DexFile>& art_dex_file)
+      : art_api::dex::DexFile(art_dex_file), base_addr_(base_addr), size_(size) {}
 
   uint64_t base_addr_ = 0;  // Absolute address where this DEX file is in memory.
+  uint64_t size_ = 0;       // Size of the dex file.
+
+  std::map<uint32_t, Info> symbols_;  // Cache of read symbols (keyed by *end* offset).
 };
 
 class DexFileFromFile : public DexFile {
@@ -52,8 +62,9 @@ class DexFileFromFile : public DexFile {
                                                  const std::string& file);
 
  private:
-  DexFileFromFile(uint64_t base_addr, std::unique_ptr<art_api::dex::DexFile>& art_dex_file)
-      : DexFile(base_addr, art_dex_file) {}
+  DexFileFromFile(uint64_t base_addr, uint64_t size,
+                  std::unique_ptr<art_api::dex::DexFile>& art_dex_file)
+      : DexFile(base_addr, size, art_dex_file) {}
 };
 
 class DexFileFromMemory : public DexFile {
@@ -63,9 +74,10 @@ class DexFileFromMemory : public DexFile {
                                                    size_t max_size);
 
  private:
-  DexFileFromMemory(uint64_t base_addr, std::unique_ptr<art_api::dex::DexFile>& art_dex_file,
+  DexFileFromMemory(uint64_t base_addr, uint64_t size,
+                    std::unique_ptr<art_api::dex::DexFile>& art_dex_file,
                     std::vector<uint8_t>&& memory)
-      : DexFile(base_addr, art_dex_file), memory_(std::move(memory)) {}
+      : DexFile(base_addr, size, art_dex_file), memory_(std::move(memory)) {}
 
   std::vector<uint8_t> memory_;
 };
