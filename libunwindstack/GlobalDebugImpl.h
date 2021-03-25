@@ -139,7 +139,7 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
     return false;
   }
 
-  bool GetFunctionName(Maps* maps, uint64_t pc, std::string* name, uint64_t* offset) {
+  bool GetFunctionName(Maps* maps, uint64_t pc, SharedString* name, uint64_t* offset) {
     // NB: If symfiles overlap in PC ranges, this will check all of them.
     return ForEachSymfile(maps, [pc, name, offset](Symfile* file) {
       return file->IsValidPc(pc) && file->GetFunctionName(pc, name, offset);

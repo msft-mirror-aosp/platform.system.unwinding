@@ -101,8 +101,10 @@ class DexFilesTest : public ::testing::Test {
 
   void WriteDescriptor32(uint64_t addr, uint32_t head);
   void WriteDescriptor64(uint64_t addr, uint64_t head);
-  void WriteEntry32(uint64_t entry_addr, uint32_t next, uint32_t prev, uint32_t dex_file);
-  void WriteEntry64(uint64_t entry_addr, uint64_t next, uint64_t prev, uint64_t dex_file);
+  void WriteEntry32(uint64_t entry_addr, uint32_t next, uint32_t prev, uint32_t dex_file,
+                    uint64_t dex_size);
+  void WriteEntry64(uint64_t entry_addr, uint64_t next, uint64_t prev, uint64_t dex_file,
+                    uint64_t dex_size);
   void WriteDex(uint64_t dex_file);
 
   static constexpr size_t kMapGlobalNonReadable = 2;
@@ -143,7 +145,7 @@ void DexFilesTest::WriteDescriptor64(uint64_t addr, uint64_t entry) {
 }
 
 void DexFilesTest::WriteEntry32(uint64_t entry_addr, uint32_t next, uint32_t prev,
-                                uint32_t dex_file) {
+                                uint32_t dex_file, uint64_t dex_size) {
   // Format of the 32 bit DEXFileEntry structure:
   //   uint32_t next
   memory_->SetData32(entry_addr, next);
@@ -153,11 +155,11 @@ void DexFilesTest::WriteEntry32(uint64_t entry_addr, uint32_t next, uint32_t pre
   memory_->SetData32(entry_addr + 8, dex_file);
   //   uint32_t dex_size (present in the struct, but we ignore it)
   memory_->SetData32(entry_addr + 12, 0);  // Align.
-  memory_->SetData64(entry_addr + 16, 0);
+  memory_->SetData64(entry_addr + 16, dex_size);
 }
 
 void DexFilesTest::WriteEntry64(uint64_t entry_addr, uint64_t next, uint64_t prev,
-                                uint64_t dex_file) {
+                                uint64_t dex_file, uint64_t dex_size) {
   // Format of the 64 bit DEXFileEntry structure:
   //   uint64_t next
   memory_->SetData64(entry_addr, next);
@@ -166,7 +168,7 @@ void DexFilesTest::WriteEntry64(uint64_t entry_addr, uint64_t next, uint64_t pre
   //   uint64_t dex_file
   memory_->SetData64(entry_addr + 16, dex_file);
   //   uint32_t dex_size (present in the struct, but we ignore it)
-  memory_->SetData64(entry_addr + 24, 0);
+  memory_->SetData64(entry_addr + 24, dex_size);
 }
 
 void DexFilesTest::WriteDex(uint64_t dex_file) {
@@ -174,7 +176,7 @@ void DexFilesTest::WriteDex(uint64_t dex_file) {
 }
 
 TEST_F(DexFilesTest, get_method_information_invalid) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   dex_files_->GetFunctionName(maps_.get(), 0, &method_name, &method_offset);
@@ -183,11 +185,11 @@ TEST_F(DexFilesTest, get_method_information_invalid) {
 }
 
 TEST_F(DexFilesTest, get_method_information_32) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor32(0x100800, 0x200000);
-  WriteEntry32(0x200000, 0, 0, 0x300000);
+  WriteEntry32(0x200000, 0, 0, 0x300000, sizeof(kDexData));
   WriteDex(0x300000);
 
   dex_files_->GetFunctionName(maps_.get(), 0x300100, &method_name, &method_offset);
@@ -198,11 +200,11 @@ TEST_F(DexFilesTest, get_method_information_32) {
 TEST_F(DexFilesTest, get_method_information_64) {
   Init(ARCH_ARM64);
 
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor64(0x100800, 0x200000);
-  WriteEntry64(0x200000, 0, 0, 0x301000);
+  WriteEntry64(0x200000, 0, 0, 0x301000, sizeof(kDexData));
   WriteDex(0x301000);
 
   dex_files_->GetFunctionName(maps_.get(), 0x301102, &method_name, &method_offset);
@@ -211,12 +213,12 @@ TEST_F(DexFilesTest, get_method_information_64) {
 }
 
 TEST_F(DexFilesTest, get_method_information_not_first_entry_32) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor32(0x100800, 0x200000);
-  WriteEntry32(0x200000, 0x200100, 0, 0x100000);
-  WriteEntry32(0x200100, 0, 0x200000, 0x300000);
+  WriteEntry32(0x200000, 0x200100, 0, 0x100000, sizeof(kDexData));
+  WriteEntry32(0x200100, 0, 0x200000, 0x300000, sizeof(kDexData));
   WriteDex(0x300000);
 
   dex_files_->GetFunctionName(maps_.get(), 0x300104, &method_name, &method_offset);
@@ -227,12 +229,12 @@ TEST_F(DexFilesTest, get_method_information_not_first_entry_32) {
 TEST_F(DexFilesTest, get_method_information_not_first_entry_64) {
   Init(ARCH_ARM64);
 
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor64(0x100800, 0x200000);
-  WriteEntry64(0x200000, 0x200100, 0, 0x100000);
-  WriteEntry64(0x200100, 0, 0x200000, 0x300000);
+  WriteEntry64(0x200000, 0x200100, 0, 0x100000, sizeof(kDexData));
+  WriteEntry64(0x200100, 0, 0x200000, 0x300000, sizeof(kDexData));
   WriteDex(0x300000);
 
   dex_files_->GetFunctionName(maps_.get(), 0x300106, &method_name, &method_offset);
@@ -241,11 +243,11 @@ TEST_F(DexFilesTest, get_method_information_not_first_entry_64) {
 }
 
 TEST_F(DexFilesTest, get_method_information_cached) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor32(0x100800, 0x200000);
-  WriteEntry32(0x200000, 0, 0, 0x300000);
+  WriteEntry32(0x200000, 0, 0, 0x300000, sizeof(kDexData));
   WriteDex(0x300000);
 
   dex_files_->GetFunctionName(maps_.get(), 0x300100, &method_name, &method_offset);
@@ -260,12 +262,12 @@ TEST_F(DexFilesTest, get_method_information_cached) {
 }
 
 TEST_F(DexFilesTest, get_method_information_search_libs) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor32(0x100800, 0x200000);
-  WriteEntry32(0x200000, 0x200100, 0, 0x100000);
-  WriteEntry32(0x200100, 0, 0x200000, 0x300000);
+  WriteEntry32(0x200000, 0x200100, 0, 0x100000, sizeof(kDexData));
+  WriteEntry32(0x200100, 0, 0x200000, 0x300000, sizeof(kDexData));
   WriteDex(0x300000);
 
   // Only search a given named list of libs.
@@ -292,14 +294,14 @@ TEST_F(DexFilesTest, get_method_information_search_libs) {
 }
 
 TEST_F(DexFilesTest, get_method_information_global_skip_zero_32) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   // First global variable found, but value is zero.
   WriteDescriptor32(0xc800, 0);
 
   WriteDescriptor32(0x100800, 0x200000);
-  WriteEntry32(0x200000, 0, 0, 0x300000);
+  WriteEntry32(0x200000, 0, 0, 0x300000, sizeof(kDexData));
   WriteDex(0x300000);
 
   dex_files_->GetFunctionName(maps_.get(), 0x300100, &method_name, &method_offset);
@@ -319,14 +321,14 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_32) {
 TEST_F(DexFilesTest, get_method_information_global_skip_zero_64) {
   Init(ARCH_ARM64);
 
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   // First global variable found, but value is zero.
   WriteDescriptor64(0xc800, 0);
 
   WriteDescriptor64(0x100800, 0x200000);
-  WriteEntry64(0x200000, 0, 0, 0x300000);
+  WriteEntry64(0x200000, 0, 0, 0x300000, sizeof(kDexData));
   WriteDex(0x300000);
 
   dex_files_->GetFunctionName(maps_.get(), 0x300100, &method_name, &method_offset);
@@ -344,11 +346,11 @@ TEST_F(DexFilesTest, get_method_information_global_skip_zero_64) {
 }
 
 TEST_F(DexFilesTest, get_method_information_with_empty_map) {
-  std::string method_name = "nothing";
+  SharedString method_name = "nothing";
   uint64_t method_offset = 0x124;
 
   WriteDescriptor32(0x503800, 0x506000);
-  WriteEntry32(0x506000, 0, 0, 0x510000);
+  WriteEntry32(0x506000, 0, 0, 0x510000, sizeof(kDexData));
   WriteDex(0x510000);
 
   dex_files_->GetFunctionName(maps_.get(), 0x510100, &method_name, &method_offset);

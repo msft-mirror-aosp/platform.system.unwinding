@@ -26,6 +26,7 @@
 #include <unwindstack/Elf.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/RegsArm.h>
+#include <unwindstack/SharedString.h>
 
 #include "ElfFake.h"
 #include "ElfTestUtils.h"
@@ -130,7 +131,7 @@ TEST_F(ElfTest, elf_invalid) {
 
   ASSERT_EQ("", elf.GetSoname());
 
-  std::string name;
+  SharedString name;
   uint64_t func_offset;
   ASSERT_FALSE(elf.GetFunctionName(0, &name, &func_offset));
 
@@ -344,7 +345,7 @@ class ElfInterfaceMock : public ElfInterface {
   bool Init(int64_t*) override { return false; }
   void InitHeaders() override {}
   std::string GetSoname() override { return ""; }
-  bool GetFunctionName(uint64_t, std::string*, uint64_t*) override { return false; }
+  bool GetFunctionName(uint64_t, SharedString*, uint64_t*) override { return false; }
   std::string GetBuildID() override { return ""; }
 
   MOCK_METHOD(bool, Step, (uint64_t, Regs*, Memory*, bool*, bool*), (override));
