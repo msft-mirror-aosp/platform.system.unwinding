@@ -50,7 +50,7 @@ static void BenchmarkSymbolLookup(benchmark::State& state, std::vector<uint64_t>
     uint64_t alloc_bytes_before = mallinfo().uordblks;
     state.ResumeTiming();
 
-    std::string name;
+    unwindstack::SharedString name;
     uint64_t offset;
     for (size_t i = 0; i < runs; i++) {
       for (auto pc : offsets) {
