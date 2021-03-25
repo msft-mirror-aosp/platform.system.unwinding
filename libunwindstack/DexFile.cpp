@@ -81,7 +81,7 @@ std::unique_ptr<DexFile> DexFile::Create(uint64_t dex_file_offset_in_memory, Mem
   return DexFileFromMemory::Create(dex_file_offset_in_memory, memory, info->name, max_size);
 }
 
-bool DexFile::GetFunctionName(uint64_t dex_pc, std::string* method_name, uint64_t* method_offset) {
+bool DexFile::GetFunctionName(uint64_t dex_pc, SharedString* method_name, uint64_t* method_offset) {
   // Convert absolute PC to file-relative offset.
   uint64_t dex_offset = dex_pc - base_addr_;
 

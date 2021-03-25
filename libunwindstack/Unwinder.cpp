@@ -336,7 +336,8 @@ std::string Unwinder::FormatFrame(const FrameData& frame) const {
   if (!frame.function_name.empty()) {
     char* demangled_name = __cxa_demangle(frame.function_name.c_str(), nullptr, nullptr, nullptr);
     if (demangled_name == nullptr) {
-      data += " (" + frame.function_name;
+      data += " (";
+      data += frame.function_name;
     } else {
       data += " (";
       data += demangled_name;

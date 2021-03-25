@@ -271,7 +271,7 @@ Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum exp
   return elf.get();
 }
 
-bool MapInfo::GetFunctionName(uint64_t addr, std::string* name, uint64_t* func_offset) {
+bool MapInfo::GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset) {
   {
     // Make sure no other thread is trying to update this elf object.
     std::lock_guard<std::mutex> guard(mutex_);
