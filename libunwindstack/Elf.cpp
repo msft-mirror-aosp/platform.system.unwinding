@@ -105,7 +105,7 @@ uint64_t Elf::GetRelPc(uint64_t pc, const MapInfo* map_info) {
   return pc - map_info->start + load_bias_ + map_info->elf_offset;
 }
 
-bool Elf::GetFunctionName(uint64_t addr, std::string* name, uint64_t* func_offset) {
+bool Elf::GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset) {
   std::lock_guard<std::mutex> guard(lock_);
   return valid_ && (interface_->GetFunctionName(addr, name, func_offset) ||
                     (gnu_debugdata_interface_ &&
