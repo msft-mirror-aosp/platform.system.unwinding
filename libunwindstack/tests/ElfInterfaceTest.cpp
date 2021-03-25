@@ -827,7 +827,7 @@ void ElfInterfaceTest::InitSectionHeadersMalformedSymData() {
   EXPECT_EQ(0U, elf->gnu_debugdata_offset());
   EXPECT_EQ(0U, elf->gnu_debugdata_size());
 
-  std::string name;
+  SharedString name;
   uint64_t name_offset;
   ASSERT_FALSE(elf->GetFunctionName(0x90010, &name, &name_offset));
 }
@@ -900,7 +900,7 @@ void ElfInterfaceTest::InitSectionHeaders(uint64_t entry_size) {
   EXPECT_EQ(0U, elf->gnu_debugdata_size());
 
   // Look in the first symbol table.
-  std::string name;
+  SharedString name;
   uint64_t name_offset;
   ASSERT_TRUE(elf->GetFunctionName(0x90010, &name, &name_offset));
   EXPECT_EQ("function_one", name);
