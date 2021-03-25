@@ -187,10 +187,11 @@ bool Memory::ReadString(uint64_t addr, std::string* dst, size_t max_read) {
   return false;
 }
 
-std::unique_ptr<Memory> Memory::CreateFileMemory(const std::string& path, uint64_t offset) {
+std::unique_ptr<Memory> Memory::CreateFileMemory(const std::string& path, uint64_t offset,
+                                                 uint64_t size) {
   auto memory = std::make_unique<MemoryFileAtOffset>();
 
-  if (memory->Init(path, offset)) {
+  if (memory->Init(path, offset, size)) {
     return memory;
   }
 

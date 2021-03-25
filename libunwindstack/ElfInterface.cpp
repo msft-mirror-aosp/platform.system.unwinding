@@ -482,7 +482,7 @@ std::string ElfInterfaceImpl<ElfTypes>::GetSoname() {
 }
 
 template <typename ElfTypes>
-bool ElfInterfaceImpl<ElfTypes>::GetFunctionName(uint64_t addr, std::string* name,
+bool ElfInterfaceImpl<ElfTypes>::GetFunctionName(uint64_t addr, SharedString* name,
                                                  uint64_t* func_offset) {
   if (symbols_.empty()) {
     return false;

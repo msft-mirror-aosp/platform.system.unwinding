@@ -27,6 +27,7 @@
 #include <unwindstack/ElfInterface.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
+#include <unwindstack/SharedString.h>
 
 #include "ElfInterfaceArm.h"
 
@@ -72,7 +73,7 @@ class ElfInterfaceFake : public ElfInterface {
   void InitHeaders() override {}
   std::string GetSoname() override { return fake_soname_; }
 
-  bool GetFunctionName(uint64_t, std::string*, uint64_t*) override;
+  bool GetFunctionName(uint64_t, SharedString*, uint64_t*) override;
   bool GetGlobalVariable(const std::string&, uint64_t*) override;
   std::string GetBuildID() override { return fake_build_id_; }
 
