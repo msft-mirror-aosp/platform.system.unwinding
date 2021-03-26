@@ -59,7 +59,8 @@ static std::string ErrorMsg(const std::vector<const char*>& function_names,
                                           frame.pc, frame.rel_pc);
     if (frame.map_info != nullptr) {
       if (!frame.map_info->name.empty()) {
-        unwind += " " + frame.map_info->name;
+        unwind += " ";
+        unwind += frame.map_info->name;
       } else {
         unwind += android::base::StringPrintf(" 0x%" PRIx64 "-0x%" PRIx64, frame.map_info->start,
                                               frame.map_info->end);
