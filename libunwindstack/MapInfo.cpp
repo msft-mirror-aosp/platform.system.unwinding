@@ -314,14 +314,11 @@ uint64_t MapInfo::GetLoadBias(const std::shared_ptr<Memory>& process_memory) {
 }
 
 MapInfo::~MapInfo() {
-  std::string* id = build_id.load();
-  if (id != nullptr) {
-    delete id;
-  }
+  delete build_id.load();
 }
 
-const std::string& MapInfo::GetBuildID() {
-  std::string* id = build_id.load();
+SharedString MapInfo::GetBuildID() {
+  SharedString* id = build_id.load();
   if (id != nullptr) {
     return *id;
   }
@@ -329,30 +326,34 @@ const std::string& MapInfo::GetBuildID() {
   // No need to lock, at worst if multiple threads do this at the same
   // time it should be detected and only one thread should win and
   // save the data.
-  std::unique_ptr<std::string> cur_build_id(new std::string);
 
   // Now need to see if the elf object exists.
   // Make sure no other thread is trying to add the elf to this map.
   mutex_.lock();
   Elf* elf_obj = elf.get();
   mutex_.unlock();
+  std::string result;
   if (elf_obj != nullptr) {
-    *cur_build_id = elf_obj->GetBuildID();
+    result = elf_obj->GetBuildID();
   } else {
     // This will only work if we can get the file associated with this memory.
     // If this is only available in memory, then the section name information
     // is not present and we will not be able to find the build id info.
     std::unique_ptr<Memory> memory(GetFileMemory());
     if (memory != nullptr) {
-      *cur_build_id = Elf::GetBuildID(memory.get());
+      result = Elf::GetBuildID(memory.get());
     }
   }
+  return SetBuildID(std::move(result));
+}
 
-  std::string* expected_id = nullptr;
+SharedString MapInfo::SetBuildID(std::string&& new_build_id) {
+  std::unique_ptr<SharedString> new_build_id_ptr(new SharedString(std::move(new_build_id)));
+  SharedString* expected_id = nullptr;
   // Strong version since we need to reliably return the stored pointer.
-  if (build_id.compare_exchange_strong(expected_id, cur_build_id.get())) {
+  if (build_id.compare_exchange_strong(expected_id, new_build_id_ptr.get())) {
     // Value saved, so make sure the memory is not freed.
-    return *cur_build_id.release();
+    return *new_build_id_ptr.release();
   } else {
     // The expected value is set to the stored value on failure.
     return *expected_id;

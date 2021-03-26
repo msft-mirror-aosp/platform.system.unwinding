@@ -49,7 +49,7 @@ struct FrameData {
   SharedString function_name;
   uint64_t function_offset = 0;
 
-  std::string map_name;
+  SharedString map_name;
   // The offset from the first map representing the frame. When there are
   // two maps (read-only and read-execute) this will be the offset from
   // the read-only map. When there is only one map, this will be the
