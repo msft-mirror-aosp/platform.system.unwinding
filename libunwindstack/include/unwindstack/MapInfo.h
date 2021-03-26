@@ -64,7 +64,7 @@ struct MapInfo {
   uint64_t end = 0;
   uint64_t offset = 0;
   uint16_t flags = 0;
-  std::string name;
+  SharedString name;
   std::shared_ptr<Elf> elf;
   // The offset of the beginning of this mapping to the beginning of the
   // ELF file.
@@ -95,7 +95,7 @@ struct MapInfo {
   // This is a pointer to a new'd std::string.
   // Using an atomic value means that we don't need to lock and will
   // make it easier to move to a fine grained lock in the future.
-  std::atomic<std::string*> build_id;
+  std::atomic<SharedString*> build_id;
 
   // Set to true if the elf file data is coming from memory.
   bool memory_backed_elf = false;
@@ -110,7 +110,10 @@ struct MapInfo {
   bool GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset);
 
   // Returns the raw build id read from the elf data.
-  const std::string& GetBuildID();
+  SharedString GetBuildID();
+
+  // Used internally, and by tests. It sets the value only if it was not already set.
+  SharedString SetBuildID(std::string&& new_build_id);
 
   // Returns the printable version of the build id (hex dump of raw data).
   std::string GetPrintableBuildID();
