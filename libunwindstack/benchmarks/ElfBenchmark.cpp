@@ -112,7 +112,7 @@ static void BM_elf_get_build_id_from_object(benchmark::State& state) {
 
   for (auto _ : state) {
     state.PauseTiming();
-    std::string* id = build_id_map_info->build_id;
+    unwindstack::SharedString* id = build_id_map_info->build_id;
     if (id != nullptr) {
       delete id;
       build_id_map_info->build_id = nullptr;
@@ -130,7 +130,7 @@ static void BM_elf_get_build_id_from_file(benchmark::State& state) {
 
   for (auto _ : state) {
     state.PauseTiming();
-    std::string* id = build_id_map_info->build_id;
+    unwindstack::SharedString* id = build_id_map_info->build_id;
     if (id != nullptr) {
       delete id;
       build_id_map_info->build_id = nullptr;
