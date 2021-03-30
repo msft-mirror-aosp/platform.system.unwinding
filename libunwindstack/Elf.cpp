@@ -105,7 +105,7 @@ uint64_t Elf::GetRelPc(uint64_t pc, const MapInfo* map_info) {
   return pc - map_info->start + load_bias_ + map_info->elf_offset;
 }
 
-bool Elf::GetFunctionName(uint64_t addr, std::string* name, uint64_t* func_offset) {
+bool Elf::GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset) {
   std::lock_guard<std::mutex> guard(lock_);
   return valid_ && (interface_->GetFunctionName(addr, name, func_offset) ||
                     (gnu_debugdata_interface_ &&
@@ -383,8 +383,8 @@ void Elf::CacheAdd(MapInfo* info) {
   if (info->offset != 0) {
     // The second element in the pair indicates whether elf_offset should
     // be set to offset when getting out of the cache.
-    (*cache_)[info->name + ':' + std::to_string(info->offset)] =
-        std::make_pair(info->elf, info->elf_offset != 0);
+    std::string key = std::string(info->name) + ':' + std::to_string(info->offset);
+    (*cache_)[key] = std::make_pair(info->elf, info->elf_offset != 0);
   }
 }
 
@@ -402,7 +402,8 @@ bool Elf::CacheAfterCreateMemory(MapInfo* info) {
   // been cached. Add an entry at name:offset to get this directly out
   // of the cache next time.
   info->elf = entry->second.first;
-  (*cache_)[info->name + ':' + std::to_string(info->offset)] = std::make_pair(info->elf, true);
+  std::string key = std::string(info->name) + ':' + std::to_string(info->offset);
+  (*cache_)[key] = std::make_pair(info->elf, true);
   return true;
 }
 

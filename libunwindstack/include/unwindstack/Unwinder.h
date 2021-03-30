@@ -31,6 +31,7 @@
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
+#include <unwindstack/SharedString.h>
 
 namespace unwindstack {
 
@@ -45,10 +46,10 @@ struct FrameData {
   uint64_t pc;
   uint64_t sp;
 
-  std::string function_name;
+  SharedString function_name;
   uint64_t function_offset = 0;
 
-  std::string map_name;
+  SharedString map_name;
   // The offset from the first map representing the frame. When there are
   // two maps (read-only and read-execute) this will be the offset from
   // the read-only map. When there is only one map, this will be the

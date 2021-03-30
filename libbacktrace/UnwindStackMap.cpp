@@ -133,7 +133,7 @@ std::string UnwindStackMap::GetFunctionName(uint64_t pc, uint64_t* offset) {
 
   unwindstack::Elf* elf = map_info->GetElf(process_memory(), arch_);
 
-  std::string name;
+  unwindstack::SharedString name;
   uint64_t func_offset;
   if (!elf->GetFunctionName(elf->GetRelPc(pc, map_info), &name, &func_offset)) {
     return "";

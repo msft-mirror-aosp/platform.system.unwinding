@@ -124,7 +124,7 @@ bool LocalUnwinder::Unwind(std::vector<LocalFrameData>* frame_info, size_t max_f
     // Skip any locations that are within this library.
     if (num_frames != 0 || !ShouldSkipLibrary(map_info->name)) {
       // Add frame information.
-      std::string func_name;
+      SharedString func_name;
       uint64_t func_offset;
       if (elf->GetFunctionName(rel_pc, &func_name, &func_offset)) {
         frame_info->emplace_back(map_info, cur_pc - pc_adjustment, rel_pc - pc_adjustment,
