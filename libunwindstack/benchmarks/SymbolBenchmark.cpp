@@ -37,11 +37,6 @@ static void BenchmarkSymbolLookup(benchmark::State& state, std::vector<uint64_t>
   uint64_t alloc_bytes = 0;
   for (auto _ : state) {
     state.PauseTiming();
-    unwindstack::Elf elf(unwindstack::Memory::CreateFileMemory(elf_file, 0).release());
-    if (!elf.Init() || !elf.valid()) {
-      errx(1, "Internal Error: Cannot open elf.");
-    }
-
 #if defined(__BIONIC__)
     mallopt(M_PURGE, 0);
     uint64_t rss_bytes_before = 0;
@@ -49,6 +44,11 @@ static void BenchmarkSymbolLookup(benchmark::State& state, std::vector<uint64_t>
 #endif
     uint64_t alloc_bytes_before = mallinfo().uordblks;
     state.ResumeTiming();
+
+    unwindstack::Elf elf(unwindstack::Memory::CreateFileMemory(elf_file, 0).release());
+    if (!elf.Init() || !elf.valid()) {
+      errx(1, "Internal Error: Cannot open elf.");
+    }
 
     unwindstack::SharedString name;
     uint64_t offset;
@@ -86,46 +86,46 @@ static void BenchmarkSymbolLookup(benchmark::State& state, uint64_t pc, std::str
   BenchmarkSymbolLookup(state, std::vector<uint64_t>{pc}, elf_file, expect_found, runs);
 }
 
-void BM_symbol_not_present(benchmark::State& state) {
+void BM_elf_and_symbol_not_present(benchmark::State& state) {
   BenchmarkSymbolLookup(state, 0, GetElfFile(), false);
 }
-BENCHMARK(BM_symbol_not_present);
+BENCHMARK(BM_elf_and_symbol_not_present);
 
-void BM_symbol_find_single(benchmark::State& state) {
+void BM_elf_and_symbol_find_single(benchmark::State& state) {
   BenchmarkSymbolLookup(state, 0x22b2bc, GetElfFile(), true);
 }
-BENCHMARK(BM_symbol_find_single);
+BENCHMARK(BM_elf_and_symbol_find_single);
 
-void BM_symbol_find_single_many_times(benchmark::State& state) {
+void BM_elf_and_symbol_find_single_many_times(benchmark::State& state) {
   BenchmarkSymbolLookup(state, 0x22b2bc, GetElfFile(), true, 4096);
 }
-BENCHMARK(BM_symbol_find_single_many_times);
+BENCHMARK(BM_elf_and_symbol_find_single_many_times);
 
-void BM_symbol_find_multiple(benchmark::State& state) {
+void BM_elf_and_symbol_find_multiple(benchmark::State& state) {
   BenchmarkSymbolLookup(state,
                         std::vector<uint64_t>{0x22b2bc, 0xd5d30, 0x1312e8, 0x13582e, 0x1389c8},
                         GetElfFile(), true);
 }
-BENCHMARK(BM_symbol_find_multiple);
+BENCHMARK(BM_elf_and_symbol_find_multiple);
 
-void BM_symbol_not_present_from_sorted(benchmark::State& state) {
+void BM_elf_and_symbol_not_present_from_sorted(benchmark::State& state) {
   BenchmarkSymbolLookup(state, 0, GetSymbolSortedElfFile(), false);
 }
-BENCHMARK(BM_symbol_not_present_from_sorted);
+BENCHMARK(BM_elf_and_symbol_not_present_from_sorted);
 
-void BM_symbol_find_single_from_sorted(benchmark::State& state) {
+void BM_elf_and_symbol_find_single_from_sorted(benchmark::State& state) {
   BenchmarkSymbolLookup(state, 0x138638, GetSymbolSortedElfFile(), true);
 }
-BENCHMARK(BM_symbol_find_single_from_sorted);
+BENCHMARK(BM_elf_and_symbol_find_single_from_sorted);
 
-void BM_symbol_find_single_many_times_from_sorted(benchmark::State& state) {
+void BM_elf_and_symbol_find_single_many_times_from_sorted(benchmark::State& state) {
   BenchmarkSymbolLookup(state, 0x138638, GetSymbolSortedElfFile(), true, 4096);
 }
-BENCHMARK(BM_symbol_find_single_many_times_from_sorted);
+BENCHMARK(BM_elf_and_symbol_find_single_many_times_from_sorted);
 
-void BM_symbol_find_multiple_from_sorted(benchmark::State& state) {
+void BM_elf_and_symbol_find_multiple_from_sorted(benchmark::State& state) {
   BenchmarkSymbolLookup(state,
                         std::vector<uint64_t>{0x138638, 0x84350, 0x14df18, 0x1f3a38, 0x1f3ca8},
                         GetSymbolSortedElfFile(), true);
 }
-BENCHMARK(BM_symbol_find_multiple_from_sorted);
+BENCHMARK(BM_elf_and_symbol_find_multiple_from_sorted);
