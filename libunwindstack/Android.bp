@@ -259,6 +259,7 @@ cc_defaults {
         "tests/MemoryRemoteTest.cpp",
         "tests/MemoryTest.cpp",
         "tests/MemoryMteTest.cpp",
+        "tests/MemoryXzTest.cpp",
         "tests/RegsInfoTest.cpp",
         "tests/RegsIterateTest.cpp",
         "tests/RegsStepIfSignalHandlerTest.cpp",
@@ -290,6 +291,11 @@ cc_defaults {
 
     test_suites: ["device-tests"],
     data: [
+        "tests/files/boot_arm.oat.gnu_debugdata",
+        "tests/files/boot_arm.oat.gnu_debugdata.xz",
+        "tests/files/boot_arm.oat.gnu_debugdata.xz.non-power",
+        "tests/files/boot_arm.oat.gnu_debugdata.xz.odd-sizes",
+        "tests/files/boot_arm.oat.gnu_debugdata.xz.one-block",
         "tests/files/elf32.xz",
         "tests/files/elf64.xz",
         "tests/files/offline/art_quick_osr_stub_arm/*",
