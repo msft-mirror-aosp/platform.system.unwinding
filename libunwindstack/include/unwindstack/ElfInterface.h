@@ -92,7 +92,7 @@ class ElfInterface {
 
   bool GetTextRange(uint64_t* addr, uint64_t* size);
 
-  Memory* CreateGnuDebugdataMemory();
+  std::unique_ptr<Memory> CreateGnuDebugdataMemory();
 
   Memory* memory() { return memory_; }
 

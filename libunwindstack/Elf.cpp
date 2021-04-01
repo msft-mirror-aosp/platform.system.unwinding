@@ -68,7 +68,7 @@ void Elf::InitGnuDebugdata() {
     return;
   }
 
-  gnu_debugdata_memory_.reset(interface_->CreateGnuDebugdataMemory());
+  gnu_debugdata_memory_ = interface_->CreateGnuDebugdataMemory();
   gnu_debugdata_interface_.reset(CreateInterfaceFromMemory(gnu_debugdata_memory_.get()));
   ElfInterface* gnu = gnu_debugdata_interface_.get();
   if (gnu == nullptr) {
