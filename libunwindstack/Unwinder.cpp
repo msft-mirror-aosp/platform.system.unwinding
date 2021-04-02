@@ -387,17 +387,19 @@ bool UnwinderFromPid::Init() {
   }
   initted_ = true;
 
-  if (pid_ == getpid()) {
-    maps_ptr_.reset(new LocalMaps());
-  } else {
-    maps_ptr_.reset(new RemoteMaps(pid_));
+  if (maps_ == nullptr) {
+    if (pid_ == getpid()) {
+      maps_ptr_.reset(new LocalMaps());
+    } else {
+      maps_ptr_.reset(new RemoteMaps(pid_));
+    }
+    if (!maps_ptr_->Parse()) {
+      ClearErrors();
+      last_error_.code = ERROR_INVALID_MAP;
+      return false;
+    }
+    maps_ = maps_ptr_.get();
   }
-  if (!maps_ptr_->Parse()) {
-    ClearErrors();
-    last_error_.code = ERROR_INVALID_MAP;
-    return false;
-  }
-  maps_ = maps_ptr_.get();
 
   process_memory_ = Memory::CreateProcessMemoryCached(pid_);
 
