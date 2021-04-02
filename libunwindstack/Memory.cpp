@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 #include <android-base/unique_fd.h>
 
@@ -223,6 +224,13 @@ std::shared_ptr<Memory> Memory::CreateProcessMemoryCached(pid_t pid) {
     return std::shared_ptr<Memory>(new MemoryCache(new MemoryLocal()));
   }
   return std::shared_ptr<Memory>(new MemoryCache(new MemoryRemote(pid)));
+}
+
+std::shared_ptr<Memory> Memory::CreateProcessMemoryThreadCached(pid_t pid) {
+  if (pid == getpid()) {
+    return std::shared_ptr<Memory>(new MemoryThreadCache(new MemoryLocal()));
+  }
+  return std::shared_ptr<Memory>(new MemoryThreadCache(new MemoryRemote(pid)));
 }
 
 std::shared_ptr<Memory> Memory::CreateOfflineMemory(const uint8_t* data, uint64_t start,
@@ -462,22 +470,18 @@ size_t MemoryOfflineParts::Read(uint64_t addr, void* dst, size_t size) {
   return 0;
 }
 
-size_t MemoryCache::Read(uint64_t addr, void* dst, size_t size) {
-  // Only bother caching and looking at the cache if this is a small read for now.
-  if (size > 64) {
-    return impl_->Read(addr, dst, size);
-  }
-
+size_t MemoryCacheBase::InternalCachedRead(uint64_t addr, void* dst, size_t size,
+                                           CacheDataType* cache) {
   uint64_t addr_page = addr >> kCacheBits;
-  auto entry = cache_.find(addr_page);
+  auto entry = cache->find(addr_page);
   uint8_t* cache_dst;
-  if (entry != cache_.end()) {
+  if (entry != cache->end()) {
     cache_dst = entry->second;
   } else {
-    cache_dst = cache_[addr_page];
+    cache_dst = (*cache)[addr_page];
     if (!impl_->ReadFully(addr_page << kCacheBits, cache_dst, kCacheSize)) {
       // Erase the entry.
-      cache_.erase(addr_page);
+      cache->erase(addr_page);
       return impl_->Read(addr, dst, size);
     }
   }
@@ -493,19 +497,73 @@ size_t MemoryCache::Read(uint64_t addr, void* dst, size_t size) {
   dst = &reinterpret_cast<uint8_t*>(dst)[max_read];
   addr_page++;
 
-  entry = cache_.find(addr_page);
-  if (entry != cache_.end()) {
+  entry = cache->find(addr_page);
+  if (entry != cache->end()) {
     cache_dst = entry->second;
   } else {
-    cache_dst = cache_[addr_page];
+    cache_dst = (*cache)[addr_page];
     if (!impl_->ReadFully(addr_page << kCacheBits, cache_dst, kCacheSize)) {
       // Erase the entry.
-      cache_.erase(addr_page);
+      cache->erase(addr_page);
       return impl_->Read(addr_page << kCacheBits, dst, size - max_read) + max_read;
     }
   }
   memcpy(dst, cache_dst, size - max_read);
   return size;
+}
+
+void MemoryCache::Clear() {
+  std::lock_guard<std::mutex> lock(cache_lock_);
+  cache_.clear();
+}
+
+size_t MemoryCache::CachedRead(uint64_t addr, void* dst, size_t size) {
+  // Use a single lock since this object is not designed to be performant
+  // for multiple object reading from multiple threads.
+  std::lock_guard<std::mutex> lock(cache_lock_);
+
+  return InternalCachedRead(addr, dst, size, &cache_);
+}
+
+MemoryThreadCache::MemoryThreadCache(Memory* memory) : MemoryCacheBase(memory) {
+  thread_cache_ = std::make_optional<pthread_t>();
+  if (pthread_key_create(&*thread_cache_, [](void* memory) {
+        CacheDataType* cache = reinterpret_cast<CacheDataType*>(memory);
+        delete cache;
+      }) != 0) {
+    log_async_safe("Failed to create pthread key.");
+    thread_cache_.reset();
+  }
+}
+
+MemoryThreadCache::~MemoryThreadCache() {
+  if (thread_cache_) {
+    CacheDataType* cache = reinterpret_cast<CacheDataType*>(pthread_getspecific(*thread_cache_));
+    delete cache;
+    pthread_key_delete(*thread_cache_);
+  }
+}
+
+size_t MemoryThreadCache::CachedRead(uint64_t addr, void* dst, size_t size) {
+  if (!thread_cache_) {
+    return impl_->Read(addr, dst, size);
+  }
+
+  CacheDataType* cache = reinterpret_cast<CacheDataType*>(pthread_getspecific(*thread_cache_));
+  if (cache == nullptr) {
+    cache = new CacheDataType;
+    pthread_setspecific(*thread_cache_, cache);
+  }
+
+  return InternalCachedRead(addr, dst, size, cache);
+}
+
+void MemoryThreadCache::Clear() {
+  CacheDataType* cache = reinterpret_cast<CacheDataType*>(pthread_getspecific(*thread_cache_));
+  if (cache != nullptr) {
+    delete cache;
+    pthread_setspecific(*thread_cache_, nullptr);
+  }
 }
 
 MemoryXz::MemoryXz(Memory* memory, uint64_t addr, uint64_t size, const std::string& name)
