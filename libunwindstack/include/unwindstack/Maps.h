@@ -17,6 +17,7 @@
 #ifndef _LIBUNWINDSTACK_MAPS_H
 #define _LIBUNWINDSTACK_MAPS_H
 
+#include <pthread.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -49,7 +50,7 @@ class Maps {
   Maps(Maps&&) = default;
   Maps& operator=(Maps&&) = default;
 
-  MapInfo* Find(uint64_t pc);
+  virtual MapInfo* Find(uint64_t pc);
 
   virtual bool Parse();
 
@@ -98,15 +99,21 @@ class LocalMaps : public RemoteMaps {
 
 class LocalUpdatableMaps : public Maps {
  public:
-  LocalUpdatableMaps() : Maps() {}
+  LocalUpdatableMaps();
   virtual ~LocalUpdatableMaps() = default;
 
-  bool Reparse();
+  MapInfo* Find(uint64_t pc) override;
+
+  bool Parse() override;
 
   const std::string GetMapsFile() const override;
 
+  bool Reparse();
+
  protected:
   std::vector<std::unique_ptr<MapInfo>> saved_maps_;
+
+  pthread_rwlock_t maps_rwlock_;
 };
 
 class BufferMaps : public Maps {

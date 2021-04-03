@@ -69,8 +69,8 @@ static void SignalHandler(int, siginfo_t*, void* sigcontext) {
   }
 }
 
-ThreadUnwinder::ThreadUnwinder(size_t max_frames)
-    : UnwinderFromPid(max_frames, getpid(), Regs::CurrentArch()) {}
+ThreadUnwinder::ThreadUnwinder(size_t max_frames, Maps* maps)
+    : UnwinderFromPid(max_frames, getpid(), Regs::CurrentArch(), maps) {}
 
 ThreadUnwinder::ThreadUnwinder(size_t max_frames, const ThreadUnwinder* unwinder)
     : UnwinderFromPid(max_frames, getpid(), Regs::CurrentArch()) {
