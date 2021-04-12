@@ -33,7 +33,7 @@ class MemoryBuffer : public Memory {
 
   size_t Read(uint64_t addr, void* dst, size_t size) override;
 
-  uint8_t* GetPtr(size_t offset);
+  uint8_t* GetPtr(size_t offset) override;
 
   bool Resize(size_t size) {
     void* new_raw = realloc(raw_, size);
