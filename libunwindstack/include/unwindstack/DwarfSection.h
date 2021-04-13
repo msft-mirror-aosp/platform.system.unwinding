@@ -21,6 +21,7 @@
 
 #include <iterator>
 #include <map>
+#include <optional>
 #include <unordered_map>
 
 #include <unwindstack/DwarfError.h>
