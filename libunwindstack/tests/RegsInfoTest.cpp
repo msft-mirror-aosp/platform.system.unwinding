@@ -18,6 +18,7 @@
 
 #include <gtest/gtest.h>
 
+#include <android-base/silent_death_test.h>
 #include <unwindstack/Regs.h>
 
 #include "RegsFake.h"
@@ -82,11 +83,13 @@ TEST(RegsInfoTest, all) {
   }
 }
 
-TEST(RegsInfoTest, invalid_register) {
+using RegsInfoDeathTest = SilentDeathTest;
+
+TEST_F(RegsInfoDeathTest, invalid_register) {
   RegsImplFake<uint64_t> regs(64);
   RegsInfo<uint64_t> info(&regs);
 
-  EXPECT_DEATH(info.Save(RegsInfo<uint64_t>::MAX_REGISTERS), "");
+  ASSERT_DEATH(info.Save(RegsInfo<uint64_t>::MAX_REGISTERS), "");
 }
 
 }  // namespace unwindstack
