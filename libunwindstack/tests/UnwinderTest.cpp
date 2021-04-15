@@ -24,16 +24,17 @@
 
 #include <gtest/gtest.h>
 
+#include <android-base/silent_death_test.h>
 #include <unwindstack/Elf.h>
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsX86.h>
-#include <unwindstack/RegsX86_64.h>
 #include <unwindstack/RegsMips.h>
 #include <unwindstack/RegsMips64.h>
+#include <unwindstack/RegsX86.h>
+#include <unwindstack/RegsX86_64.h>
 #include <unwindstack/Unwinder.h>
 
 #include "ElfFake.h"
@@ -173,13 +174,6 @@ class UnwinderTest : public ::testing::Test {
                           "/fake/jit.so", elf);
     map_info->elf_start_offset = 0x100;
     map_info->offset = 0x200;
-
-#if 0
-    elf = new ElfFake(new MemoryFake);
-    interface = new ElfInterfaceFake(nullptr);
-    interface->FakePushFunctionData(FunctionData("Fake0", 10));
-    AddMapInfo(0x110000, 0x111000, 0x1000, PROT_READ | PROT_WRITE | PROT_EXEC, "/fake/elf.so", elf);
-#endif
   }
 
   void SetUp() override {
@@ -1684,7 +1678,9 @@ TEST_F(UnwinderTest, build_frame_pc_valid_elf) {
 }
 
 TEST_F(UnwinderTest, build_frame_pc_in_jit) {
-  // Create the elf data for the jit debug information.
+  // The whole ELF will be copied (read), so it must be valid (readable) memory.
+  memory_->SetMemoryBlock(0xf7000, 0x1000, 0);
+
   Elf32_Ehdr ehdr = {};
   TestInitEhdr<Elf32_Ehdr>(&ehdr, ELFCLASS32, EM_ARM);
   ehdr.e_phoff = 0x50;
@@ -1752,19 +1748,25 @@ TEST_F(UnwinderTest, build_frame_pc_in_jit) {
   EXPECT_EQ(0xeU, frame.function_offset);
 }
 
-TEST_F(UnwinderTest, unwinder_from_pid_init_error) {
+using UnwinderDeathTest = SilentDeathTest;
+
+TEST_F(UnwinderDeathTest, unwinder_from_pid_init_error) {
   UnwinderFromPid unwinder(10, getpid());
   ASSERT_DEATH(unwinder.Init(), "");
 }
 
-TEST_F(UnwinderTest, set_jit_debug_error) {
-  Unwinder unwinder(10, maps_.get(), process_memory_);
-  ASSERT_DEATH(CreateJitDebug(ARCH_UNKNOWN, process_memory_), "");
+TEST_F(UnwinderDeathTest, set_jit_debug_error) {
+  Maps maps;
+  std::shared_ptr<Memory> process_memory(new MemoryFake);
+  Unwinder unwinder(10, &maps, process_memory);
+  ASSERT_DEATH(CreateJitDebug(ARCH_UNKNOWN, process_memory), "");
 }
 
-TEST_F(UnwinderTest, set_dex_files_error) {
-  Unwinder unwinder(10, maps_.get(), process_memory_);
-  ASSERT_DEATH(CreateDexFiles(ARCH_UNKNOWN, process_memory_), "");
+TEST_F(UnwinderDeathTest, set_dex_files_error) {
+  Maps maps;
+  std::shared_ptr<Memory> process_memory(new MemoryFake);
+  Unwinder unwinder(10, &maps, process_memory);
+  ASSERT_DEATH(CreateDexFiles(ARCH_UNKNOWN, process_memory), "");
 }
 
 }  // namespace unwindstack

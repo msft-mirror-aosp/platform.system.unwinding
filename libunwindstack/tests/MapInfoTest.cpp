@@ -65,7 +65,7 @@ TEST(MapInfoTest, get_function_name) {
   MapInfo map_info(nullptr, nullptr, 1, 2, 3, 4, "");
   map_info.elf.reset(elf);
 
-  std::string name;
+  SharedString name;
   uint64_t offset;
   ASSERT_TRUE(map_info.GetFunctionName(1000, &name, &offset));
   EXPECT_EQ("function", name);

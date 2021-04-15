@@ -27,6 +27,7 @@
 
 #include <unwindstack/DwarfSection.h>
 #include <unwindstack/Error.h>
+#include <unwindstack/SharedString.h>
 
 namespace unwindstack {
 
@@ -78,7 +79,7 @@ class ElfInterface {
 
   virtual std::string GetSoname() = 0;
 
-  virtual bool GetFunctionName(uint64_t addr, std::string* name, uint64_t* offset) = 0;
+  virtual bool GetFunctionName(uint64_t addr, SharedString* name, uint64_t* offset) = 0;
 
   virtual bool GetGlobalVariable(const std::string& name, uint64_t* memory_address) = 0;
 
@@ -91,7 +92,7 @@ class ElfInterface {
 
   bool GetTextRange(uint64_t* addr, uint64_t* size);
 
-  Memory* CreateGnuDebugdataMemory();
+  std::unique_ptr<Memory> CreateGnuDebugdataMemory();
 
   Memory* memory() { return memory_; }
 
@@ -202,7 +203,7 @@ class ElfInterfaceImpl : public ElfInterface {
 
   std::string GetSoname() override;
 
-  bool GetFunctionName(uint64_t addr, std::string* name, uint64_t* func_offset) override;
+  bool GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset) override;
 
   bool GetGlobalVariable(const std::string& name, uint64_t* memory_address) override;
 

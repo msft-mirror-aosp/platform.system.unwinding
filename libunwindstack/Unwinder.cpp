@@ -19,6 +19,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -89,7 +90,7 @@ void Unwinder::FillInDexFrame() {
     return;
   }
 
-  dex_files_->GetFunctionName(maps_, info, dex_pc, &frame->function_name, &frame->function_offset);
+  dex_files_->GetFunctionName(maps_, dex_pc, &frame->function_name, &frame->function_offset);
 #endif
 }
 
@@ -113,7 +114,11 @@ FrameData* Unwinder::FillInFrame(MapInfo* map_info, Elf* elf, uint64_t rel_pc,
     if (embedded_soname_ && map_info->elf_start_offset != 0 && !frame->map_name.empty()) {
       std::string soname = elf->GetSoname();
       if (!soname.empty()) {
-        frame->map_name += '!' + soname;
+        std::string map_with_soname;
+        map_with_soname += frame->map_name;
+        map_with_soname += '!';
+        map_with_soname += soname;
+        frame->map_name = SharedString(std::move(map_with_soname));
       }
     }
   }
@@ -127,7 +132,7 @@ FrameData* Unwinder::FillInFrame(MapInfo* map_info, Elf* elf, uint64_t rel_pc,
 }
 
 static bool ShouldStop(const std::vector<std::string>* map_suffixes_to_ignore,
-                       std::string& map_name) {
+                       const std::string& map_name) {
   if (map_suffixes_to_ignore == nullptr) {
     return false;
   }
@@ -171,8 +176,9 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
       elf = map_info->GetElf(process_memory_, arch_);
       // If this elf is memory backed, and there is a valid file, then set
       // an indicator that we couldn't open the file.
-      if (!elf_from_memory_not_file_ && map_info->memory_backed_elf && !map_info->name.empty() &&
-          map_info->name[0] != '[' && !android::base::StartsWith(map_info->name, "/memfd:")) {
+      const std::string& map_name = map_info->name;
+      if (!elf_from_memory_not_file_ && map_info->memory_backed_elf && !map_name.empty() &&
+          map_name[0] != '[' && !android::base::StartsWith(map_name, "/memfd:")) {
         elf_from_memory_not_file_ = true;
       }
       step_pc = regs_->pc();
@@ -190,7 +196,7 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
 
       // If the pc is in an invalid elf file, try and get an Elf object
       // using the jit debug information.
-      if (!elf->valid() && jit_debug_ != nullptr) {
+      if (!elf->valid() && jit_debug_ != nullptr && (map_info->flags & PROT_EXEC)) {
         uint64_t adjusted_jit_pc = regs_->pc() - pc_adjustment;
         Elf* jit_elf = jit_debug_->Find(maps_, adjusted_jit_pc);
         if (jit_elf != nullptr) {
@@ -323,7 +329,8 @@ std::string Unwinder::FormatFrame(const FrameData& frame) const {
     // No valid map associated with this frame.
     data += "  <unknown>";
   } else if (!frame.map_name.empty()) {
-    data += "  " + frame.map_name;
+    data += "  ";
+    data += frame.map_name;
   } else {
     data += android::base::StringPrintf("  <anonymous:%" PRIx64 ">", frame.map_start);
   }
@@ -335,7 +342,8 @@ std::string Unwinder::FormatFrame(const FrameData& frame) const {
   if (!frame.function_name.empty()) {
     char* demangled_name = __cxa_demangle(frame.function_name.c_str(), nullptr, nullptr, nullptr);
     if (demangled_name == nullptr) {
-      data += " (" + frame.function_name;
+      data += " (";
+      data += frame.function_name;
     } else {
       data += " (";
       data += demangled_name;
@@ -369,8 +377,6 @@ void Unwinder::SetJitDebug(JitDebug* jit_debug) {
 }
 
 void Unwinder::SetDexFiles(DexFiles* dex_files) {
-  CHECK(arch_ != ARCH_UNKNOWN);
-  dex_files->SetArch(arch_);
   dex_files_ = dex_files;
 }
 
@@ -381,17 +387,19 @@ bool UnwinderFromPid::Init() {
   }
   initted_ = true;
 
-  if (pid_ == getpid()) {
-    maps_ptr_.reset(new LocalMaps());
-  } else {
-    maps_ptr_.reset(new RemoteMaps(pid_));
+  if (maps_ == nullptr) {
+    if (pid_ == getpid()) {
+      maps_ptr_.reset(new LocalMaps());
+    } else {
+      maps_ptr_.reset(new RemoteMaps(pid_));
+    }
+    if (!maps_ptr_->Parse()) {
+      ClearErrors();
+      last_error_.code = ERROR_INVALID_MAP;
+      return false;
+    }
+    maps_ = maps_ptr_.get();
   }
-  if (!maps_ptr_->Parse()) {
-    ClearErrors();
-    last_error_.code = ERROR_INVALID_MAP;
-    return false;
-  }
-  maps_ = maps_ptr_.get();
 
   process_memory_ = Memory::CreateProcessMemoryCached(pid_);
 
