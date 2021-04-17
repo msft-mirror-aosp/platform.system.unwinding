@@ -22,6 +22,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 #include <unwindstack/SharedString.h>
 
@@ -68,6 +69,9 @@ class Symbols {
 
   std::map<uint64_t, Info> symbols_;  // Cache of read symbols (keyed by function *end* address).
   std::optional<std::vector<uint32_t>> remap_;  // Indices of function symbols sorted by address.
+
+  // Cache of global data (non-function) symbols.
+  std::unordered_map<std::string, std::optional<uint64_t>> global_variables_;
 };
 
 }  // namespace unwindstack
