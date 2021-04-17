@@ -351,8 +351,10 @@ TYPED_TEST_P(SymbolsTest, get_global) {
   uint64_t offset;
   EXPECT_TRUE(symbols.GetGlobal<TypeParam>(&this->memory_, "global_0", &offset));
   EXPECT_TRUE(symbols.GetGlobal<TypeParam>(&this->memory_, "global_1", &offset));
+  EXPECT_FALSE(symbols.GetGlobal<TypeParam>(&this->memory_, "global_2", &offset));
   EXPECT_TRUE(symbols.GetGlobal<TypeParam>(&this->memory_, "global_0", &offset));
   EXPECT_TRUE(symbols.GetGlobal<TypeParam>(&this->memory_, "global_1", &offset));
+  EXPECT_FALSE(symbols.GetGlobal<TypeParam>(&this->memory_, "global_2", &offset));
 
   EXPECT_FALSE(symbols.GetGlobal<TypeParam>(&this->memory_, "function_0", &offset));
   EXPECT_FALSE(symbols.GetGlobal<TypeParam>(&this->memory_, "function_1", &offset));
@@ -365,6 +367,12 @@ TYPED_TEST_P(SymbolsTest, get_global) {
   EXPECT_TRUE(symbols.GetName<TypeParam>(0x12004, &this->memory_, &name, &offset));
   EXPECT_EQ("function_1", name);
   EXPECT_EQ(4U, offset);
+
+  // Check that the results were cached.
+  this->memory_.Clear();
+  EXPECT_TRUE(symbols.GetGlobal<TypeParam>(&this->memory_, "global_0", &offset));
+  EXPECT_TRUE(symbols.GetGlobal<TypeParam>(&this->memory_, "global_1", &offset));
+  EXPECT_FALSE(symbols.GetGlobal<TypeParam>(&this->memory_, "global_2", &offset));
 }
 
 REGISTER_TYPED_TEST_SUITE_P(SymbolsTest, function_bounds_check, no_symbol, multiple_entries,
