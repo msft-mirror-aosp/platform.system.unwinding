@@ -18,6 +18,7 @@
 #define _LIBUNWINDSTACK_GLOBAL_DEBUG_IMPL_H
 
 #include <stdint.h>
+#include <string.h>
 #include <sys/mman.h>
 
 #include <memory>
