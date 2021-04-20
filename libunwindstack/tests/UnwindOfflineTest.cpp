@@ -42,6 +42,7 @@
 #include <unwindstack/Unwinder.h>
 
 #include "ElfTestUtils.h"
+#include "MemoryFake.h"
 #include "MemoryOffline.h"
 #include "TestUtils.h"
 
@@ -126,6 +127,10 @@ class UnwindOfflineTest : public ::testing::Test {
       dir_ = std::string(cwd_) + '/' + dir_;
     }
     ASSERT_EQ(0, chdir(dir_.c_str()));
+
+    if (process_memory_ == nullptr) {
+      process_memory_.reset(new MemoryFake);
+    }
   }
 
   template <typename AddressType>
@@ -312,9 +317,9 @@ TEST_F(UnwindOfflineTest, jit_debug_x86) {
   }
   process_memory_.reset(memory);
 
-  JitDebug jit_debug(process_memory_);
+  std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs_->Arch(), process_memory_);
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
-  unwinder.SetJitDebug(&jit_debug);
+  unwinder.SetJitDebug(jit_debug.get());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -614,9 +619,9 @@ TEST_F(UnwindOfflineTest, jit_debug_arm) {
   }
   process_memory_.reset(memory);
 
-  JitDebug jit_debug(process_memory_);
+  std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs_->Arch(), process_memory_);
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
-  unwinder.SetJitDebug(&jit_debug);
+  unwinder.SetJitDebug(jit_debug.get());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -937,9 +942,10 @@ static void OfflineUnwind(void* data) {
   LeakType* leak_data = reinterpret_cast<LeakType*>(data);
 
   std::unique_ptr<Regs> regs_copy(leak_data->regs->Clone());
-  JitDebug jit_debug(leak_data->process_memory);
+  std::unique_ptr<JitDebug> jit_debug =
+      CreateJitDebug(leak_data->regs->Arch(), leak_data->process_memory);
   Unwinder unwinder(128, leak_data->maps, regs_copy.get(), leak_data->process_memory);
-  unwinder.SetJitDebug(&jit_debug);
+  unwinder.SetJitDebug(jit_debug.get());
   unwinder.Unwind();
   ASSERT_EQ(76U, unwinder.NumFrames());
 }
@@ -1060,9 +1066,9 @@ TEST_F(UnwindOfflineTest, art_quick_osr_stub_arm) {
   }
   process_memory_.reset(memory);
 
-  JitDebug jit_debug(process_memory_);
+  std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs_->Arch(), process_memory_);
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
-  unwinder.SetJitDebug(&jit_debug);
+  unwinder.SetJitDebug(jit_debug.get());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));

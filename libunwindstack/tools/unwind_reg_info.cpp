@@ -72,7 +72,7 @@ void PrintRegInformation(DwarfSection* section, Memory* memory, uint64_t pc, uin
     return;
   }
 
-  dwarf_loc_regs_t regs;
+  DwarfLocations regs;
   if (!section->GetCfaLocationInfo(pc, fde, &regs, arch)) {
     printf("  Cannot get location information.\n");
     return;
@@ -191,7 +191,7 @@ int GetInfo(const char* file, uint64_t offset, uint64_t pc) {
   }
 
   printf("PC 0x%" PRIx64, pc);
-  std::string function_name;
+  SharedString function_name;
   uint64_t function_offset;
   if (elf.GetFunctionName(pc, &function_name, &function_offset)) {
     printf(" (%s)", function_name.c_str());

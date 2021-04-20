@@ -28,6 +28,7 @@
 #include <unwindstack/Arch.h>
 #include <unwindstack/ElfInterface.h>
 #include <unwindstack/Memory.h>
+#include <unwindstack/SharedString.h>
 
 #if !defined(EM_AARCH64)
 #define EM_AARCH64 183
@@ -52,7 +53,7 @@ class Elf {
 
   std::string GetSoname();
 
-  bool GetFunctionName(uint64_t addr, std::string* name, uint64_t* func_offset);
+  bool GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset);
 
   bool GetGlobalVariableOffset(const std::string& name, uint64_t* memory_offset);
 
@@ -70,6 +71,8 @@ class Elf {
   int64_t GetLoadBias() { return load_bias_; }
 
   bool IsValidPc(uint64_t pc);
+
+  bool GetTextRange(uint64_t* addr, uint64_t* size);
 
   void GetLastError(ErrorData* data);
   ErrorCode GetLastErrorCode();

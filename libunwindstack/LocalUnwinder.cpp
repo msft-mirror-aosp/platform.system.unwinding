@@ -53,7 +53,7 @@ bool LocalUnwinder::Init() {
     return false;
   }
 
-  process_memory_ = unwindstack::Memory::CreateProcessMemory(getpid());
+  process_memory_ = unwindstack::Memory::CreateProcessMemoryThreadCached(getpid());
 
   return true;
 }
@@ -67,28 +67,13 @@ bool LocalUnwinder::ShouldSkipLibrary(const std::string& map_name) {
   return false;
 }
 
-MapInfo* LocalUnwinder::GetMapInfo(uint64_t pc) {
-  pthread_rwlock_rdlock(&maps_rwlock_);
-  MapInfo* map_info = maps_->Find(pc);
-  pthread_rwlock_unlock(&maps_rwlock_);
-
-  if (map_info == nullptr) {
-    pthread_rwlock_wrlock(&maps_rwlock_);
-    // This is guaranteed not to invalidate any previous MapInfo objects so
-    // we don't need to worry about any MapInfo* values already in use.
-    if (maps_->Reparse()) {
-      map_info = maps_->Find(pc);
-    }
-    pthread_rwlock_unlock(&maps_rwlock_);
-  }
-
-  return map_info;
-}
-
 bool LocalUnwinder::Unwind(std::vector<LocalFrameData>* frame_info, size_t max_frames) {
   std::unique_ptr<unwindstack::Regs> regs(unwindstack::Regs::CreateFromLocal());
   unwindstack::RegsGetLocal(regs.get());
   ArchEnum arch = regs->Arch();
+
+  // Clear any cached data from previous unwinds.
+  process_memory_->Clear();
 
   size_t num_frames = 0;
   bool adjust_pc = false;
@@ -96,7 +81,7 @@ bool LocalUnwinder::Unwind(std::vector<LocalFrameData>* frame_info, size_t max_f
     uint64_t cur_pc = regs->pc();
     uint64_t cur_sp = regs->sp();
 
-    MapInfo* map_info = GetMapInfo(cur_pc);
+    MapInfo* map_info = maps_->Find(cur_pc);
     if (map_info == nullptr) {
       break;
     }
@@ -124,7 +109,7 @@ bool LocalUnwinder::Unwind(std::vector<LocalFrameData>* frame_info, size_t max_f
     // Skip any locations that are within this library.
     if (num_frames != 0 || !ShouldSkipLibrary(map_info->name)) {
       // Add frame information.
-      std::string func_name;
+      SharedString func_name;
       uint64_t func_offset;
       if (elf->GetFunctionName(rel_pc, &func_name, &func_offset)) {
         frame_info->emplace_back(map_info, cur_pc - pc_adjustment, rel_pc - pc_adjustment,

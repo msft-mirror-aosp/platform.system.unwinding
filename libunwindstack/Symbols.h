@@ -22,6 +22,9 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <unordered_map>
+
+#include <unwindstack/SharedString.h>
 
 namespace unwindstack {
 
@@ -30,9 +33,9 @@ class Memory;
 
 class Symbols {
   struct Info {
-    uint64_t addr;   // Symbol address.
+    uint32_t size;   // Symbol size in bytes.
     uint32_t index;  // Index into *sorted* symbol table.
-    uint32_t name;   // Offset in .strtab, or 0 if the symbol is not a function.
+    SharedString name;
   };
 
  public:
@@ -41,7 +44,7 @@ class Symbols {
   virtual ~Symbols() = default;
 
   template <typename SymType>
-  bool GetName(uint64_t addr, Memory* elf_memory, std::string* name, uint64_t* func_offset);
+  bool GetName(uint64_t addr, Memory* elf_memory, SharedString* name, uint64_t* func_offset);
 
   template <typename SymType>
   bool GetGlobal(Memory* elf_memory, const std::string& name, uint64_t* memory_address);
@@ -53,7 +56,7 @@ class Symbols {
 
  private:
   template <typename SymType, bool RemapIndices>
-  const Info* BinarySearch(uint64_t addr, Memory* elf_memory);
+  Info* BinarySearch(uint64_t addr, Memory* elf_memory, uint64_t* func_offset);
 
   template <typename SymType>
   void BuildRemapTable(Memory* elf_memory);
@@ -66,6 +69,9 @@ class Symbols {
 
   std::map<uint64_t, Info> symbols_;  // Cache of read symbols (keyed by function *end* address).
   std::optional<std::vector<uint32_t>> remap_;  // Indices of function symbols sorted by address.
+
+  // Cache of global data (non-function) symbols.
+  std::unordered_map<std::string, std::optional<uint64_t>> global_variables_;
 };
 
 }  // namespace unwindstack

@@ -508,6 +508,33 @@ TEST_F(UnwindTest, thread_unwind) {
   thread.join();
 }
 
+TEST_F(UnwindTest, thread_unwind_with_external_maps) {
+  ResetGlobals();
+
+  std::atomic_int tid(0);
+  std::thread thread([&tid]() {
+    tid = android::base::GetThreadId();
+    OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
+  });
+
+  while (tid.load() == 0)
+    ;
+
+  LocalMaps maps;
+  ASSERT_TRUE(maps.Parse());
+
+  ThreadUnwinder unwinder(512, &maps);
+  ASSERT_EQ(&maps, unwinder.GetMaps());
+  ASSERT_TRUE(unwinder.Init());
+  ASSERT_EQ(&maps, unwinder.GetMaps());
+  unwinder.UnwindWithSignal(SIGRTMIN, tid);
+  VerifyUnwindFrames(&unwinder, kFunctionOrder);
+  ASSERT_EQ(&maps, unwinder.GetMaps());
+
+  g_finish = true;
+  thread.join();
+}
+
 TEST_F(UnwindTest, thread_unwind_cur_pid) {
   ThreadUnwinder unwinder(512);
   ASSERT_TRUE(unwinder.Init());
@@ -597,6 +624,56 @@ TEST_F(UnwindTest, thread_unwind_multiple_thread_from_threads) {
     ;
 
   ThreadUnwinder unwinder(512);
+  ASSERT_TRUE(unwinder.Init());
+
+  std::atomic_bool start_unwinding(false);
+  std::vector<std::thread*> unwinder_threads;
+  std::atomic_int unwinders(0);
+  for (size_t i = 0; i < kNumThreads; i++) {
+    unwinder_threads.push_back(CreateUnwindThread(tids[i], unwinder, start_unwinding, unwinders));
+  }
+
+  start_unwinding = true;
+  while (unwinders.load() != kNumThreads)
+    ;
+
+  for (auto* thread : unwinder_threads) {
+    thread->join();
+    delete thread;
+  }
+
+  g_finish = true;
+
+  for (auto* thread : threads) {
+    thread->join();
+    delete thread;
+  }
+}
+
+TEST_F(UnwindTest, thread_unwind_multiple_thread_from_threads_updatable_maps) {
+  static constexpr size_t kNumThreads = 100;
+  ResetGlobals();
+
+  // Do this before the threads are started so that the maps needed to
+  // unwind are not created yet, and this verifies the dynamic nature
+  // of the LocalUpdatableMaps object.
+  LocalUpdatableMaps maps;
+  ASSERT_TRUE(maps.Parse());
+
+  std::atomic_int tids[kNumThreads] = {};
+  std::vector<std::thread*> threads;
+  for (size_t i = 0; i < kNumThreads; i++) {
+    std::thread* thread = new std::thread([&tids, i]() {
+      tids[i] = android::base::GetThreadId();
+      OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
+    });
+    threads.push_back(thread);
+  }
+
+  while (g_waiters.load() != kNumThreads)
+    ;
+
+  ThreadUnwinder unwinder(512, &maps);
   ASSERT_TRUE(unwinder.Init());
 
   std::atomic_bool start_unwinding(false);

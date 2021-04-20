@@ -140,10 +140,39 @@ const std::string LocalUpdatableMaps::GetMapsFile() const {
   return "/proc/self/maps";
 }
 
+LocalUpdatableMaps::LocalUpdatableMaps() : Maps() {
+  pthread_rwlock_init(&maps_rwlock_, nullptr);
+}
+
+MapInfo* LocalUpdatableMaps::Find(uint64_t pc) {
+  pthread_rwlock_rdlock(&maps_rwlock_);
+  MapInfo* map_info = Maps::Find(pc);
+  pthread_rwlock_unlock(&maps_rwlock_);
+
+  if (map_info == nullptr) {
+    pthread_rwlock_wrlock(&maps_rwlock_);
+    // This is guaranteed not to invalidate any previous MapInfo objects so
+    // we don't need to worry about any MapInfo* values already in use.
+    if (Reparse()) {
+      map_info = Maps::Find(pc);
+    }
+    pthread_rwlock_unlock(&maps_rwlock_);
+  }
+
+  return map_info;
+}
+
+bool LocalUpdatableMaps::Parse() {
+  pthread_rwlock_wrlock(&maps_rwlock_);
+  bool parsed = Maps::Parse();
+  pthread_rwlock_unlock(&maps_rwlock_);
+  return parsed;
+}
+
 bool LocalUpdatableMaps::Reparse() {
   // New maps will be added at the end without deleting the old ones.
   size_t last_map_idx = maps_.size();
-  if (!Parse()) {
+  if (!Maps::Parse()) {
     maps_.resize(last_map_idx);
     return false;
   }
@@ -155,10 +184,10 @@ bool LocalUpdatableMaps::Reparse() {
     uint64_t start = new_map_info->start;
     uint64_t end = new_map_info->end;
     uint64_t flags = new_map_info->flags;
-    std::string* name = &new_map_info->name;
+    const std::string& name = new_map_info->name;
     for (size_t old_map_idx = search_map_idx; old_map_idx < last_map_idx; old_map_idx++) {
       auto& info = maps_[old_map_idx];
-      if (start == info->start && end == info->end && flags == info->flags && *name == info->name) {
+      if (start == info->start && end == info->end && flags == info->flags && name == info->name) {
         // No need to check
         search_map_idx = old_map_idx + 1;
         if (new_map_idx + 1 < maps_.size()) {

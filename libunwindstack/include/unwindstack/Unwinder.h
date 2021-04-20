@@ -31,6 +31,7 @@
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
+#include <unwindstack/SharedString.h>
 
 namespace unwindstack {
 
@@ -45,10 +46,10 @@ struct FrameData {
   uint64_t pc;
   uint64_t sp;
 
-  std::string function_name;
+  SharedString function_name;
   uint64_t function_offset = 0;
 
-  std::string map_name;
+  SharedString map_name;
   // The offset from the first map representing the frame. When there are
   // two maps (read-only and read-execute) this will be the offset from
   // the read-only map. When there is only one map, this will be the
@@ -134,8 +135,9 @@ class Unwinder {
   FrameData BuildFrameFromPcOnly(uint64_t pc);
 
  protected:
-  Unwinder(size_t max_frames) : max_frames_(max_frames) {}
-  Unwinder(size_t max_frames, ArchEnum arch) : max_frames_(max_frames), arch_(arch) {}
+  Unwinder(size_t max_frames, Maps* maps = nullptr) : max_frames_(max_frames), maps_(maps) {}
+  Unwinder(size_t max_frames, ArchEnum arch, Maps* maps = nullptr)
+      : max_frames_(max_frames), maps_(maps), arch_(arch) {}
 
   void ClearErrors() {
     warnings_ = WARNING_NONE;
@@ -166,9 +168,10 @@ class Unwinder {
 
 class UnwinderFromPid : public Unwinder {
  public:
-  UnwinderFromPid(size_t max_frames, pid_t pid) : Unwinder(max_frames), pid_(pid) {}
-  UnwinderFromPid(size_t max_frames, pid_t pid, ArchEnum arch)
-      : Unwinder(max_frames, arch), pid_(pid) {}
+  UnwinderFromPid(size_t max_frames, pid_t pid, Maps* maps = nullptr)
+      : Unwinder(max_frames, maps), pid_(pid) {}
+  UnwinderFromPid(size_t max_frames, pid_t pid, ArchEnum arch, Maps* maps = nullptr)
+      : Unwinder(max_frames, arch, maps), pid_(pid) {}
   virtual ~UnwinderFromPid() = default;
 
   bool Init();
@@ -186,7 +189,7 @@ class UnwinderFromPid : public Unwinder {
 
 class ThreadUnwinder : public UnwinderFromPid {
  public:
-  explicit ThreadUnwinder(size_t max_frames);
+  ThreadUnwinder(size_t max_frames, Maps* maps = nullptr);
   ThreadUnwinder(size_t max_frames, const ThreadUnwinder* unwinder);
   virtual ~ThreadUnwinder() = default;
 

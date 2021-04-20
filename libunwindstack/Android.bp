@@ -258,7 +258,9 @@ cc_defaults {
         "tests/MemoryRangesTest.cpp",
         "tests/MemoryRemoteTest.cpp",
         "tests/MemoryTest.cpp",
+        "tests/MemoryThreadCacheTest.cpp",
         "tests/MemoryMteTest.cpp",
+        "tests/MemoryXzTest.cpp",
         "tests/RegsInfoTest.cpp",
         "tests/RegsIterateTest.cpp",
         "tests/RegsStepIfSignalHandlerTest.cpp",
@@ -290,6 +292,11 @@ cc_defaults {
 
     test_suites: ["device-tests"],
     data: [
+        "tests/files/boot_arm.oat.gnu_debugdata",
+        "tests/files/boot_arm.oat.gnu_debugdata.xz",
+        "tests/files/boot_arm.oat.gnu_debugdata.xz.non-power",
+        "tests/files/boot_arm.oat.gnu_debugdata.xz.odd-sizes",
+        "tests/files/boot_arm.oat.gnu_debugdata.xz.one-block",
         "tests/files/elf32.xz",
         "tests/files/elf64.xz",
         "tests/files/offline/art_quick_osr_stub_arm/*",
@@ -450,11 +457,14 @@ cc_benchmark {
     ],
 
     srcs: [
-        "benchmarks/unwind_benchmarks.cpp",
         "benchmarks/ElfBenchmark.cpp",
         "benchmarks/MapsBenchmark.cpp",
         "benchmarks/SymbolBenchmark.cpp",
         "benchmarks/Utils.cpp",
+        "benchmarks/local_unwind_benchmarks.cpp",
+        "benchmarks/main.cpp",
+        "benchmarks/remote_unwind_benchmarks.cpp",
+        "benchmarks/thread_unwind_benchmarks.cpp",
     ],
 
     data: [
