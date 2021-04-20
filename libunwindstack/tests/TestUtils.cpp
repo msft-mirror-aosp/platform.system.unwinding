@@ -35,7 +35,8 @@ void TestCheckForLeaks(void (*unwind_func)(void*), void* data) {
       first_allocated_bytes = allocated_bytes;
     } else if (last_allocated_bytes > first_allocated_bytes) {
       // Check that the memory did not increase too much over the first loop.
-      ASSERT_LE(last_allocated_bytes - first_allocated_bytes, kMaxAllowedLeakBytes);
+      ASSERT_LE(last_allocated_bytes - first_allocated_bytes, kMaxAllowedLeakBytes)
+          << "Failed on loop " << i + 1;
     }
     last_allocated_bytes = allocated_bytes;
   }
