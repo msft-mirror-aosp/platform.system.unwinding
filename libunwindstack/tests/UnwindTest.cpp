@@ -649,6 +649,7 @@ TEST_F(UnwindTest, thread_unwind_multiple_thread_from_threads) {
     delete thread;
   }
 }
+
 TEST_F(UnwindTest, thread_unwind_multiple_thread_from_threads_updatable_maps) {
   static constexpr size_t kNumThreads = 100;
   ResetGlobals();
