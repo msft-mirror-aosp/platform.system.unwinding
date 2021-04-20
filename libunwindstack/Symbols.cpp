@@ -16,6 +16,7 @@
 
 #include <elf.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <algorithm>
 #include <string>
