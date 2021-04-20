@@ -258,6 +258,7 @@ cc_defaults {
         "tests/MemoryRangesTest.cpp",
         "tests/MemoryRemoteTest.cpp",
         "tests/MemoryTest.cpp",
+        "tests/MemoryThreadCacheTest.cpp",
         "tests/MemoryMteTest.cpp",
         "tests/MemoryXzTest.cpp",
         "tests/RegsInfoTest.cpp",
@@ -456,11 +457,14 @@ cc_benchmark {
     ],
 
     srcs: [
-        "benchmarks/unwind_benchmarks.cpp",
         "benchmarks/ElfBenchmark.cpp",
         "benchmarks/MapsBenchmark.cpp",
         "benchmarks/SymbolBenchmark.cpp",
         "benchmarks/Utils.cpp",
+        "benchmarks/local_unwind_benchmarks.cpp",
+        "benchmarks/main.cpp",
+        "benchmarks/remote_unwind_benchmarks.cpp",
+        "benchmarks/thread_unwind_benchmarks.cpp",
     ],
 
     data: [

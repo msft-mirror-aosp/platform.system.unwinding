@@ -42,6 +42,7 @@
 #include <unwindstack/Unwinder.h>
 
 #include "ElfTestUtils.h"
+#include "MemoryFake.h"
 #include "MemoryOffline.h"
 #include "TestUtils.h"
 
@@ -126,6 +127,10 @@ class UnwindOfflineTest : public ::testing::Test {
       dir_ = std::string(cwd_) + '/' + dir_;
     }
     ASSERT_EQ(0, chdir(dir_.c_str()));
+
+    if (process_memory_ == nullptr) {
+      process_memory_.reset(new MemoryFake);
+    }
   }
 
   template <typename AddressType>
