@@ -153,6 +153,9 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
   frames_.clear();
   elf_from_memory_not_file_ = false;
 
+  // Clear any cached data from previous unwinds.
+  process_memory_->Clear();
+
   bool return_address_attempt = false;
   bool adjust_pc = false;
   for (; frames_.size() < max_frames_;) {
@@ -401,7 +404,15 @@ bool UnwinderFromPid::Init() {
     maps_ = maps_ptr_.get();
   }
 
-  process_memory_ = Memory::CreateProcessMemoryCached(pid_);
+  if (pid_ == getpid()) {
+    // Local unwind, so use thread cache to allow multiple threads
+    // to cache data even when multiple threads access the same object.
+    process_memory_ = Memory::CreateProcessMemoryThreadCached(pid_);
+  } else {
+    // Remote unwind should be safe to cache since the unwind will
+    // be occurring on a stopped process.
+    process_memory_ = Memory::CreateProcessMemoryCached(pid_);
+  }
 
   jit_debug_ptr_ = CreateJitDebug(arch_, process_memory_);
   jit_debug_ = jit_debug_ptr_.get();
