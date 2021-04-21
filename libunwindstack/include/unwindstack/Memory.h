@@ -33,6 +33,7 @@ class Memory {
 
   static std::shared_ptr<Memory> CreateProcessMemory(pid_t pid);
   static std::shared_ptr<Memory> CreateProcessMemoryCached(pid_t pid);
+  static std::shared_ptr<Memory> CreateProcessMemoryThreadCached(pid_t pid);
   static std::shared_ptr<Memory> CreateOfflineMemory(const uint8_t* data, uint64_t start,
                                                      uint64_t end);
   static std::unique_ptr<Memory> CreateFileMemory(const std::string& path, uint64_t offset,
