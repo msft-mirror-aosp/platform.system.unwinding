@@ -37,7 +37,7 @@
 namespace unwindstack {
 
 static bool CheckDexSupport() {
-  if (std::string err_msg; !art_api::dex::TryLoadLibdexfileExternal(&err_msg)) {
+  if (std::string err_msg; !art_api::dex::TryLoadLibdexfile(&err_msg)) {
     ALOGW("Failed to initialize DEX file support: %s", err_msg.c_str());
     return false;
   }
@@ -75,11 +75,9 @@ std::unique_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size,
     dex_memory = std::move(copy);
   }
 
-  std::string err_msg;
-  size_t actual_size = file_size;
   const char* location = info != nullptr ? info->name.c_str() : "";
-  std::unique_ptr<art_api::dex::DexFile> dex =
-      art_api::dex::DexFile::OpenFromMemory(dex_memory->GetPtr(), &actual_size, location, &err_msg);
+  std::unique_ptr<art_api::dex::DexFile> dex;
+  art_api::dex::DexFile::Create(dex_memory->GetPtr(), file_size, nullptr, location, &dex);
   if (dex != nullptr) {
     return std::unique_ptr<DexFile>(
         new DexFile(std::move(dex_memory), base_addr, file_size, std::move(dex)));
@@ -88,29 +86,22 @@ std::unique_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size,
 }
 
 bool DexFile::GetFunctionName(uint64_t dex_pc, SharedString* method_name, uint64_t* method_offset) {
-  // Convert absolute PC to file-relative offset.
-  uint64_t dex_offset = dex_pc - base_addr_;
+  uint64_t dex_offset = dex_pc - base_addr_;  // Convert absolute PC to file-relative offset.
 
   // Lookup the function in the cache.
   auto it = symbols_.upper_bound(dex_offset);
-  if (it != symbols_.end() && it->second.offset <= dex_offset) {
-    *method_offset = dex_offset - it->second.offset;
-    *method_name = it->second.name;
-    return true;
+  if (it == symbols_.end() || dex_offset < it->second.offset) {
+    // Lookup the function in the underlying dex file.
+    size_t found = dex_->FindMethodAtOffset(dex_offset, [&](const auto& method) {
+      size_t code_size, name_size;
+      uint32_t offset = method.GetCodeOffset(&code_size);
+      const char* name = method.GetQualifiedName(/*with_params=*/false, &name_size);
+      it = symbols_.emplace(offset + code_size, Info{offset, std::string(name, name_size)}).first;
+    });
+    if (found == 0) {
+      return false;
+    }
   }
-
-  // Lookup the function in the underlying dex file.
-  art_api::dex::MethodInfo method_info = dex_->GetMethodInfoForOffset(dex_offset, false);
-  if (method_info.offset == 0) {
-    return false;
-  }
-
-  // Store the function in the cache.
-  Info info{
-      .offset = static_cast<uint32_t>(method_info.offset),
-      .name = std::string(method_info.name),
-  };
-  it = symbols_.emplace(method_info.offset + method_info.len, std::move(info)).first;
 
   // Return the found function.
   *method_offset = dex_offset - it->second.offset;
