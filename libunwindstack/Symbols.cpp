@@ -16,6 +16,7 @@
 
 #include <elf.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <algorithm>
 #include <string>
@@ -160,6 +161,17 @@ bool Symbols::GetName(uint64_t addr, Memory* elf_memory, SharedString* name,
 
 template <typename SymType>
 bool Symbols::GetGlobal(Memory* elf_memory, const std::string& name, uint64_t* memory_address) {
+  // Lookup from cache.
+  auto it = global_variables_.find(name);
+  if (it != global_variables_.end()) {
+    if (it->second.has_value()) {
+      *memory_address = it->second.value();
+      return true;
+    }
+    return false;
+  }
+
+  // Linear scan of all symbols.
   for (uint32_t i = 0; i < count_; i++) {
     SymType entry;
     if (!elf_memory->ReadFully(offset_ + i * entry_size_, &entry, sizeof(entry))) {
@@ -172,12 +184,14 @@ bool Symbols::GetGlobal(Memory* elf_memory, const std::string& name, uint64_t* m
       if (str_offset < str_end_) {
         std::string symbol;
         if (elf_memory->ReadString(str_offset, &symbol, str_end_ - str_offset) && symbol == name) {
+          global_variables_.emplace(name, entry.st_value);
           *memory_address = entry.st_value;
           return true;
         }
       }
     }
   }
+  global_variables_.emplace(name, std::optional<uint64_t>());  // Remember "not found" outcome.
   return false;
 }
 
