@@ -37,29 +37,29 @@ struct UnwindData {
   bool resolve_names;
 };
 
-size_t Call5(size_t (*func)(void*), void* data) {
+size_t LocalCall5(size_t (*func)(void*), void* data) {
   return func(data);
 }
 
-size_t Call4(size_t (*func)(void*), void* data) {
-  return Call5(func, data);
+size_t LocalCall4(size_t (*func)(void*), void* data) {
+  return LocalCall5(func, data);
 }
 
-size_t Call3(size_t (*func)(void*), void* data) {
-  return Call4(func, data);
+size_t LocalCall3(size_t (*func)(void*), void* data) {
+  return LocalCall4(func, data);
 }
 
-size_t Call2(size_t (*func)(void*), void* data) {
-  return Call3(func, data);
+size_t LocalCall2(size_t (*func)(void*), void* data) {
+  return LocalCall3(func, data);
 }
 
-size_t Call1(size_t (*func)(void*), void* data) {
-  return Call2(func, data);
+size_t LocalCall1(size_t (*func)(void*), void* data) {
+  return LocalCall2(func, data);
 }
 
 static void Run(benchmark::State& state, size_t (*func)(void*), void* data) {
   for (auto _ : state) {
-    if (Call1(func, data) < 5) {
+    if (LocalCall1(func, data) < 5) {
       state.SkipWithError("Failed to unwind.");
     }
   }
@@ -82,7 +82,7 @@ static size_t LocalUnwind(void* unwind_ptr) {
   return frame_info.size();
 }
 
-static void BM_unwind_uncached_process_memory(benchmark::State& state) {
+static void BM_local_unwind_uncached_process_memory(benchmark::State& state) {
   auto process_memory = unwindstack::Memory::CreateProcessMemory(getpid());
   unwindstack::LocalMaps maps;
   if (!maps.Parse()) {
@@ -92,9 +92,9 @@ static void BM_unwind_uncached_process_memory(benchmark::State& state) {
   UnwindData data = {.process_memory = process_memory, .maps = &maps, .resolve_names = true};
   Run(state, Unwind, &data);
 }
-BENCHMARK(BM_unwind_uncached_process_memory);
+BENCHMARK(BM_local_unwind_uncached_process_memory);
 
-static void BM_unwind_cached_process_memory(benchmark::State& state) {
+static void BM_local_unwind_cached_process_memory(benchmark::State& state) {
   auto process_memory = unwindstack::Memory::CreateProcessMemoryCached(getpid());
   unwindstack::LocalMaps maps;
   if (!maps.Parse()) {
@@ -104,9 +104,9 @@ static void BM_unwind_cached_process_memory(benchmark::State& state) {
   UnwindData data = {.process_memory = process_memory, .maps = &maps, .resolve_names = true};
   Run(state, Unwind, &data);
 }
-BENCHMARK(BM_unwind_cached_process_memory);
+BENCHMARK(BM_local_unwind_cached_process_memory);
 
-static void BM_unwind_local_updatable_maps_uncached(benchmark::State& state) {
+static void BM_local_unwind_local_updatable_maps_uncached(benchmark::State& state) {
   auto process_memory = unwindstack::Memory::CreateProcessMemory(getpid());
   unwindstack::LocalUpdatableMaps maps;
   if (!maps.Parse()) {
@@ -116,9 +116,9 @@ static void BM_unwind_local_updatable_maps_uncached(benchmark::State& state) {
   UnwindData data = {.process_memory = process_memory, .maps = &maps, .resolve_names = true};
   Run(state, Unwind, &data);
 }
-BENCHMARK(BM_unwind_local_updatable_maps_uncached);
+BENCHMARK(BM_local_unwind_local_updatable_maps_uncached);
 
-static void BM_unwind_local_updatable_maps_cached(benchmark::State& state) {
+static void BM_local_unwind_local_updatable_maps_cached(benchmark::State& state) {
   auto process_memory = unwindstack::Memory::CreateProcessMemoryCached(getpid());
   unwindstack::LocalUpdatableMaps maps;
   if (!maps.Parse()) {
@@ -128,9 +128,21 @@ static void BM_unwind_local_updatable_maps_cached(benchmark::State& state) {
   UnwindData data = {.process_memory = process_memory, .maps = &maps, .resolve_names = true};
   Run(state, Unwind, &data);
 }
-BENCHMARK(BM_unwind_local_updatable_maps_cached);
+BENCHMARK(BM_local_unwind_local_updatable_maps_cached);
 
-static void BM_unwind_local_unwinder(benchmark::State& state) {
+static void BM_local_unwind_local_updatable_maps_thread_cached(benchmark::State& state) {
+  auto process_memory = unwindstack::Memory::CreateProcessMemoryThreadCached(getpid());
+  unwindstack::LocalUpdatableMaps maps;
+  if (!maps.Parse()) {
+    state.SkipWithError("Failed to parse local maps.");
+  }
+
+  UnwindData data = {.process_memory = process_memory, .maps = &maps, .resolve_names = true};
+  Run(state, Unwind, &data);
+}
+BENCHMARK(BM_local_unwind_local_updatable_maps_thread_cached);
+
+static void BM_local_unwind_local_unwinder(benchmark::State& state) {
   unwindstack::LocalUnwinder unwinder;
   if (!unwinder.Init()) {
     state.SkipWithError("Failed to init local unwinder.");
@@ -138,9 +150,9 @@ static void BM_unwind_local_unwinder(benchmark::State& state) {
 
   Run(state, LocalUnwind, &unwinder);
 }
-BENCHMARK(BM_unwind_local_unwinder);
+BENCHMARK(BM_local_unwind_local_unwinder);
 
-static void BM_unwind_uncached_process_memory_no_func_names(benchmark::State& state) {
+static void BM_local_unwind_uncached_process_memory_no_func_names(benchmark::State& state) {
   auto process_memory = unwindstack::Memory::CreateProcessMemory(getpid());
   unwindstack::LocalMaps maps;
   if (!maps.Parse()) {
@@ -150,9 +162,9 @@ static void BM_unwind_uncached_process_memory_no_func_names(benchmark::State& st
   UnwindData data = {.process_memory = process_memory, .maps = &maps, .resolve_names = false};
   Run(state, Unwind, &data);
 }
-BENCHMARK(BM_unwind_uncached_process_memory_no_func_names);
+BENCHMARK(BM_local_unwind_uncached_process_memory_no_func_names);
 
-static void BM_unwind_cached_process_memory_no_func_names(benchmark::State& state) {
+static void BM_local_unwind_cached_process_memory_no_func_names(benchmark::State& state) {
   auto process_memory = unwindstack::Memory::CreateProcessMemoryCached(getpid());
   unwindstack::LocalMaps maps;
   if (!maps.Parse()) {
@@ -162,9 +174,9 @@ static void BM_unwind_cached_process_memory_no_func_names(benchmark::State& stat
   UnwindData data = {.process_memory = process_memory, .maps = &maps, .resolve_names = false};
   Run(state, Unwind, &data);
 }
-BENCHMARK(BM_unwind_cached_process_memory_no_func_names);
+BENCHMARK(BM_local_unwind_cached_process_memory_no_func_names);
 
-static void BM_unwind_local_updatable_maps_uncached_no_func_names(benchmark::State& state) {
+static void BM_local_unwind_local_updatable_maps_uncached_no_func_names(benchmark::State& state) {
   auto process_memory = unwindstack::Memory::CreateProcessMemory(getpid());
   unwindstack::LocalUpdatableMaps maps;
   if (!maps.Parse()) {
@@ -174,9 +186,9 @@ static void BM_unwind_local_updatable_maps_uncached_no_func_names(benchmark::Sta
   UnwindData data = {.process_memory = process_memory, .maps = &maps, .resolve_names = false};
   Run(state, Unwind, &data);
 }
-BENCHMARK(BM_unwind_local_updatable_maps_uncached_no_func_names);
+BENCHMARK(BM_local_unwind_local_updatable_maps_uncached_no_func_names);
 
-static void BM_unwind_local_updatable_maps_cached_no_func_names(benchmark::State& state) {
+static void BM_local_unwind_local_updatable_maps_cached_no_func_names(benchmark::State& state) {
   auto process_memory = unwindstack::Memory::CreateProcessMemoryCached(getpid());
   unwindstack::LocalUpdatableMaps maps;
   if (!maps.Parse()) {
@@ -186,6 +198,4 @@ static void BM_unwind_local_updatable_maps_cached_no_func_names(benchmark::State
   UnwindData data = {.process_memory = process_memory, .maps = &maps, .resolve_names = false};
   Run(state, Unwind, &data);
 }
-BENCHMARK(BM_unwind_local_updatable_maps_cached_no_func_names);
-
-BENCHMARK_MAIN();
+BENCHMARK(BM_local_unwind_local_updatable_maps_cached_no_func_names);
