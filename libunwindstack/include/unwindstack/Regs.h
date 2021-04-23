@@ -65,6 +65,8 @@ class Regs {
   uint64_t dex_pc() { return dex_pc_; }
   void set_dex_pc(uint64_t dex_pc) { dex_pc_ = dex_pc; }
 
+  virtual void fallback_pc() {}
+
   virtual void ResetPseudoRegisters() {}
   virtual bool SetPseudoRegister(uint16_t, uint64_t) { return false; }
   virtual bool GetPseudoRegister(uint16_t, uint64_t*) { return false; }

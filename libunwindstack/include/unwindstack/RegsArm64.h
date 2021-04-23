@@ -49,6 +49,8 @@ class RegsArm64 : public RegsImpl<uint64_t> {
   void set_pc(uint64_t pc) override;
   void set_sp(uint64_t sp) override;
 
+  void fallback_pc() override;
+
   void ResetPseudoRegisters() override;
 
   bool SetPseudoRegister(uint16_t id, uint64_t value) override;
