@@ -156,6 +156,10 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
   // Clear any cached data from previous unwinds.
   process_memory_->Clear();
 
+  if (maps_->Find(regs_->pc()) == nullptr) {
+    regs_->fallback_pc();
+  }
+
   bool return_address_attempt = false;
   bool adjust_pc = false;
   for (; frames_.size() < max_frames_;) {
