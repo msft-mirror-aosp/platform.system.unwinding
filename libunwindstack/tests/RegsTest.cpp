@@ -255,6 +255,14 @@ TEST_F(RegsTest, arm64_strip_pac_mask) {
   EXPECT_EQ(0x0000007214bb3a04ULL, arm64.pc());
 }
 
+TEST_F(RegsTest, arm64_fallback_pc) {
+  RegsArm64 arm64;
+  arm64.SetPACMask(0x007fff8000000000ULL);
+  arm64.set_pc(0x0020007214bb3a04ULL);
+  arm64.fallback_pc();
+  EXPECT_EQ(0x0000007214bb3a04ULL, arm64.pc());
+}
+
 TEST_F(RegsTest, machine_type) {
   RegsArm arm_regs;
   EXPECT_EQ(ARCH_ARM, arm_regs.Arch());
