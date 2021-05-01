@@ -243,6 +243,7 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
       if (!memory_->ReadFully(uid.address, &data, jit_entry_size_)) {
         return false;
       }
+      data.symfile_addr = StripAddressTag(data.symfile_addr);
 
       // Check the seqlock to verify the symfile_addr and symfile_size.
       if (!CheckSeqlock(uid, race)) {
@@ -284,6 +285,14 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
 
   // Read the address and seqlock of entry from the next field of linked list.
   // This is non-trivial since they need to be consistent (as if we read both atomically).
+  //
+  // We're reading pointers, which can point at heap-allocated structures (the
+  // case for the __dex_debug_descriptor pointers at the time of writing).
+  // On 64 bit systems, the target process might have top-byte heap pointer
+  // tagging enabled, so we need to mask out the tag. We also know that the
+  // address must point to userspace, so the top byte of the address must be
+  // zero on both x64 and aarch64 without tagging. Therefore the masking can be
+  // done unconditionally.
   bool ReadNextField(uint64_t next_field_addr, UID* uid, bool* race) {
     Uintptr_T address[2]{0, 0};
     uint32_t seqlock[2]{0, 0};
@@ -293,6 +302,7 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
       if (!(memory_->ReadFully(next_field_addr, &address[i], sizeof(address[i])))) {
         return false;
       }
+      address[i] = StripAddressTag(address[i]);
       if (seqlock_offset_ == 0) {
         // There is no seqlock field.
         *uid = UID{.address = address[0], .seqlock = 0};
@@ -336,6 +346,16 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
       return false;
     }
     return true;
+  }
+
+  // AArch64 has Address tagging (aka Top Byte Ignore) feature, which is used by
+  // HWASAN and MTE to store metadata in the address. We need to remove the tag.
+  Uintptr_T StripAddressTag(Uintptr_T addr) {
+    if (arch() == ARCH_ARM64) {
+      // Make the value signed so it will be sign extended if necessary.
+      return static_cast<Uintptr_T>((static_cast<int64_t>(addr) << 8) >> 8);
+    }
+    return addr;
   }
 
  private:
