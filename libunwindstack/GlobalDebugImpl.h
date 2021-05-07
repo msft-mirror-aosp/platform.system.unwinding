@@ -29,6 +29,7 @@
 
 #include "Check.h"
 #include "GlobalDebugInterface.h"
+#include "MemoryCache.h"
 #include "MemoryRange.h"
 
 // This implements the JIT Compilation Interface.
@@ -362,6 +363,14 @@ std::unique_ptr<GlobalDebugInterface<Symfile>> CreateGlobalDebugImpl(
     ArchEnum arch, std::shared_ptr<Memory>& memory, std::vector<std::string> search_libs,
     const char* global_variable_name) {
   CHECK(arch != ARCH_UNKNOWN);
+
+  // The interface needs to see real-time changes in memory for synchronization with the
+  // concurrently running ART JIT compiler. Skip caching and read the memory directly.
+  MemoryCacheBase* cached_memory = memory->AsMemoryCacheBase();
+  if (cached_memory != nullptr) {
+    memory = cached_memory->UnderlyingMemory();
+  }
+
   switch (arch) {
     case ARCH_X86: {
       using Impl = GlobalDebugImpl<Symfile, uint32_t, Uint64_P>;
