@@ -44,7 +44,7 @@ static bool CheckDexSupport() {
   return true;
 }
 
-std::unique_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size, Memory* memory,
+std::shared_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size, Memory* memory,
                                          MapInfo* info) {
   static bool has_dex_support = CheckDexSupport();
   if (!has_dex_support || file_size == 0) {
@@ -79,7 +79,7 @@ std::unique_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size,
   std::unique_ptr<art_api::dex::DexFile> dex;
   art_api::dex::DexFile::Create(dex_memory->GetPtr(), file_size, nullptr, location, &dex);
   if (dex != nullptr) {
-    return std::unique_ptr<DexFile>(
+    return std::shared_ptr<DexFile>(
         new DexFile(std::move(dex_memory), base_addr, file_size, std::move(dex)));
   }
   return nullptr;
