@@ -142,7 +142,7 @@ TEST(DexFileTest, create_using_memory_file_is_malformed) {
   MemoryFake memory;
   memory.SetMemory(0x4000, kDexData, sizeof(kDexData));
   MapInfo info(nullptr, nullptr, 0x4000, 0x10000, 0x200, 0x5, "/does/not/exist");
-  std::unique_ptr<DexFile> dex_file = DexFile::Create(0x4000, sizeof(kDexData), &memory, &info);
+  std::shared_ptr<DexFile> dex_file = DexFile::Create(0x4000, sizeof(kDexData), &memory, &info);
   ASSERT_TRUE(dex_file != nullptr);
 
   // Check it came from memory by clearing memory and verifying it fails.
@@ -169,7 +169,7 @@ TEST(DexFileTest, get_method) {
   MemoryFake memory;
   memory.SetMemory(0x4000, kDexData, sizeof(kDexData));
   MapInfo info(nullptr, nullptr, 0x100, 0x10000, 0x200, 0x5, "");
-  std::unique_ptr<DexFile> dex_file(DexFile::Create(0x4000, sizeof(kDexData), &memory, &info));
+  std::shared_ptr<DexFile> dex_file(DexFile::Create(0x4000, sizeof(kDexData), &memory, &info));
   ASSERT_TRUE(dex_file != nullptr);
 
   SharedString method;
@@ -187,7 +187,7 @@ TEST(DexFileTest, get_method_empty) {
   MemoryFake memory;
   memory.SetMemory(0x4000, kDexData, sizeof(kDexData));
   MapInfo info(nullptr, nullptr, 0x100, 0x10000, 0x200, 0x5, "");
-  std::unique_ptr<DexFile> dex_file(DexFile::Create(0x4000, sizeof(kDexData), &memory, &info));
+  std::shared_ptr<DexFile> dex_file(DexFile::Create(0x4000, sizeof(kDexData), &memory, &info));
   ASSERT_TRUE(dex_file != nullptr);
 
   SharedString method;
@@ -206,7 +206,7 @@ TEST(DexFileTest, get_method_from_cache) {
 
   MemoryFake memory;
   MapInfo info(nullptr, nullptr, 0x4000, 0x10000, 0, 0x5, tf.path);
-  std::unique_ptr<DexFile> dex_file = DexFile::Create(0x4000, sizeof(kDexData), &memory, &info);
+  std::shared_ptr<DexFile> dex_file = DexFile::Create(0x4000, sizeof(kDexData), &memory, &info);
   EXPECT_TRUE(dex_file != nullptr);
 
   SharedString method;
