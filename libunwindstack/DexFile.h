@@ -47,7 +47,7 @@ class DexFile {
 
   bool GetFunctionName(uint64_t dex_pc, SharedString* method_name, uint64_t* method_offset);
 
-  static std::unique_ptr<DexFile> Create(uint64_t base_addr, uint64_t file_size, Memory* memory,
+  static std::shared_ptr<DexFile> Create(uint64_t base_addr, uint64_t file_size, Memory* memory,
                                          MapInfo* info);
 
  private:

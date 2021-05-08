@@ -255,7 +255,7 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
         // The symfile was already loaded - just copy the reference.
         entries->emplace(uid, it->second);
       } else if (data.symfile_addr != 0) {
-        std::unique_ptr<Symfile> symfile;
+        std::shared_ptr<Symfile> symfile;
         bool ok = this->Load(maps, memory_, data.symfile_addr, data.symfile_size.value, symfile);
         // Check seqlock first because load can fail due to race (so we want to trigger retry).
         // TODO: Extract the memory copy code before the load, so that it is immune to races.
@@ -264,7 +264,7 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
         }
         // Exclude symbol files that fail to load (but continue loading other files).
         if (ok) {
-          entries->emplace(uid, symfile.release());
+          entries->emplace(uid, symfile);
         }
       }
 
