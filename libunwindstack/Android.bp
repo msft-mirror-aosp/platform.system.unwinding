@@ -236,6 +236,7 @@ cc_defaults {
         "tests/ElfInterfaceTest.cpp",
         "tests/ElfTest.cpp",
         "tests/ElfTestUtils.cpp",
+        "tests/GlobalDebugImplTest.cpp",
         "tests/IsolatedSettings.cpp",
         "tests/JitDebugTest.cpp",
         "tests/LocalUnwinderTest.cpp",
