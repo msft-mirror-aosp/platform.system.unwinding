@@ -358,4 +358,21 @@ TEST_F(DexFilesTest, get_method_information_with_empty_map) {
   EXPECT_EQ(0U, method_offset);
 }
 
+TEST_F(DexFilesTest, get_method_information_tagged_descriptor_entry_addr_arm64) {
+  Init(ARCH_ARM64);
+
+  SharedString method_name = "nothing";
+  uint64_t method_offset = 0x124;
+
+  // Descriptor-stored adddress (first_entry) with a tag in the top byte, which
+  // should be masked out.
+  WriteDescriptor64(0x100800, 0xb400'0000'0020'0000ull);
+  WriteEntry64(0x200000, 0, 0, 0x301000, sizeof(kDexData));
+  WriteDex(0x301000);
+
+  dex_files_->GetFunctionName(maps_.get(), 0x301102, &method_name, &method_offset);
+  EXPECT_EQ("Main.<init>", method_name);
+  EXPECT_EQ(2U, method_offset);
+}
+
 }  // namespace unwindstack
