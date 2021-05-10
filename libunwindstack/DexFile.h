@@ -51,6 +51,8 @@ class DexFile {
                                          MapInfo* info);
 
  private:
+  static std::shared_ptr<DexFile> CreateFromDisk(uint64_t addr, uint64_t size, MapInfo* map);
+
   DexFile(std::unique_ptr<Memory>&& memory, uint64_t base_addr, uint64_t file_size,
           std::unique_ptr<art_api::dex::DexFile>&& dex)
       : memory_(std::move(memory)),
