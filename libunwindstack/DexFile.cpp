@@ -36,6 +36,9 @@
 
 namespace unwindstack {
 
+std::map<DexFile::MappedFileKey, std::weak_ptr<DexFile>> DexFile::g_mapped_dex_files;
+std::mutex DexFile::g_lock;
+
 static bool CheckDexSupport() {
   if (std::string err_msg; !art_api::dex::TryLoadLibdexfile(&err_msg)) {
     ALOGW("Failed to initialize DEX file support: %s", err_msg.c_str());
@@ -55,6 +58,17 @@ std::shared_ptr<DexFile> DexFile::CreateFromDisk(uint64_t addr, uint64_t size, M
     return nullptr;  // size is past the MapInfo end.
   }
   uint64_t offset_in_file = (addr - map->start) + map->offset;
+
+  // Fast-path: Check if the dex file was already mapped from disk.
+  std::lock_guard<std::mutex> guard(g_lock);
+  MappedFileKey cache_key(map->name, offset_in_file, size);
+  std::weak_ptr<DexFile>& cache_entry = g_mapped_dex_files[cache_key];
+  std::shared_ptr<DexFile> dex_file = cache_entry.lock();
+  if (dex_file != nullptr) {
+    return dex_file;
+  }
+
+  // Load the file from disk and cache it.
   std::unique_ptr<Memory> memory = Memory::CreateFileMemory(map->name, offset_in_file, size);
   if (memory == nullptr) {
     return nullptr;  // failed to map the file.
@@ -64,7 +78,9 @@ std::shared_ptr<DexFile> DexFile::CreateFromDisk(uint64_t addr, uint64_t size, M
   if (dex == nullptr) {
     return nullptr;  // invalid DEX file.
   }
-  return std::shared_ptr<DexFile>(new DexFile(std::move(memory), addr, size, std::move(dex)));
+  dex_file.reset(new DexFile(std::move(memory), addr, size, std::move(dex)));
+  cache_entry = dex_file;
+  return dex_file;
 }
 
 std::shared_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size, Memory* memory,
@@ -99,6 +115,7 @@ bool DexFile::GetFunctionName(uint64_t dex_pc, SharedString* method_name, uint64
   uint64_t dex_offset = dex_pc - base_addr_;  // Convert absolute PC to file-relative offset.
 
   // Lookup the function in the cache.
+  std::lock_guard<std::mutex> guard(lock_);
   auto it = symbols_.upper_bound(dex_offset);
   if (it == symbols_.end() || dex_offset < it->second.offset) {
     // Lookup the function in the underlying dex file.
