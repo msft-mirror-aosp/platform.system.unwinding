@@ -629,32 +629,6 @@ bool DwarfSectionImpl<AddressType>::Init(uint64_t offset, uint64_t size, int64_t
   return true;
 }
 
-// Create a cached version of the fde information such that it is a std::map
-// that is indexed by end pc and contains a pair that represents the start pc
-// followed by the fde offset.
-// It is possible for an fde to be represented by multiple entries in
-// the map. This can happen if the the start pc and end pc overlap already
-// existing entries. For example, if there is already an entry of 0x400, 0x200,
-// and an fde has a start pc of 0x100 and end pc of 0x500, two new entries
-// will be added: 0x200, 0x100 and 0x500, 0x400.
-template <typename AddressType>
-void DwarfSectionImpl<AddressType>::InsertFde(uint64_t fde_offset, const DwarfFde* fde,
-                                              DwarfFdeMap& fdes) {
-  uint64_t start = fde->pc_start;
-  uint64_t end = fde->pc_end;
-  auto it = fdes.upper_bound(start);
-  while (it != fdes.end() && start < end && it->second.first < end) {
-    if (start < it->second.first) {
-      fdes[it->second.first] = std::make_pair(start, fde_offset);
-    }
-    start = it->first;
-    ++it;
-  }
-  if (start < end) {
-    fdes[end] = std::make_pair(start, fde_offset);
-  }
-}
-
 // Read CIE or FDE entry at the given offset, and set the offset to the following entry.
 // The 'fde' argument is set only if we have seen an FDE entry.
 template <typename AddressType>
@@ -769,31 +743,59 @@ const DwarfFde* DwarfSectionImpl<AddressType>::GetFdeFromPc(uint64_t pc) {
   return fde != nullptr && fde->pc_start <= pc ? fde : nullptr;
 }
 
-// Create binary search table to make FDE lookups fast.
+// Create binary search table to make FDE lookups fast (sorted by pc_end).
 // We store only the FDE offset rather than the full entry to save memory.
+//
+// If there are overlapping entries, it inserts additional entries to ensure
+// that one of the overlapping entries is found (it is undefined which one).
 template <typename AddressType>
 void DwarfSectionImpl<AddressType>::BuildFdeIndex() {
-  DwarfFdeMap fdes;
+  struct FdeInfo {
+    uint64_t pc_start, pc_end, fde_offset;
+  };
+  std::vector<FdeInfo> fdes;
   for (uint64_t offset = entries_offset_; offset < entries_end_;) {
-    const uint64_t fde_offset = offset;
+    const uint64_t initial_offset = offset;
     std::optional<DwarfFde> fde;
     if (!GetNextCieOrFde(offset, fde)) {
       break;
     }
-    if (fde.has_value()) {
-      InsertFde(fde_offset, &*fde, fdes);
+    if (fde.has_value() && /* defensive check */ (fde->pc_start < fde->pc_end)) {
+      fdes.push_back({fde->pc_start, fde->pc_end, initial_offset});
     }
+    if (offset <= initial_offset) {
+      break;  // Jump back. Simply consider the processing done in this case.
+    }
+  }
+  std::sort(fdes.begin(), fdes.end(), [](const FdeInfo& a, const FdeInfo& b) {
+    return std::tie(a.pc_end, a.fde_offset) < std::tie(b.pc_end, b.fde_offset);
+  });
 
-    if (offset < memory_.cur_offset()) {
-      // Simply consider the processing done in this case.
-      break;
+  // If there are overlapping entries, ensure that we can always find one of them.
+  // For example, for entries:   [300, 350)  [400, 450)  [100, 550)  [600, 650)
+  // We add the following:  [100, 300)  [100, 400)
+  // Which ensures that the [100, 550) entry can be found in its whole range.
+  if (!fdes.empty()) {
+    FdeInfo filling = fdes.back();  // Entry with the minimal pc_start seen so far.
+    for (ssize_t i = fdes.size() - 1; i >= 0; i--) {  // Iterate backwards.
+      uint64_t prev_pc_end = (i > 0) ? fdes[i - 1].pc_end : 0;
+      // If there is a gap between entries and the filling reaches the gap, fill it.
+      if (prev_pc_end < fdes[i].pc_start && filling.pc_start < fdes[i].pc_start) {
+        fdes.push_back({filling.pc_start, fdes[i].pc_start, filling.fde_offset});
+      }
+      if (fdes[i].pc_start < filling.pc_start) {
+        filling = fdes[i];
+      }
     }
   }
 
-  // Copy the map into vector for space efficiency. The entries are already sorted.
+  // Copy data to the final binary search table (pc_end, fde_offset) and sort it.
   fde_index_.reserve(fdes.size());
-  for (const auto& it : fdes) {
-    fde_index_.emplace_back(/*end address=*/it.first, /*FDE offset=*/it.second.second);
+  for (const FdeInfo& it : fdes) {
+    fde_index_.emplace_back(it.pc_end, it.fde_offset);
+  }
+  if (!std::is_sorted(fde_index_.begin(), fde_index_.end())) {
+    std::sort(fde_index_.begin(), fde_index_.end());
   }
 }
 
