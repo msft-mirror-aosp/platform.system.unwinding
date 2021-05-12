@@ -36,6 +36,9 @@
 
 namespace unwindstack {
 
+std::map<DexFile::MappedFileKey, std::weak_ptr<DexFile>> DexFile::g_mapped_dex_files;
+std::mutex DexFile::g_lock;
+
 static bool CheckDexSupport() {
   if (std::string err_msg; !art_api::dex::TryLoadLibdexfile(&err_msg)) {
     ALOGW("Failed to initialize DEX file support: %s", err_msg.c_str());
@@ -44,51 +47,75 @@ static bool CheckDexSupport() {
   return true;
 }
 
+std::shared_ptr<DexFile> DexFile::CreateFromDisk(uint64_t addr, uint64_t size, MapInfo* map) {
+  if (map == nullptr || map->name.empty()) {
+    return nullptr;  // MapInfo not backed by file.
+  }
+  if (!(map->start <= addr && addr < map->end)) {
+    return nullptr;  // addr is not in MapInfo range.
+  }
+  if (size > (map->end - addr)) {
+    return nullptr;  // size is past the MapInfo end.
+  }
+  uint64_t offset_in_file = (addr - map->start) + map->offset;
+
+  // Fast-path: Check if the dex file was already mapped from disk.
+  std::lock_guard<std::mutex> guard(g_lock);
+  MappedFileKey cache_key(map->name, offset_in_file, size);
+  std::weak_ptr<DexFile>& cache_entry = g_mapped_dex_files[cache_key];
+  std::shared_ptr<DexFile> dex_file = cache_entry.lock();
+  if (dex_file != nullptr) {
+    return dex_file;
+  }
+
+  // Load the file from disk and cache it.
+  std::unique_ptr<Memory> memory = Memory::CreateFileMemory(map->name, offset_in_file, size);
+  if (memory == nullptr) {
+    return nullptr;  // failed to map the file.
+  }
+  std::unique_ptr<art_api::dex::DexFile> dex;
+  art_api::dex::DexFile::Create(memory->GetPtr(), size, nullptr, map->name.c_str(), &dex);
+  if (dex == nullptr) {
+    return nullptr;  // invalid DEX file.
+  }
+  dex_file.reset(new DexFile(std::move(memory), addr, size, std::move(dex)));
+  cache_entry = dex_file;
+  return dex_file;
+}
+
 std::shared_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size, Memory* memory,
                                          MapInfo* info) {
   static bool has_dex_support = CheckDexSupport();
   if (!has_dex_support || file_size == 0) {
     return nullptr;
   }
-
-  // Try to map the file directly from disk.
-  std::unique_ptr<Memory> dex_memory;
-  if (info != nullptr && !info->name.empty()) {
-    if (info->start <= base_addr && base_addr < info->end) {
-      uint64_t offset_in_file = (base_addr - info->start) + info->offset;
-      if (file_size <= info->end - base_addr) {
-        dex_memory = Memory::CreateFileMemory(info->name, offset_in_file, file_size);
-        // On error, the results is null and we fall through to the fallback code-path.
-      }
-    }
+  std::shared_ptr<DexFile> dex_file = CreateFromDisk(base_addr, file_size, info);
+  if (dex_file != nullptr) {
+    return dex_file;
   }
 
   // Fallback: make copy in local buffer.
-  if (dex_memory.get() == nullptr) {
-    std::unique_ptr<MemoryBuffer> copy(new MemoryBuffer);
-    if (!copy->Resize(file_size)) {
-      return nullptr;
-    }
-    if (!memory->ReadFully(base_addr, copy->GetPtr(0), file_size)) {
-      return nullptr;
-    }
-    dex_memory = std::move(copy);
+  std::unique_ptr<MemoryBuffer> copy(new MemoryBuffer);
+  if (!copy->Resize(file_size)) {
+    return nullptr;
   }
-
-  const char* location = info != nullptr ? info->name.c_str() : "";
+  if (!memory->ReadFully(base_addr, copy->GetPtr(0), file_size)) {
+    return nullptr;
+  }
   std::unique_ptr<art_api::dex::DexFile> dex;
-  art_api::dex::DexFile::Create(dex_memory->GetPtr(), file_size, nullptr, location, &dex);
-  if (dex != nullptr) {
-    return std::shared_ptr<DexFile>(
-        new DexFile(std::move(dex_memory), base_addr, file_size, std::move(dex)));
+  art_api::dex::DexFile::Create(copy->GetPtr(0), file_size, nullptr, "", &dex);
+  if (dex == nullptr) {
+    return nullptr;
   }
-  return nullptr;
+  dex_file.reset(new DexFile(std::move(copy), base_addr, file_size, std::move(dex)));
+  return dex_file;
 }
 
 bool DexFile::GetFunctionName(uint64_t dex_pc, SharedString* method_name, uint64_t* method_offset) {
   uint64_t dex_offset = dex_pc - base_addr_;  // Convert absolute PC to file-relative offset.
 
   // Lookup the function in the cache.
+  std::lock_guard<std::mutex> guard(lock_);
   auto it = symbols_.upper_bound(dex_offset);
   if (it == symbols_.end() || dex_offset < it->second.offset) {
     // Lookup the function in the underlying dex file.
