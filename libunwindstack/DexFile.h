@@ -21,6 +21,7 @@
 
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -51,6 +52,8 @@ class DexFile {
                                          MapInfo* info);
 
  private:
+  static std::shared_ptr<DexFile> CreateFromDisk(uint64_t addr, uint64_t size, MapInfo* map);
+
   DexFile(std::unique_ptr<Memory>&& memory, uint64_t base_addr, uint64_t file_size,
           std::unique_ptr<art_api::dex::DexFile>&& dex)
       : memory_(std::move(memory)),
@@ -64,6 +67,15 @@ class DexFile {
   std::unique_ptr<art_api::dex::DexFile> dex_;  // Loaded underling dex object.
 
   std::map<uint32_t, Info> symbols_;  // Cache of read symbols (keyed by *end* offset).
+  std::mutex lock_;                   // Guards the cache above.
+
+  // The same file can be mapped many times in system-wide profiling (once per process).
+  // Furthermore, the ART side of the API will create expensive PC lookup table for it.
+  // Therefore, we maintain cache to avoid loading the same file (sub-range) many times.
+  // The cache is weak: It will not keep DexFiles alive (the weak_ptr will become null).
+  using MappedFileKey = std::tuple<std::string, uint64_t, uint64_t>;  // (path, offset, size).
+  static std::map<MappedFileKey, std::weak_ptr<DexFile>> g_mapped_dex_files;
+  static std::mutex g_lock;  // Guards the static cache above.
 };
 
 }  // namespace unwindstack
