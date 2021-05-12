@@ -46,7 +46,7 @@ struct MapInfo {
     if (prev_real_map != nullptr) prev_real_map->next_real_map = this;
   }
   MapInfo(MapInfo* prev_map, MapInfo* prev_real_map, uint64_t start, uint64_t end, uint64_t offset,
-          uint64_t flags, const std::string& name)
+          uint64_t flags, SharedString name)
       : start(start),
         end(end),
         offset(offset),
