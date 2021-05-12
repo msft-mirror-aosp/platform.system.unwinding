@@ -29,6 +29,7 @@
 
 #include "Check.h"
 #include "GlobalDebugInterface.h"
+#include "MemoryCache.h"
 #include "MemoryRange.h"
 
 // This implements the JIT Compilation Interface.
@@ -126,10 +127,10 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
 
   bool ReadVariableData(uint64_t ptr) { return ReadDescriptor(ptr); }
 
-  // Iterate over all symfiles and call the provided callback for reach symfile.
+  // Invoke callback for all symfiles that contain the given PC.
   // Returns true if any callback returns true (which also aborts the iteration).
   template <typename Callback /* (Symfile*) -> bool */>
-  bool ForEachSymfile(Maps* maps, Callback callback) {
+  bool ForEachSymfile(Maps* maps, uint64_t pc, Callback callback) {
     // Use a single lock, this object should be used so infrequently that
     // a fine grain lock is unnecessary.
     std::lock_guard<std::mutex> guard(lock_);
@@ -142,7 +143,9 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
 
     // Try to find the entry in already loaded symbol files.
     for (auto& it : entries_) {
-      if (callback(it.first, it.second.get())) {
+      Symfile* symfile = it.second.get();
+      // Check seqlock to make sure that entry is still valid (it may be very old).
+      if (symfile->IsValidPc(pc) && CheckSeqlock(it.first) && callback(symfile)) {
         return true;
       }
     }
@@ -150,7 +153,14 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
     // Update all entries and retry.
     ReadAllEntries(maps);
     for (auto& it : entries_) {
-      if (callback(it.first, it.second.get())) {
+      Symfile* symfile = it.second.get();
+      // Note that the entry could become invalid since the ReadAllEntries above,
+      // but that is ok.  We don't want to fail or refresh the entries yet again.
+      // This is as if we found the entry in time and it became invalid after return.
+      // This is relevant when ART moves/packs JIT entries. That is, the entry is
+      // technically deleted, but only because it was copied into merged uber-entry.
+      // So the JIT method is still alive and the deleted data is still correct.
+      if (symfile->IsValidPc(pc) && callback(symfile)) {
         return true;
       }
     }
@@ -160,28 +170,26 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
 
   bool GetFunctionName(Maps* maps, uint64_t pc, SharedString* name, uint64_t* offset) {
     // NB: If symfiles overlap in PC ranges, this will check all of them.
-    return ForEachSymfile(maps, [pc, name, offset, this](UID uid, Symfile* file) {
-      return file->IsValidPc(pc) && CheckSeqlock(uid) && file->GetFunctionName(pc, name, offset);
+    return ForEachSymfile(maps, pc, [pc, name, offset](Symfile* file) {
+      return file->GetFunctionName(pc, name, offset);
     });
   }
 
   Symfile* Find(Maps* maps, uint64_t pc) {
     // NB: If symfiles overlap in PC ranges (which can happen for both ELF and DEX),
     // this will check all of them and return one that also has a matching function.
-    // If there is no such symfile, it will return any symfile for which the PC is valid.
-    // This is a useful fallback for tests, which often have symfiles with no functions.
     Symfile* result = nullptr;
-    ForEachSymfile(maps, [&result, pc, this](UID uid, Symfile* file) {
-      if (file->IsValidPc(pc) && CheckSeqlock(uid)) {
-        result = file;
-        SharedString name;
-        uint64_t offset;
-        if (file->GetFunctionName(pc, &name, &offset)) {
-          return true;  // Abort iteration and return the result immediately.
-        }
-      }
-      return false;
+    bool found = ForEachSymfile(maps, pc, [pc, &result](Symfile* file) {
+      result = file;
+      SharedString name;
+      uint64_t offset;
+      return file->GetFunctionName(pc, &name, &offset);
     });
+    if (found) {
+      return result;  // Found symfile with symbol that also matches the PC.
+    }
+    // There is no matching symbol, so return any symfile for which the PC is valid.
+    // This is a useful fallback for tests, which often have symfiles with no functions.
     return result;
   }
 
@@ -382,6 +390,14 @@ std::unique_ptr<GlobalDebugInterface<Symfile>> CreateGlobalDebugImpl(
     ArchEnum arch, std::shared_ptr<Memory>& memory, std::vector<std::string> search_libs,
     const char* global_variable_name) {
   CHECK(arch != ARCH_UNKNOWN);
+
+  // The interface needs to see real-time changes in memory for synchronization with the
+  // concurrently running ART JIT compiler. Skip caching and read the memory directly.
+  MemoryCacheBase* cached_memory = memory->AsMemoryCacheBase();
+  if (cached_memory != nullptr) {
+    memory = cached_memory->UnderlyingMemory();
+  }
+
   switch (arch) {
     case ARCH_X86: {
       using Impl = GlobalDebugImpl<Symfile, uint32_t, Uint64_P>;
