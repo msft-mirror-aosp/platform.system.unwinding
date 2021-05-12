@@ -63,7 +63,7 @@ TEST(MapInfoTest, get_function_name) {
   interface->FakePushFunctionData(FunctionData("function", 1000));
 
   MapInfo map_info(nullptr, nullptr, 1, 2, 3, 4, "");
-  map_info.elf().reset(elf);
+  map_info.set_elf(elf);
 
   SharedString name;
   uint64_t offset;
