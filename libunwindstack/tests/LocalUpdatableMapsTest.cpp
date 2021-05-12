@@ -303,8 +303,15 @@ TEST_F(LocalUpdatableMapsTest, add_map_prev_real_name_updated) {
                                        tf.path));
 
   maps_.TestSetMapsFile(tf.path);
-  ASSERT_TRUE(maps_.Reparse());
+  bool any_changed;
+  ASSERT_TRUE(maps_.Reparse(&any_changed));
   ASSERT_EQ(4U, maps_.Total());
+  ASSERT_TRUE(any_changed);
+
+  // Try again and assert there are no changes this time.
+  ASSERT_TRUE(maps_.Reparse(&any_changed));
+  ASSERT_EQ(4U, maps_.Total());
+  ASSERT_FALSE(any_changed);
 
   MapInfo* map_info = maps_.Get(2);
   ASSERT_TRUE(map_info != nullptr);
@@ -336,8 +343,14 @@ TEST_F(LocalUpdatableMapsTest, add_map_prev_real_name_updated) {
                                        tf.path));
 
   maps_.TestSetMapsFile(tf.path);
-  ASSERT_TRUE(maps_.Reparse());
+  ASSERT_TRUE(maps_.Reparse(&any_changed));
   ASSERT_EQ(6U, maps_.Total());
+  ASSERT_TRUE(any_changed);
+
+  // Try again and assert there are no changes this time.
+  ASSERT_TRUE(maps_.Reparse(&any_changed));
+  ASSERT_EQ(6U, maps_.Total());
+  ASSERT_FALSE(any_changed);
 
   map_info = maps_.Get(2);
   ASSERT_TRUE(map_info != nullptr);

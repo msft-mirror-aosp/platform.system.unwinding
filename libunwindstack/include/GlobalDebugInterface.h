@@ -37,7 +37,7 @@ class GlobalDebugInterface {
 
  protected:
   bool Load(Maps* maps, std::shared_ptr<Memory>& memory, uint64_t addr, uint64_t size,
-            /*out*/ std::unique_ptr<Symfile>& dex);
+            /*out*/ std::shared_ptr<Symfile>& dex);
 };
 
 }  // namespace unwindstack

@@ -21,6 +21,7 @@
 
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -47,23 +48,35 @@ class DexFile {
 
   bool GetFunctionName(uint64_t dex_pc, SharedString* method_name, uint64_t* method_offset);
 
-  static std::unique_ptr<DexFile> Create(uint64_t base_addr, uint64_t file_size, Memory* memory,
+  static std::shared_ptr<DexFile> Create(uint64_t base_addr, uint64_t file_size, Memory* memory,
                                          MapInfo* info);
 
  private:
-  DexFile(std::unique_ptr<Memory>&& memory, uint64_t base_addr, uint64_t file_size,
-          std::unique_ptr<art_api::dex::DexFile>&& dex)
-      : memory_(std::move(memory)),
-        base_addr_(base_addr),
-        file_size_(file_size),
-        dex_(std::move(dex)) {}
+  // The underlying C API. It might be shared by multiple DexFiles (with different base_addr).
+  struct DexFileApi {
+    std::unique_ptr<art_api::dex::DexFile> dex_;
+    std::unique_ptr<Memory> memory_;  // Keep alive the memory object backing the dex file data.
+    std::mutex lock_;                 // The C API is not thread-safe so we need to lock it.
+  };
 
-  std::unique_ptr<Memory> memory_;  // Memory range containing the dex file.
-  uint64_t base_addr_ = 0;          // Absolute address where this DEX file is in memory.
-  uint64_t file_size_ = 0;          // Total number of bytes in the dex file.
-  std::unique_ptr<art_api::dex::DexFile> dex_;  // Loaded underling dex object.
+  static std::shared_ptr<DexFile> CreateFromDisk(uint64_t addr, uint64_t size, MapInfo* map);
+
+  DexFile(uint64_t base_addr, uint64_t file_size, std::shared_ptr<DexFileApi>&& dex_api)
+      : base_addr_(base_addr), file_size_(file_size), dex_api_(std::move(dex_api)) {}
+
+  uint64_t base_addr_ = 0;               // Absolute address where this DEX file is in memory.
+  uint64_t file_size_ = 0;               // Total number of bytes in the dex file.
+  std::shared_ptr<DexFileApi> dex_api_;  // Loaded underling dex object.
 
   std::map<uint32_t, Info> symbols_;  // Cache of read symbols (keyed by *end* offset).
+
+  // The same file can be mapped many times in system-wide profiling (once per process).
+  // Furthermore, the ART side of the API will create expensive PC lookup table for it.
+  // Therefore, we maintain cache to avoid loading the same file (sub-range) many times.
+  // The cache is weak: It will not keep DexFiles alive (the weak_ptr will become null).
+  using MappedFileKey = std::tuple<std::string, uint64_t, uint64_t>;  // (path, offset, size).
+  static std::map<MappedFileKey, std::weak_ptr<DexFileApi>> g_mapped_dex_files;
+  static std::mutex g_lock;  // Guards the static cache above.
 };
 
 }  // namespace unwindstack
