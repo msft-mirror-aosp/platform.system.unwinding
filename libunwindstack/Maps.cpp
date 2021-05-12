@@ -169,7 +169,7 @@ bool LocalUpdatableMaps::Parse() {
   return parsed;
 }
 
-bool LocalUpdatableMaps::Reparse() {
+bool LocalUpdatableMaps::Reparse(/*out*/ bool* any_changed) {
   // New maps will be added at the end without deleting the old ones.
   size_t last_map_idx = maps_.size();
   if (!Maps::Parse()) {
@@ -177,8 +177,9 @@ bool LocalUpdatableMaps::Reparse() {
     return false;
   }
 
-  size_t total_entries = maps_.size();
   size_t search_map_idx = 0;
+  size_t num_deleted_old_entries = 0;
+  size_t num_deleted_new_entries = 0;
   for (size_t new_map_idx = last_map_idx; new_map_idx < maps_.size(); new_map_idx++) {
     auto& new_map_info = maps_[new_map_idx];
     uint64_t start = new_map_info->start;
@@ -196,7 +197,7 @@ bool LocalUpdatableMaps::Reparse() {
               info->IsBlank() ? info->prev_real_map : info.get();
         }
         maps_[new_map_idx] = nullptr;
-        total_entries--;
+        num_deleted_new_entries++;
         break;
       } else if (info->start > start) {
         // Stop, there isn't going to be a match.
@@ -210,7 +211,7 @@ bool LocalUpdatableMaps::Reparse() {
       saved_maps_.emplace_back(std::move(info));
       search_map_idx = old_map_idx + 1;
       maps_[old_map_idx] = nullptr;
-      total_entries--;
+      num_deleted_old_entries++;
     }
     if (search_map_idx >= last_map_idx) {
       break;
@@ -221,7 +222,7 @@ bool LocalUpdatableMaps::Reparse() {
   for (size_t i = search_map_idx; i < last_map_idx; i++) {
     saved_maps_.emplace_back(std::move(maps_[i]));
     maps_[i] = nullptr;
-    total_entries--;
+    num_deleted_old_entries++;
   }
 
   // Sort all of the values such that the nullptrs wind up at the end, then
@@ -234,7 +235,11 @@ bool LocalUpdatableMaps::Reparse() {
     }
     return a->start < b->start;
   });
-  maps_.resize(total_entries);
+  maps_.resize(maps_.size() - num_deleted_old_entries - num_deleted_new_entries);
+
+  if (any_changed != nullptr) {
+    *any_changed = num_deleted_old_entries != 0 || maps_.size() != last_map_idx;
+  }
 
   return true;
 }
