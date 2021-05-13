@@ -37,11 +37,11 @@ namespace unwindstack {
 bool MapInfo::InitFileMemoryFromPreviousReadOnlyMap(MemoryFileAtOffset* memory) {
   // One last attempt, see if the previous map is read-only with the
   // same name and stretches across this map.
-  if (prev_real_map_ == nullptr || prev_real_map_->flags_ != PROT_READ) {
+  if (prev_real_map() == nullptr || prev_real_map()->flags() != PROT_READ) {
     return false;
   }
 
-  uint64_t map_size = end_ - prev_real_map_->end_;
+  uint64_t map_size = end() - prev_real_map_->end();
   if (!memory->Init(name_, prev_real_map_->offset_, map_size)) {
     return false;
   }
@@ -51,19 +51,19 @@ bool MapInfo::InitFileMemoryFromPreviousReadOnlyMap(MemoryFileAtOffset* memory) 
     return false;
   }
 
-  if (!memory->Init(name_, prev_real_map_->offset_, max_size)) {
+  if (!memory->Init(name(), prev_real_map()->offset(), max_size)) {
     return false;
   }
 
-  elf_offset_ = offset_ - prev_real_map_->offset_;
-  elf_start_offset_ = prev_real_map_->offset_;
+  elf_offset_ = offset() - prev_real_map_->offset();
+  elf_start_offset_ = prev_real_map_->offset();
   return true;
 }
 
 Memory* MapInfo::GetFileMemory() {
   std::unique_ptr<MemoryFileAtOffset> memory(new MemoryFileAtOffset);
-  if (offset_ == 0) {
-    if (memory->Init(name_, 0)) {
+  if (offset() == 0) {
+    if (memory->Init(name(), 0)) {
       return memory.release();
     }
     return nullptr;
@@ -83,7 +83,7 @@ Memory* MapInfo::GetFileMemory() {
   // and reinit to that size. This is needed because the dynamic linker
   // only maps in a portion of the original elf, and never the symbol
   // file data.
-  uint64_t map_size = end_ - start_;
+  uint64_t map_size = end_ - start();
   if (!memory->Init(name_, offset_, map_size)) {
     return nullptr;
   }
@@ -91,9 +91,9 @@ Memory* MapInfo::GetFileMemory() {
   // Check if the start of this map is an embedded elf.
   uint64_t max_size = 0;
   if (Elf::GetInfo(memory.get(), &max_size)) {
-    elf_start_offset_ = offset_;
+    elf_start_offset_ = offset();
     if (max_size > map_size) {
-      if (memory->Init(name_, offset_, max_size)) {
+      if (memory->Init(name(), offset(), max_size)) {
         return memory.release();
       }
       // Try to reinit using the default map_size.
@@ -107,14 +107,14 @@ Memory* MapInfo::GetFileMemory() {
   }
 
   // No elf at offset, try to init as if the whole file is an elf.
-  if (memory->Init(name_, 0) && Elf::IsValidElf(memory.get())) {
-    elf_offset_ = offset_;
+  if (memory->Init(name(), 0) && Elf::IsValidElf(memory.get())) {
+    elf_offset_ = offset();
     // Need to check how to set the elf start offset. If this map is not
     // the r-x map of a r-- map, then use the real offset value. Otherwise,
     // use 0.
-    if (prev_real_map_ == nullptr || prev_real_map_->offset_ != 0 ||
-        prev_real_map_->flags_ != PROT_READ || prev_real_map_->name_ != name_) {
-      elf_start_offset_ = offset_;
+    if (prev_real_map_ == nullptr || prev_real_map_->offset() != 0 ||
+        prev_real_map_->flags() != PROT_READ || prev_real_map_->name() != name()) {
+      elf_start_offset_ = offset();
     }
     return memory.release();
   }
@@ -134,19 +134,19 @@ Memory* MapInfo::GetFileMemory() {
 }
 
 Memory* MapInfo::CreateMemory(const std::shared_ptr<Memory>& process_memory) {
-  if (end_ <= start_) {
+  if (end() <= start()) {
     return nullptr;
   }
 
   elf_offset_ = 0;
 
   // Fail on device maps.
-  if (flags_ & MAPS_FLAGS_DEVICE_MAP) {
+  if (flags() & MAPS_FLAGS_DEVICE_MAP) {
     return nullptr;
   }
 
   // First try and use the file associated with the info.
-  if (!name_.empty()) {
+  if (!name().empty()) {
     Memory* memory = GetFileMemory();
     if (memory != nullptr) {
       return memory;
@@ -164,12 +164,12 @@ Memory* MapInfo::CreateMemory(const std::shared_ptr<Memory>& process_memory) {
   // map. In this case, there will be another read-only map that includes the
   // first part of the elf file. This is done if the linker rosegment
   // option is used.
-  std::unique_ptr<MemoryRange> memory(new MemoryRange(process_memory, start_, end_ - start_, 0));
+  std::unique_ptr<MemoryRange> memory(new MemoryRange(process_memory, start(), end_ - start(), 0));
   if (Elf::IsValidElf(memory.get())) {
     // Might need to peek at the next map to create a memory object that
     // includes that map too.
-    if (offset_ != 0 || name_.empty() || next_real_map_ == nullptr ||
-        offset_ >= next_real_map_->offset_ || next_real_map_->name_ != name_) {
+    if (offset() != 0 || name_.empty() || next_real_map() == nullptr ||
+        offset() >= next_real_map()->offset() || next_real_map()->name_ != name_) {
       return memory.release();
     }
 
@@ -178,10 +178,10 @@ Memory* MapInfo::CreateMemory(const std::shared_ptr<Memory>& process_memory) {
     // redo the work. If this happens, the elf for this map will eventually
     // be discarded.
     MemoryRanges* ranges = new MemoryRanges;
-    ranges->Insert(new MemoryRange(process_memory, start_, end_ - start_, 0));
-    ranges->Insert(new MemoryRange(process_memory, next_real_map_->start_,
-                                   next_real_map_->end_ - next_real_map_->start_,
-                                   next_real_map_->offset_ - offset_));
+    ranges->Insert(new MemoryRange(process_memory, start(), end() - start(), 0));
+    ranges->Insert(new MemoryRange(process_memory, next_real_map()->start(),
+                                   next_real_map()->end() - next_real_map()->start(),
+                                   next_real_map()->offset() - offset()));
 
     return ranges;
   }
@@ -190,22 +190,22 @@ Memory* MapInfo::CreateMemory(const std::shared_ptr<Memory>& process_memory) {
   // doesn't guarantee that this invariant will always be true. However,
   // if that changes, there is likely something else that will change and
   // break something.
-  if (offset_ == 0 || name_.empty() || prev_real_map_ == nullptr ||
-      prev_real_map_->name_ != name_ || prev_real_map_->offset_ >= offset_) {
+  if (offset() == 0 || name_.empty() || prev_real_map_ == nullptr ||
+      prev_real_map_->name_ != name_ || prev_real_map_->offset() >= offset()) {
     memory_backed_elf_ = false;
     return nullptr;
   }
 
   // Make sure that relative pc values are corrected properly.
-  elf_offset_ = offset_ - prev_real_map_->offset_;
+  elf_offset_ = offset() - prev_real_map_->offset();
   // Use this as the elf start offset, otherwise, you always get offsets into
   // the r-x section, which is not quite the right information.
-  elf_start_offset_ = prev_real_map_->offset_;
+  elf_start_offset_ = prev_real_map_->offset();
 
   MemoryRanges* ranges = new MemoryRanges;
-  ranges->Insert(new MemoryRange(process_memory, prev_real_map_->start_,
-                                 prev_real_map_->end_ - prev_real_map_->start_, 0));
-  ranges->Insert(new MemoryRange(process_memory, start_, end_ - start_, elf_offset_));
+  ranges->Insert(new MemoryRange(process_memory, prev_real_map()->start(),
+                                 prev_real_map()->end() - prev_real_map()->start(), 0));
+  ranges->Insert(new MemoryRange(process_memory, start(), end() - start(), elf_offset_));
 
   return ranges;
 }
@@ -215,17 +215,17 @@ Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum exp
     // Make sure no other thread is trying to add the elf to this map.
     std::lock_guard<std::mutex> guard(mutex_);
 
-    if (elf_.get() != nullptr) {
-      return elf_.get();
+    if (elf().get() != nullptr) {
+      return elf().get();
     }
 
     bool locked = false;
-    if (Elf::CachingEnabled() && !name_.empty()) {
+    if (Elf::CachingEnabled() && !name().empty()) {
       Elf::CacheLock();
       locked = true;
       if (Elf::CacheGet(this)) {
         Elf::CacheUnlock();
-        return elf_.get();
+        return elf().get();
       }
     }
 
@@ -234,16 +234,16 @@ Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum exp
       if (Elf::CacheAfterCreateMemory(this)) {
         delete memory;
         Elf::CacheUnlock();
-        return elf_.get();
+        return elf().get();
       }
     }
-    elf_.reset(new Elf(memory));
+    elf().reset(new Elf(memory));
     // If the init fails, keep the elf around as an invalid object so we
     // don't try to reinit the object.
-    elf_->Init();
-    if (elf_->valid() && expected_arch != elf_->arch()) {
+    elf()->Init();
+    if (elf()->valid() && expected_arch != elf()->arch()) {
       // Make the elf invalid, mismatch between arch and expected arch.
-      elf_->Invalidate();
+      elf()->Invalidate();
     }
 
     if (locked) {
@@ -252,40 +252,40 @@ Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum exp
     }
   }
 
-  if (!elf_->valid()) {
-    elf_start_offset_ = offset_;
-  } else if (prev_real_map_ != nullptr && elf_start_offset_ != offset_ &&
-             prev_real_map_->offset_ == elf_start_offset_ && prev_real_map_->name_ == name_) {
+  if (!elf()->valid()) {
+    elf_start_offset_ = offset();
+  } else if (prev_real_map_ != nullptr && elf_start_offset_ != offset() &&
+             prev_real_map_->offset() == elf_start_offset_ && prev_real_map_->name_ == name_) {
     // If there is a read-only map then a read-execute map that represents the
     // same elf object, make sure the previous map is using the same elf
     // object if it hasn't already been set.
     std::lock_guard<std::mutex> guard(prev_real_map_->mutex_);
-    if (prev_real_map_->elf_.get() == nullptr) {
-      prev_real_map_->elf_ = elf_;
-      prev_real_map_->memory_backed_elf_ = memory_backed_elf_;
+    if (prev_real_map()->elf().get() == nullptr) {
+      prev_real_map_->elf_ = elf();
+      prev_real_map()->memory_backed_elf_ = memory_backed_elf_;
     } else {
       // Discard this elf, and use the elf from the previous map instead.
-      elf_ = prev_real_map_->elf_;
+      elf_ = prev_real_map_->elf();
     }
   }
-  return elf_.get();
+  return elf().get();
 }
 
 bool MapInfo::GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset) {
   {
     // Make sure no other thread is trying to update this elf object.
     std::lock_guard<std::mutex> guard(mutex_);
-    if (elf_ == nullptr) {
+    if (elf() == nullptr) {
       return false;
     }
   }
   // No longer need the lock, once the elf object is created, it is not deleted
   // until this object is deleted.
-  return elf_->GetFunctionName(addr, name, func_offset);
+  return elf()->GetFunctionName(addr, name, func_offset);
 }
 
 uint64_t MapInfo::GetLoadBias(const std::shared_ptr<Memory>& process_memory) {
-  int64_t cur_load_bias = load_bias_.load();
+  int64_t cur_load_bias = load_bias().load();
   if (cur_load_bias != INT64_MAX) {
     return cur_load_bias;
   }
@@ -293,9 +293,9 @@ uint64_t MapInfo::GetLoadBias(const std::shared_ptr<Memory>& process_memory) {
   {
     // Make sure no other thread is trying to add the elf to this map.
     std::lock_guard<std::mutex> guard(mutex_);
-    if (elf_ != nullptr) {
-      if (elf_->valid()) {
-        cur_load_bias = elf_->GetLoadBias();
+    if (elf() != nullptr) {
+      if (elf()->valid()) {
+        cur_load_bias = elf()->GetLoadBias();
         load_bias_ = cur_load_bias;
         return cur_load_bias;
       } else {
@@ -314,11 +314,11 @@ uint64_t MapInfo::GetLoadBias(const std::shared_ptr<Memory>& process_memory) {
 }
 
 MapInfo::~MapInfo() {
-  delete build_id_.load();
+  delete build_id().load();
 }
 
 SharedString MapInfo::GetBuildID() {
-  SharedString* id = build_id_.load();
+  SharedString* id = build_id().load();
   if (id != nullptr) {
     return *id;
   }
@@ -330,7 +330,7 @@ SharedString MapInfo::GetBuildID() {
   // Now need to see if the elf object exists.
   // Make sure no other thread is trying to add the elf to this map.
   mutex_.lock();
-  Elf* elf_obj = elf_.get();
+  Elf* elf_obj = elf().get();
   mutex_.unlock();
   std::string result;
   if (elf_obj != nullptr) {
