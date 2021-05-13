@@ -58,15 +58,15 @@ static std::string ErrorMsg(const std::vector<const char*>& function_names,
     unwind += android::base::StringPrintf("#%02zu pc 0x%" PRIx64 " rel_pc 0x%" PRIx64, i++,
                                           frame.pc, frame.rel_pc);
     if (frame.map_info != nullptr) {
-      if (!frame.map_info->name_.empty()) {
+      if (!frame.map_info->name().empty()) {
         unwind += " ";
-        unwind += frame.map_info->name_;
+        unwind += frame.map_info->name();
       } else {
-        unwind += android::base::StringPrintf(" 0x%" PRIx64 "-0x%" PRIx64, frame.map_info->start_,
-                                              frame.map_info->end_);
+        unwind += android::base::StringPrintf(" 0x%" PRIx64 "-0x%" PRIx64, frame.map_info->start(),
+                                              frame.map_info->end());
       }
-      if (frame.map_info->offset_ != 0) {
-        unwind += android::base::StringPrintf(" offset 0x%" PRIx64, frame.map_info->offset_);
+      if (frame.map_info->offset() != 0) {
+        unwind += android::base::StringPrintf(" offset 0x%" PRIx64, frame.map_info->offset());
       }
     }
     if (!frame.function_name.empty()) {

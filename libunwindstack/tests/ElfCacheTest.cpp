@@ -137,8 +137,8 @@ void ElfCacheTest::VerifyWithinSameMap(bool cache_enabled) {
   Elf* elf0_2 = info0_2.GetElf(memory_, ARCH_ARM);
   ASSERT_TRUE(elf0_2->valid());
   EXPECT_EQ(ARCH_ARM, elf0_2->arch());
-  EXPECT_EQ(0U, info0_1.elf_offset_);
-  EXPECT_EQ(0U, info0_2.elf_offset_);
+  EXPECT_EQ(0U, info0_1.elf_offset());
+  EXPECT_EQ(0U, info0_2.elf_offset());
   if (cache_enabled) {
     EXPECT_EQ(elf0_1, elf0_2);
   } else {
@@ -151,8 +151,8 @@ void ElfCacheTest::VerifyWithinSameMap(bool cache_enabled) {
   Elf* elf100_2 = info100_2.GetElf(memory_, ARCH_X86);
   ASSERT_TRUE(elf100_2->valid());
   EXPECT_EQ(ARCH_X86, elf100_2->arch());
-  EXPECT_EQ(0U, info100_1.elf_offset_);
-  EXPECT_EQ(0U, info100_2.elf_offset_);
+  EXPECT_EQ(0U, info100_1.elf_offset());
+  EXPECT_EQ(0U, info100_2.elf_offset());
   if (cache_enabled) {
     EXPECT_EQ(elf100_1, elf100_2);
   } else {
@@ -165,8 +165,8 @@ void ElfCacheTest::VerifyWithinSameMap(bool cache_enabled) {
   Elf* elf200_2 = info200_2.GetElf(memory_, ARCH_X86_64);
   ASSERT_TRUE(elf200_2->valid());
   EXPECT_EQ(ARCH_X86_64, elf200_2->arch());
-  EXPECT_EQ(0U, info200_1.elf_offset_);
-  EXPECT_EQ(0U, info200_2.elf_offset_);
+  EXPECT_EQ(0U, info200_1.elf_offset());
+  EXPECT_EQ(0U, info200_2.elf_offset());
   if (cache_enabled) {
     EXPECT_EQ(elf200_1, elf200_2);
   } else {
@@ -179,8 +179,8 @@ void ElfCacheTest::VerifyWithinSameMap(bool cache_enabled) {
   Elf* elf300_2 = info300_2.GetElf(memory_, ARCH_ARM);
   ASSERT_TRUE(elf300_2->valid());
   EXPECT_EQ(ARCH_ARM, elf300_2->arch());
-  EXPECT_EQ(0x300U, info300_1.elf_offset_);
-  EXPECT_EQ(0x300U, info300_2.elf_offset_);
+  EXPECT_EQ(0x300U, info300_1.elf_offset());
+  EXPECT_EQ(0x300U, info300_2.elf_offset());
   if (cache_enabled) {
     EXPECT_EQ(elf300_1, elf300_2);
     EXPECT_EQ(elf0_1, elf300_1);
@@ -227,8 +227,8 @@ void ElfCacheTest::VerifyWithinSameMapNeverReadAtZero(bool cache_enabled) {
   Elf* elf300_2 = info300_2.GetElf(memory_, ARCH_ARM);
   ASSERT_TRUE(elf300_2->valid());
   EXPECT_EQ(ARCH_ARM, elf300_2->arch());
-  EXPECT_EQ(0x300U, info300_1.elf_offset_);
-  EXPECT_EQ(0x300U, info300_2.elf_offset_);
+  EXPECT_EQ(0x300U, info300_1.elf_offset());
+  EXPECT_EQ(0x300U, info300_2.elf_offset());
   if (cache_enabled) {
     EXPECT_EQ(elf300_1, elf300_2);
   } else {
@@ -241,8 +241,8 @@ void ElfCacheTest::VerifyWithinSameMapNeverReadAtZero(bool cache_enabled) {
   Elf* elf400_2 = info400_2.GetElf(memory_, ARCH_ARM);
   ASSERT_TRUE(elf400_2->valid());
   EXPECT_EQ(ARCH_ARM, elf400_2->arch());
-  EXPECT_EQ(0x400U, info400_1.elf_offset_);
-  EXPECT_EQ(0x400U, info400_2.elf_offset_);
+  EXPECT_EQ(0x400U, info400_1.elf_offset());
+  EXPECT_EQ(0x400U, info400_2.elf_offset());
   if (cache_enabled) {
     EXPECT_EQ(elf400_1, elf400_2);
     EXPECT_EQ(elf300_1, elf400_1);
