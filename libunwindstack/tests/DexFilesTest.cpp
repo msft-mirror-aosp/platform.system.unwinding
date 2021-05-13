@@ -49,7 +49,7 @@ class DexFilesTest : public ::testing::Test {
     interface->FakeSetDataOffset(data_offset);
     interface->FakeSetDataVaddrStart(data_vaddr);
     interface->FakeSetDataVaddrEnd(data_vaddr + data_size);
-    map_info->elf.reset(elf);
+    map_info->elf_.reset(elf);
   }
 
   void Init(ArchEnum arch) {
@@ -279,11 +279,11 @@ TEST_F(DexFilesTest, get_method_information_search_libs) {
   EXPECT_EQ(0x124U, method_offset);
 
   MapInfo* map_info = maps_->Get(kMapGlobal);
-  map_info->name = "/system/lib/libart.so";
+  map_info->name_ = "/system/lib/libart.so";
   dex_files_ = CreateDexFiles(ARCH_ARM, process_memory_, libs);
   // Set the rw map to the same name or this will not scan this entry.
   map_info = maps_->Get(kMapGlobalRw);
-  map_info->name = "/system/lib/libart.so";
+  map_info->name_ = "/system/lib/libart.so";
   // Make sure that clearing out copy of the libs doesn't affect the
   // DexFiles object.
   libs.clear();

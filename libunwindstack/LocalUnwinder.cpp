@@ -107,7 +107,7 @@ bool LocalUnwinder::Unwind(std::vector<LocalFrameData>* frame_info, size_t max_f
     }
 
     // Skip any locations that are within this library.
-    if (num_frames != 0 || !ShouldSkipLibrary(map_info->name)) {
+    if (num_frames != 0 || !ShouldSkipLibrary(map_info->name_)) {
       // Add frame information.
       SharedString func_name;
       uint64_t func_offset;
