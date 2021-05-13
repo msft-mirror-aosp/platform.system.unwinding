@@ -77,20 +77,21 @@ void Global::FindAndReadVariable(Maps* maps, const char* var_str) {
   //   f3000-f4000 2000 rw- /system/lib/libc.so
   MapInfo* map_zero = nullptr;
   for (const auto& info : *maps) {
-    if (info->offset != 0 && (info->flags & (PROT_READ | PROT_WRITE)) == (PROT_READ | PROT_WRITE) &&
-        map_zero != nullptr && Searchable(info->name) && info->name == map_zero->name) {
+    if (info->offset_ != 0 &&
+        (info->flags_ & (PROT_READ | PROT_WRITE)) == (PROT_READ | PROT_WRITE) &&
+        map_zero != nullptr && Searchable(info->name_) && info->name_ == map_zero->name_) {
       Elf* elf = map_zero->GetElf(memory_, arch());
       uint64_t ptr;
       if (elf->GetGlobalVariableOffset(variable, &ptr) && ptr != 0) {
-        uint64_t offset_end = info->offset + info->end - info->start;
-        if (ptr >= info->offset && ptr < offset_end) {
-          ptr = info->start + ptr - info->offset;
+        uint64_t offset_end = info->offset_ + info->end_ - info->start_;
+        if (ptr >= info->offset_ && ptr < offset_end) {
+          ptr = info->start_ + ptr - info->offset_;
           if (ReadVariableData(ptr)) {
             break;
           }
         }
       }
-    } else if (info->offset == 0 && !info->name.empty()) {
+    } else if (info->offset_ == 0 && !info->name_.empty()) {
       map_zero = info.get();
     }
   }
