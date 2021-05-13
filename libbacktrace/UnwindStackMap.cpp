@@ -71,13 +71,13 @@ bool UnwindStackMap::Build() {
   // Iterate through the maps and fill in the backtrace_map_t structure.
   for (const auto& map_info : *stack_maps_) {
     backtrace_map_t map;
-    map.start = map_info->start;
-    map.end = map_info->end;
-    map.offset = map_info->offset;
+    map.start = map_info->start_;
+    map.end = map_info->end_;
+    map.offset = map_info->offset_;
     // Set to -1 so that it is demand loaded.
     map.load_bias = static_cast<uint64_t>(-1);
-    map.flags = map_info->flags;
-    map.name = map_info->name;
+    map.flags = map_info->flags_;
+    map.name = map_info->name_;
 
     maps_.push_back(map);
   }
@@ -117,7 +117,7 @@ std::string UnwindStackMap::GetFunctionName(uint64_t pc, uint64_t* offset) {
 
   // Get the map for this
   unwindstack::MapInfo* map_info = maps->Find(pc);
-  if (map_info == nullptr || map_info->flags & PROT_DEVICE_MAP) {
+  if (map_info == nullptr || map_info->flags_ & PROT_DEVICE_MAP) {
     return "";
   }
 
