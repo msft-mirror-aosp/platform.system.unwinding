@@ -213,7 +213,7 @@ Memory* MapInfo::CreateMemory(const std::shared_ptr<Memory>& process_memory) {
 Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum expected_arch) {
   {
     // Make sure no other thread is trying to add the elf to this map.
-    std::lock_guard<std::mutex> guard(mutex_);
+    std::lock_guard<std::mutex> guard(elf_mutex());
 
     if (elf().get() != nullptr) {
       return elf().get();
@@ -259,7 +259,7 @@ Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum exp
     // If there is a read-only map then a read-execute map that represents the
     // same elf object, make sure the previous map is using the same elf
     // object if it hasn't already been set.
-    std::lock_guard<std::mutex> guard(prev_real_map()->mutex_);
+    std::lock_guard<std::mutex> guard(prev_real_map()->elf_mutex());
     if (prev_real_map()->elf().get() == nullptr) {
       prev_real_map()->set_elf(elf());
       prev_real_map()->set_memory_backed_elf(memory_backed_elf());
@@ -274,7 +274,7 @@ Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum exp
 bool MapInfo::GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset) {
   {
     // Make sure no other thread is trying to update this elf object.
-    std::lock_guard<std::mutex> guard(mutex_);
+    std::lock_guard<std::mutex> guard(elf_mutex());
     if (elf() == nullptr) {
       return false;
     }
@@ -292,7 +292,7 @@ uint64_t MapInfo::GetLoadBias(const std::shared_ptr<Memory>& process_memory) {
 
   {
     // Make sure no other thread is trying to add the elf to this map.
-    std::lock_guard<std::mutex> guard(mutex_);
+    std::lock_guard<std::mutex> guard(elf_mutex());
     if (elf() != nullptr) {
       if (elf()->valid()) {
         cur_load_bias = elf()->GetLoadBias();
@@ -314,7 +314,11 @@ uint64_t MapInfo::GetLoadBias(const std::shared_ptr<Memory>& process_memory) {
 }
 
 MapInfo::~MapInfo() {
-  delete build_id().load();
+  ElfFields* elf_fields = elf_fields_.load();
+  if (elf_fields != nullptr) {
+    delete elf_fields->build_id_.load();
+    delete elf_fields;
+  }
 }
 
 SharedString MapInfo::GetBuildID() {
@@ -329,9 +333,9 @@ SharedString MapInfo::GetBuildID() {
 
   // Now need to see if the elf object exists.
   // Make sure no other thread is trying to add the elf to this map.
-  mutex_.lock();
+  elf_mutex().lock();
   Elf* elf_obj = elf().get();
-  mutex_.unlock();
+  elf_mutex().unlock();
   std::string result;
   if (elf_obj != nullptr) {
     result = elf_obj->GetBuildID();
@@ -357,6 +361,22 @@ SharedString MapInfo::SetBuildID(std::string&& new_build_id) {
   } else {
     // The expected value is set to the stored value on failure.
     return *expected_id;
+  }
+}
+
+MapInfo::ElfFields& MapInfo::GetElfFields() {
+  ElfFields* elf_fields = elf_fields_.load(std::memory_order_acquire);
+  if (elf_fields != nullptr) {
+    return *elf_fields;
+  }
+  // Allocate and initialize the field in thread-safe way.
+  std::unique_ptr<ElfFields> desired(new ElfFields());
+  ElfFields* expected = nullptr;
+  // Strong version is reliable. Weak version might randomly return false.
+  if (elf_fields_.compare_exchange_strong(expected, desired.get())) {
+    return *desired.release();  // Success: we transferred the pointer ownership to the field.
+  } else {
+    return *expected;  // Failure: 'expected' is updated to the value set by the other thread.
   }
 }
 
