@@ -60,6 +60,21 @@ struct MapInfo {
   }
   ~MapInfo();
 
+  inline uint64_t start() const { return start_; }
+  inline uint64_t end() const { return end_; }
+  inline uint64_t offset() const { return offset_; }
+  inline uint16_t flags() const { return flags_; }
+  inline SharedString& name() { return name_; }
+  inline std::shared_ptr<Elf>& elf() { return elf_; }
+  inline uint64_t elf_offset() const { return elf_offset_; }
+  inline uint64_t elf_start_offset() const { return elf_start_offset_; }
+  inline MapInfo* prev_map() const { return prev_map_; }
+  inline MapInfo* prev_real_map() const { return prev_real_map_; }
+  inline MapInfo* next_real_map() const { return next_real_map_; }
+  inline std::atomic_int64_t& load_bias() { return load_bias_; }
+  inline std::atomic<SharedString*>& build_id() { return build_id_; }
+  inline bool memory_backed_elf() const { return memory_backed_elf_; }
+
   uint64_t start_ = 0;
   uint64_t end_ = 0;
   uint64_t offset_ = 0;
