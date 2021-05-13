@@ -32,7 +32,7 @@
 
 namespace unwindstack {
 
-struct MapInfo;
+class MapInfo;
 class Memory;
 
 class DexFile {
