@@ -89,7 +89,7 @@ void Maps::Add(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags,
 
   auto map_info =
       std::make_unique<MapInfo>(prev_map, prev_real_map, start, end, offset, flags, name);
-  map_info->load_bias_ = load_bias;
+  map_info->set_load_bias(load_bias);
   maps_.emplace_back(std::move(map_info));
 }
 
@@ -103,8 +103,8 @@ void Maps::Sort() {
   MapInfo* prev_map = nullptr;
   MapInfo* prev_real_map = nullptr;
   for (const auto& map_info : maps_) {
-    map_info->prev_map_ = prev_map;
-    map_info->prev_real_map_ = prev_real_map;
+    map_info->set_prev_map(prev_map);
+    map_info->set_prev_real_map(prev_real_map);
     prev_map = map_info.get();
     if (!prev_map->IsBlank()) {
       prev_real_map = prev_map;
@@ -194,9 +194,9 @@ bool LocalUpdatableMaps::Reparse(/*out*/ bool* any_changed) {
         // No need to check
         search_map_idx = old_map_idx + 1;
         if (new_map_idx + 1 < maps_.size()) {
-          maps_[new_map_idx + 1]->prev_map_ = info.get();
-          maps_[new_map_idx + 1]->prev_real_map_ =
-              info->IsBlank() ? info->prev_real_map() : info.get();
+          maps_[new_map_idx + 1]->set_prev_map(info.get());
+          maps_[new_map_idx + 1]->set_prev_real_map(info->IsBlank() ? info->prev_real_map()
+                                                                    : info.get());
         }
         maps_[new_map_idx] = nullptr;
         num_deleted_new_entries++;
@@ -235,7 +235,7 @@ bool LocalUpdatableMaps::Reparse(/*out*/ bool* any_changed) {
     } else if (b == nullptr) {
       return true;
     }
-    return a->start_ < b->start_;
+    return a->start() < b->start();
   });
   maps_.resize(maps_.size() - num_deleted_old_entries - num_deleted_new_entries);
 

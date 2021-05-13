@@ -33,7 +33,7 @@ namespace unwindstack {
 
 // Forward declarations.
 class Elf;
-struct MapInfo;
+class MapInfo;
 
 struct LocalFrameData {
   LocalFrameData(MapInfo* map_info, uint64_t pc, uint64_t rel_pc, const std::string& function_name,

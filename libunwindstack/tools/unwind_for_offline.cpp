@@ -204,10 +204,10 @@ map_info_t* FillInAndGetMapInfo(std::unordered_map<uint64_t, map_info_t>& maps_b
                                 unwindstack::MapInfo* map_info) {
   auto info = &maps_by_start[map_info->start()];
   info->start = map_info->start();
-  info->end = map_info->end_;
-  info->offset = map_info->offset_;
-  info->name = map_info->name_;
-  info->flags = map_info->flags_;
+  info->end = map_info->end();
+  info->offset = map_info->offset();
+  info->name = map_info->name();
+  info->flags = map_info->flags();
 
   return info;
 }
