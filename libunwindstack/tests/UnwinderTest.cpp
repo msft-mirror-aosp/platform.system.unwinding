@@ -52,7 +52,7 @@ class UnwinderTest : public ::testing::Test {
     maps_->Add(start, end, offset, flags, name, static_cast<uint64_t>(-1));
     MapInfo* map_info = maps_->Find(start);
     if (elf != nullptr) {
-      map_info->elf_.reset(elf);
+      map_info->elf().reset(elf);
     }
     return map_info;
   }
@@ -929,7 +929,7 @@ TEST_F(UnwinderTest, map_ignore_suffixes) {
   // Make sure the elf was not initialized.
   MapInfo* map_info = maps_->Find(0x53000);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_TRUE(map_info->elf_ == nullptr);
+  EXPECT_TRUE(map_info->elf() == nullptr);
 
   auto* frame = &unwinder.frames()[0];
   EXPECT_EQ(0U, frame->num);
