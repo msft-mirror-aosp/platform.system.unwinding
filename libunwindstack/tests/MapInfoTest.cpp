@@ -16,6 +16,8 @@
 
 #include <stdint.h>
 
+#include <thread>
+
 #include <gtest/gtest.h>
 
 #include <unwindstack/MapInfo.h>
@@ -70,6 +72,47 @@ TEST(MapInfoTest, get_function_name) {
   ASSERT_TRUE(map_info.GetFunctionName(1000, &name, &offset));
   EXPECT_EQ("function", name);
   EXPECT_EQ(1000UL, offset);
+}
+
+TEST(MapInfoTest, multiple_thread_get_elf_fields) {
+  MapInfo map_info(nullptr, nullptr, 0, 0, 0, 0, "");
+
+  static constexpr size_t kNumConcurrentThreads = 100;
+  MapInfo::ElfFields* fields[kNumConcurrentThreads];
+  Elf* elfs[kNumConcurrentThreads];
+  uint64_t offsets[kNumConcurrentThreads];
+
+  std::atomic_bool wait;
+  wait = true;
+  // Create all of the threads and have them do the call at the same time
+  // to make it likely that a race will occur.
+  std::vector<std::thread*> threads;
+  for (size_t i = 0; i < kNumConcurrentThreads; i++) {
+    std::thread* thread = new std::thread([&]() {
+      while (wait)
+        ;
+      fields[i] = &map_info.GetElfFields();
+      elfs[i] = fields[i]->elf_.get();
+      offsets[i] = fields[i]->elf_offset_;
+    });
+    threads.push_back(thread);
+  }
+
+  // Set them all going and wait for the threads to finish.
+  wait = false;
+  for (auto thread : threads) {
+    thread->join();
+    delete thread;
+  }
+
+  // Now verify that all of them are exactly the same and valid.
+  for (size_t i = 0; i < kNumConcurrentThreads; i++) {
+    EXPECT_EQ(fields[0], fields[i]) << "Thread " << i << " mismatched.";
+    EXPECT_EQ(elfs[0], elfs[i]) << "Thread " << i << " mismatched.";
+    EXPECT_EQ(offsets[0], offsets[i]) << "Thread " << i << " mismatched.";
+    EXPECT_EQ(nullptr, elfs[i]);
+    EXPECT_EQ(0u, offsets[i]);
+  }
 }
 
 }  // namespace unwindstack
