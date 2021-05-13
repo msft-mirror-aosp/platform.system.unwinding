@@ -46,7 +46,7 @@ class JitDebugTest : public ::testing::Test {
     interface->FakeSetDataOffset(data_offset);
     interface->FakeSetDataVaddrStart(data_vaddr);
     interface->FakeSetDataVaddrEnd(data_vaddr + data_size);
-    map_info->elf.reset(elf);
+    map_info->elf_.reset(elf);
   }
 
   void Init(ArchEnum arch) {
@@ -415,9 +415,9 @@ TEST_F(JitDebugTest, get_elf_search_libs) {
 
   // Change the name of the map that includes the value and verify this works.
   MapInfo* map_info = maps_->Get(5);
-  map_info->name = "/system/lib/libart.so";
+  map_info->name_ = "/system/lib/libart.so";
   map_info = maps_->Get(6);
-  map_info->name = "/system/lib/libart.so";
+  map_info->name_ = "/system/lib/libart.so";
   jit_debug_ = CreateJitDebug(ARCH_ARM, process_memory_, libs);
   // Make sure that clearing our copy of the libs doesn't affect the
   // JitDebug object.
