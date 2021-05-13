@@ -34,12 +34,12 @@ static void VerifyLine(std::string line, MapInfo* info) {
     ASSERT_TRUE(maps.Parse()) << "Failed on: " + line;
     MapInfo* element = maps.Get(0);
     ASSERT_TRUE(element != nullptr) << "Failed on: " + line;
-    info->start_ = element->start();
-    info->end_ = element->end();
-    info->offset_ = element->offset();
-    info->flags_ = element->flags();
-    info->name_ = element->name();
-    info->elf_offset_ = element->elf_offset();
+    info->set_start(element->start());
+    info->set_end(element->end());
+    info->set_offset(element->offset());
+    info->set_flags(element->flags());
+    info->set_name(element->name());
+    info->set_elf_offset(element->elf_offset());
   }
 }
 
@@ -164,10 +164,10 @@ TEST(MapsTest, verify_large_values) {
   EXPECT_EQ(0xf0b0d0f010305070UL, info.offset());
 #else
   VerifyLine("f2345678-fabcdef8 rwxp f0305070 00:00 0\n", &info);
-  EXPECT_EQ(0xf2345678UL, info.start_);
-  EXPECT_EQ(0xfabcdef8UL, info.end_);
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, info.flags_);
-  EXPECT_EQ(0xf0305070UL, info.offset_);
+  EXPECT_EQ(0xf2345678UL, info.start());
+  EXPECT_EQ(0xfabcdef8UL, info.end());
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, info.flags());
+  EXPECT_EQ(0xf0305070UL, info.offset());
 #endif
 }
 
@@ -316,10 +316,10 @@ TEST(MapsTest, const_iterate) {
 
   Maps::const_iterator it = maps.begin();
   EXPECT_EQ(0xa000U, (*it)->start());
-  EXPECT_EQ(0xe000U, (*it)->end_);
+  EXPECT_EQ(0xe000U, (*it)->end());
   ++it;
   EXPECT_EQ(0xe000U, (*it)->start());
-  EXPECT_EQ(0xf000U, (*it)->end_);
+  EXPECT_EQ(0xf000U, (*it)->end());
   ++it;
   EXPECT_EQ(maps.end(), it);
 }
@@ -336,19 +336,19 @@ TEST(MapsTest, device) {
 
   MapInfo* info = maps.Get(0);
   ASSERT_TRUE(info != nullptr);
-  EXPECT_TRUE(info->flags_ & 0x8000);
+  EXPECT_TRUE(info->flags() & 0x8000);
   EXPECT_EQ("/dev/", info->name());
 
   info = maps.Get(1);
-  EXPECT_TRUE(info->flags_ & 0x8000);
+  EXPECT_TRUE(info->flags() & 0x8000);
   EXPECT_EQ("/dev/does_not_exist", info->name());
 
   info = maps.Get(2);
-  EXPECT_FALSE(info->flags_ & 0x8000);
+  EXPECT_FALSE(info->flags() & 0x8000);
   EXPECT_EQ("/dev/ashmem/does_not_exist", info->name());
 
   info = maps.Get(3);
-  EXPECT_FALSE(info->flags_ & 0x8000);
+  EXPECT_FALSE(info->flags() & 0x8000);
   EXPECT_EQ("/devsomething/does_not_exist", info->name());
 }
 
