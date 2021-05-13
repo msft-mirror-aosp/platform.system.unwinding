@@ -92,7 +92,7 @@ TEST_F(MapInfoGetElfTest, valid32) {
   EXPECT_EQ(ELFCLASS32, elf->class_type());
 
   // Now verify that an empty process memory returns an invalid elf object.
-  info.elf().reset();
+  info.set_elf(nullptr);
   elf = info.GetElf(std::shared_ptr<Memory>(), ARCH_ARM);
   ASSERT_TRUE(elf != nullptr);
   ASSERT_FALSE(elf->valid());
@@ -167,15 +167,15 @@ TEST_F(MapInfoGetElfTest, end_le_start) {
   ASSERT_TRUE(elf != nullptr);
   ASSERT_FALSE(elf->valid());
 
-  info.elf().reset();
-  info.end_ = 0xfff;
+  info.set_elf(nullptr);
+  info.set_end(0xfff);
   elf = info.GetElf(process_memory_, ARCH_ARM);
   ASSERT_TRUE(elf != nullptr);
   ASSERT_FALSE(elf->valid());
 
   // Make sure this test is valid.
-  info.elf().reset();
-  info.end_ = 0x2000;
+  info.set_elf(nullptr);
+  info.set_end(0x2000);
   elf = info.GetElf(process_memory_, ARCH_ARM);
   ASSERT_TRUE(elf != nullptr);
   ASSERT_TRUE(elf->valid());
@@ -316,14 +316,14 @@ TEST_F(MapInfoGetElfTest, check_device_maps) {
   ASSERT_FALSE(elf->valid());
 
   // Set the name to nothing to verify that it still fails.
-  info.elf().reset();
-  info.name_ = "";
+  info.set_elf(nullptr);
+  info.set_name("");
   elf = info.GetElf(process_memory_, ARCH_X86_64);
   ASSERT_FALSE(elf->valid());
 
   // Change the flags and verify the elf is valid now.
-  info.elf().reset();
-  info.flags_ = PROT_READ;
+  info.set_elf(nullptr);
+  info.set_flags(PROT_READ);
   elf = info.GetElf(process_memory_, ARCH_X86_64);
   ASSERT_TRUE(elf->valid());
 }
