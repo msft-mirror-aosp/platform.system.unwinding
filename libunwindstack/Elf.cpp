@@ -401,7 +401,7 @@ bool Elf::CacheAfterCreateMemory(MapInfo* info) {
   // In this case, the whole file is the elf, and the name has already
   // been cached. Add an entry at name:offset to get this directly out
   // of the cache next time.
-  info->elf_ = entry->second.first;
+  info->set_elf(entry->second.first);
   std::string key = std::string(info->name()) + ':' + std::to_string(info->offset());
   (*cache_)[key] = std::make_pair(info->elf(), true);
   return true;
@@ -414,9 +414,9 @@ bool Elf::CacheGet(MapInfo* info) {
   }
   auto entry = cache_->find(name);
   if (entry != cache_->end()) {
-    info->elf_ = entry->second.first;
+    info->set_elf(entry->second.first);
     if (entry->second.second) {
-      info->elf_offset_ = info->offset();
+      info->set_elf_offset(info->offset());
     }
     return true;
   }

@@ -31,7 +31,8 @@ namespace unwindstack {
 
 class MemoryFileAtOffset;
 
-struct MapInfo {
+class MapInfo {
+ public:
   MapInfo(MapInfo* prev_map, MapInfo* prev_real_map, uint64_t start, uint64_t end, uint64_t offset,
           uint64_t flags, const char* name)
       : start_(start),
@@ -61,20 +62,37 @@ struct MapInfo {
   ~MapInfo();
 
   inline uint64_t start() const { return start_; }
+  inline void set_start(uint64_t value) { start_ = value; }
   inline uint64_t end() const { return end_; }
+  inline void set_end(uint64_t value) { end_ = value; }
   inline uint64_t offset() const { return offset_; }
+  inline void set_offset(uint64_t value) { offset_ = value; }
   inline uint16_t flags() const { return flags_; }
+  inline void set_flags(uint16_t value) { flags_ = value; }
   inline SharedString& name() { return name_; }
+  inline void set_name(SharedString& value) { name_ = value; }
+  inline void set_name(const char* value) { name_ = value; }
   inline std::shared_ptr<Elf>& elf() { return elf_; }
+  inline void set_elf(std::shared_ptr<Elf>& value) { elf_ = value; }
+  inline void set_elf(Elf* value) { elf_.reset(value); }
   inline uint64_t elf_offset() const { return elf_offset_; }
+  inline void set_elf_offset(uint64_t value) { elf_offset_ = value; }
   inline uint64_t elf_start_offset() const { return elf_start_offset_; }
+  inline void set_elf_start_offset(uint64_t value) { elf_start_offset_ = value; }
   inline MapInfo* prev_map() const { return prev_map_; }
+  inline void set_prev_map(MapInfo* value) { prev_map_ = value; }
   inline MapInfo* prev_real_map() const { return prev_real_map_; }
+  inline void set_prev_real_map(MapInfo* value) { prev_real_map_ = value; }
   inline MapInfo* next_real_map() const { return next_real_map_; }
+  inline void set_next_real_map(MapInfo* value) { next_real_map_ = value; }
   inline std::atomic_int64_t& load_bias() { return load_bias_; }
+  inline void set_load_bias(int64_t value) { load_bias_ = value; }
   inline std::atomic<SharedString*>& build_id() { return build_id_; }
+  inline void set_build_id(SharedString* value) { build_id_ = value; }
   inline bool memory_backed_elf() const { return memory_backed_elf_; }
+  inline void set_memory_backed_elf(bool value) { memory_backed_elf_ = value; }
 
+ private:
   uint64_t start_ = 0;
   uint64_t end_ = 0;
   uint64_t offset_ = 0;
@@ -115,6 +133,7 @@ struct MapInfo {
   // Set to true if the elf file data is coming from memory.
   bool memory_backed_elf_ = false;
 
+ public:
   // This function guarantees it will never return nullptr.
   Elf* GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum expected_arch);
 
@@ -133,7 +152,7 @@ struct MapInfo {
   // Returns the printable version of the build id (hex dump of raw data).
   std::string GetPrintableBuildID();
 
-  inline bool IsBlank() { return offset_ == 0 && flags_ == 0 && name_.empty(); }
+  inline bool IsBlank() { return offset() == 0 && flags() == 0 && name().empty(); }
 
  private:
   MapInfo(const MapInfo&) = delete;
