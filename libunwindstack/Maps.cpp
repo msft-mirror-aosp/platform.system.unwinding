@@ -48,9 +48,9 @@ MapInfo* Maps::Find(uint64_t pc) {
   while (first < last) {
     size_t index = (first + last) / 2;
     const auto& cur = maps_[index];
-    if (pc >= cur->start_ && pc < cur->end_) {
+    if (pc >= cur->start() && pc < cur->end()) {
       return cur.get();
-    } else if (pc < cur->start_) {
+    } else if (pc < cur->start()) {
       last = index;
     } else {
       first = index + 1;
@@ -84,7 +84,7 @@ void Maps::Add(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags,
   MapInfo* prev_map = maps_.empty() ? nullptr : maps_.back().get();
   MapInfo* prev_real_map = prev_map;
   while (prev_real_map != nullptr && prev_real_map->IsBlank()) {
-    prev_real_map = prev_real_map->prev_map_;
+    prev_real_map = prev_real_map->prev_map();
   }
 
   auto map_info =
@@ -96,7 +96,7 @@ void Maps::Add(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags,
 void Maps::Sort() {
   std::sort(maps_.begin(), maps_.end(),
             [](const std::unique_ptr<MapInfo>& a, const std::unique_ptr<MapInfo>& b) {
-              return a->start_ < b->start_;
+              return a->start() < b->start();
             });
 
   // Set the prev_map values on the info objects.
@@ -183,25 +183,25 @@ bool LocalUpdatableMaps::Reparse(/*out*/ bool* any_changed) {
   size_t num_deleted_new_entries = 0;
   for (size_t new_map_idx = last_map_idx; new_map_idx < maps_.size(); new_map_idx++) {
     auto& new_map_info = maps_[new_map_idx];
-    uint64_t start = new_map_info->start_;
-    uint64_t end = new_map_info->end_;
-    uint64_t flags = new_map_info->flags_;
-    const std::string& name = new_map_info->name_;
+    uint64_t start = new_map_info->start();
+    uint64_t end = new_map_info->end();
+    uint64_t flags = new_map_info->flags();
+    const std::string& name = new_map_info->name();
     for (size_t old_map_idx = search_map_idx; old_map_idx < last_map_idx; old_map_idx++) {
       auto& info = maps_[old_map_idx];
-      if (start == info->start_ && end == info->end_ && flags == info->flags_ &&
-          name == info->name_) {
+      if (start == info->start() && end == info->end() && flags == info->flags() &&
+          name == info->name()) {
         // No need to check
         search_map_idx = old_map_idx + 1;
         if (new_map_idx + 1 < maps_.size()) {
           maps_[new_map_idx + 1]->prev_map_ = info.get();
           maps_[new_map_idx + 1]->prev_real_map_ =
-              info->IsBlank() ? info->prev_real_map_ : info.get();
+              info->IsBlank() ? info->prev_real_map() : info.get();
         }
         maps_[new_map_idx] = nullptr;
         num_deleted_new_entries++;
         break;
-      } else if (info->start_ > start) {
+      } else if (info->start() > start) {
         // Stop, there isn't going to be a match.
         search_map_idx = old_map_idx;
         break;
