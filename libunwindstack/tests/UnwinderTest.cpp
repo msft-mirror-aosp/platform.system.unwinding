@@ -52,7 +52,7 @@ class UnwinderTest : public ::testing::Test {
     maps_->Add(start, end, offset, flags, name, static_cast<uint64_t>(-1));
     MapInfo* map_info = maps_->Find(start);
     if (elf != nullptr) {
-      map_info->elf().reset(elf);
+      map_info->set_elf(elf);
     }
     return map_info;
   }
@@ -95,13 +95,13 @@ class UnwinderTest : public ::testing::Test {
     interface->FakeSetSoname("lib_fake.so");
     elf->FakeSetInterface(interface);
     map_info = AddMapInfo(0x43000, 0x44000, 0x1d000, PROT_READ | PROT_WRITE, "/fake/fake.apk", elf);
-    map_info->elf_start_offset_ = 0x1d000;
+    map_info->set_elf_start_offset(0x1d000);
 
     AddMapInfo(0x53000, 0x54000, 0, PROT_READ | PROT_WRITE, "/fake/fake.oat");
 
     map_info =
         AddMapInfo(0xa3000, 0xa4000, 0, PROT_READ | PROT_WRITE | PROT_EXEC, "/fake/fake.vdex");
-    map_info->load_bias_ = 0;
+    map_info->set_load_bias(0);
 
     elf = new ElfFake(new MemoryFake);
     elf->FakeSetInterface(new ElfInterfaceFake(nullptr));
@@ -113,33 +113,33 @@ class UnwinderTest : public ::testing::Test {
     elf->FakeSetInterface(new ElfInterfaceFake(nullptr));
     map_info = AddMapInfo(0xa7000, 0xa8000, 0, PROT_READ | PROT_WRITE | PROT_EXEC,
                           "/fake/fake_offset.oat", elf);
-    map_info->elf_offset_ = 0x8000;
+    map_info->set_elf_offset(0x8000);
 
     elf = new ElfFake(new MemoryFake);
     elf->FakeSetInterface(new ElfInterfaceFake(nullptr));
     map_info = AddMapInfo(0xc0000, 0xc1000, 0, PROT_READ | PROT_WRITE | PROT_EXEC,
                           "/fake/unreadable.so", elf);
-    map_info->memory_backed_elf_ = true;
+    map_info->set_memory_backed_elf(true);
 
     elf = new ElfFake(new MemoryFake);
     elf->FakeSetInterface(new ElfInterfaceFake(nullptr));
     map_info = AddMapInfo(0xc1000, 0xc2000, 0, PROT_READ | PROT_WRITE | PROT_EXEC, "[vdso]", elf);
-    map_info->memory_backed_elf_ = true;
+    map_info->set_memory_backed_elf(true);
 
     elf = new ElfFake(new MemoryFake);
     elf->FakeSetInterface(new ElfInterfaceFake(nullptr));
     map_info = AddMapInfo(0xc2000, 0xc3000, 0, PROT_READ | PROT_WRITE | PROT_EXEC, "", elf);
-    map_info->memory_backed_elf_ = true;
+    map_info->set_memory_backed_elf(true);
 
     elf = new ElfFake(new MemoryFake);
     elf->FakeSetInterface(new ElfInterfaceFake(nullptr));
     map_info = AddMapInfo(0xc3000, 0xc4000, 0, PROT_READ | PROT_WRITE | PROT_EXEC,
                           "/memfd:/jit-cache", elf);
-    map_info->memory_backed_elf_ = true;
+    map_info->set_memory_backed_elf(true);
 
     map_info =
         AddMapInfo(0xd0000, 0xd1000, 0x1000, PROT_READ | PROT_WRITE | PROT_EXEC, "/fake/fake.apk");
-    map_info->load_bias_ = 0;
+    map_info->set_load_bias(0);
 
     elf = new ElfFake(new MemoryFake);
     interface = new ElfInterfaceFake(nullptr);
@@ -172,8 +172,8 @@ class UnwinderTest : public ::testing::Test {
     elf->FakeSetLoadBias(0x300);
     map_info = AddMapInfo(0x100000, 0x101000, 0x1000, PROT_READ | PROT_WRITE | PROT_EXEC,
                           "/fake/jit.so", elf);
-    map_info->elf_start_offset_ = 0x100;
-    map_info->offset_ = 0x200;
+    map_info->set_elf_start_offset(0x100);
+    map_info->set_offset(0x200);
   }
 
   void SetUp() override {
