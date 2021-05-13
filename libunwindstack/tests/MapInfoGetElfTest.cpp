@@ -92,7 +92,7 @@ TEST_F(MapInfoGetElfTest, valid32) {
   EXPECT_EQ(ELFCLASS32, elf->class_type());
 
   // Now verify that an empty process memory returns an invalid elf object.
-  info.elf_.reset();
+  info.elf().reset();
   elf = info.GetElf(std::shared_ptr<Memory>(), ARCH_ARM);
   ASSERT_TRUE(elf != nullptr);
   ASSERT_FALSE(elf->valid());
@@ -167,14 +167,14 @@ TEST_F(MapInfoGetElfTest, end_le_start) {
   ASSERT_TRUE(elf != nullptr);
   ASSERT_FALSE(elf->valid());
 
-  info.elf_.reset();
+  info.elf().reset();
   info.end_ = 0xfff;
   elf = info.GetElf(process_memory_, ARCH_ARM);
   ASSERT_TRUE(elf != nullptr);
   ASSERT_FALSE(elf->valid());
 
   // Make sure this test is valid.
-  info.elf_.reset();
+  info.elf().reset();
   info.end_ = 0x2000;
   elf = info.GetElf(process_memory_, ARCH_ARM);
   ASSERT_TRUE(elf != nullptr);
@@ -197,7 +197,7 @@ TEST_F(MapInfoGetElfTest, file_backed_non_zero_offset_full_file) {
   ASSERT_TRUE(elf != nullptr);
   ASSERT_TRUE(elf->valid());
   ASSERT_TRUE(elf->memory() != nullptr);
-  ASSERT_EQ(0x100U, info.elf_offset_);
+  ASSERT_EQ(0x100U, info.elf_offset());
 
   // Read the entire file.
   memset(buffer.data(), 0, buffer.size());
@@ -219,14 +219,14 @@ TEST_F(MapInfoGetElfTest, file_backed_non_zero_offset_partial_file) {
   memset(buffer.data(), 0, buffer.size());
   Elf32_Ehdr ehdr;
   TestInitEhdr<Elf32_Ehdr>(&ehdr, ELFCLASS32, EM_ARM);
-  memcpy(&buffer[info.offset_], &ehdr, sizeof(ehdr));
+  memcpy(&buffer[info.offset()], &ehdr, sizeof(ehdr));
   ASSERT_TRUE(android::base::WriteFully(elf_.fd, buffer.data(), buffer.size()));
 
   Elf* elf = info.GetElf(process_memory_, ARCH_ARM);
   ASSERT_TRUE(elf != nullptr);
   ASSERT_TRUE(elf->valid());
   ASSERT_TRUE(elf->memory() != nullptr);
-  ASSERT_EQ(0U, info.elf_offset_);
+  ASSERT_EQ(0U, info.elf_offset());
 
   // Read the valid part of the file.
   ASSERT_TRUE(elf->memory()->ReadFully(0, buffer.data(), 0x1000));
@@ -252,14 +252,14 @@ TEST_F(MapInfoGetElfTest, file_backed_non_zero_offset_partial_file_whole_elf32) 
   ehdr.e_shoff = 0x2000;
   ehdr.e_shentsize = sizeof(Elf32_Shdr) + 100;
   ehdr.e_shnum = 4;
-  memcpy(&buffer[info.offset_], &ehdr, sizeof(ehdr));
+  memcpy(&buffer[info.offset()], &ehdr, sizeof(ehdr));
   ASSERT_TRUE(android::base::WriteFully(elf_.fd, buffer.data(), buffer.size()));
 
   Elf* elf = info.GetElf(process_memory_, ARCH_ARM);
   ASSERT_TRUE(elf != nullptr);
   ASSERT_TRUE(elf->valid());
   ASSERT_TRUE(elf->memory() != nullptr);
-  ASSERT_EQ(0U, info.elf_offset_);
+  ASSERT_EQ(0U, info.elf_offset());
 
   // Verify the memory is a valid elf.
   memset(buffer.data(), 0, buffer.size());
@@ -280,14 +280,14 @@ TEST_F(MapInfoGetElfTest, file_backed_non_zero_offset_partial_file_whole_elf64) 
   ehdr.e_shoff = 0x2000;
   ehdr.e_shentsize = sizeof(Elf64_Shdr) + 100;
   ehdr.e_shnum = 4;
-  memcpy(&buffer[info.offset_], &ehdr, sizeof(ehdr));
+  memcpy(&buffer[info.offset()], &ehdr, sizeof(ehdr));
   ASSERT_TRUE(android::base::WriteFully(elf_.fd, buffer.data(), buffer.size()));
 
   Elf* elf = info.GetElf(process_memory_, ARCH_ARM64);
   ASSERT_TRUE(elf != nullptr);
   ASSERT_TRUE(elf->valid());
   ASSERT_TRUE(elf->memory() != nullptr);
-  ASSERT_EQ(0U, info.elf_offset_);
+  ASSERT_EQ(0U, info.elf_offset());
 
   // Verify the memory is a valid elf.
   memset(buffer.data(), 0, buffer.size());
@@ -316,13 +316,13 @@ TEST_F(MapInfoGetElfTest, check_device_maps) {
   ASSERT_FALSE(elf->valid());
 
   // Set the name to nothing to verify that it still fails.
-  info.elf_.reset();
+  info.elf().reset();
   info.name_ = "";
   elf = info.GetElf(process_memory_, ARCH_X86_64);
   ASSERT_FALSE(elf->valid());
 
   // Change the flags and verify the elf is valid now.
-  info.elf_.reset();
+  info.elf().reset();
   info.flags_ = PROT_READ;
   elf = info.GetElf(process_memory_, ARCH_X86_64);
   ASSERT_TRUE(elf->valid());
@@ -355,7 +355,7 @@ TEST_F(MapInfoGetElfTest, multiple_thread_get_elf) {
     });
     threads.push_back(thread);
   }
-  ASSERT_TRUE(info.elf_ == nullptr);
+  ASSERT_TRUE(info.elf() == nullptr);
 
   // Set them all going and wait for the threads to finish.
   wait = false;
@@ -365,7 +365,7 @@ TEST_F(MapInfoGetElfTest, multiple_thread_get_elf) {
   }
 
   // Now verify that all of the elf files are exactly the same and valid.
-  Elf* elf = info.elf_.get();
+  Elf* elf = info.elf().get();
   ASSERT_TRUE(elf != nullptr);
   EXPECT_TRUE(elf->valid());
   for (size_t i = 0; i < kNumConcurrentThreads; i++) {
