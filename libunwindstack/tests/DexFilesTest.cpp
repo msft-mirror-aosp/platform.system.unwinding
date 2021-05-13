@@ -49,7 +49,7 @@ class DexFilesTest : public ::testing::Test {
     interface->FakeSetDataOffset(data_offset);
     interface->FakeSetDataVaddrStart(data_vaddr);
     interface->FakeSetDataVaddrEnd(data_vaddr + data_size);
-    map_info->elf_.reset(elf);
+    map_info->elf().reset(elf);
   }
 
   void Init(ArchEnum arch) {
