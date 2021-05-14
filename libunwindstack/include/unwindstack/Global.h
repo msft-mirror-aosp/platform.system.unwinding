@@ -32,7 +32,7 @@ namespace unwindstack {
 
 // Forward declarations.
 class Maps;
-struct MapInfo;
+class MapInfo;
 
 class Global {
  public:
