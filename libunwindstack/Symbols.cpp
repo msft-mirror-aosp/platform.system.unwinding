@@ -70,13 +70,15 @@ Symbols::Info* Symbols::BinarySearch(uint64_t addr, Memory* elf_memory, uint64_t
     if (!elf_memory->ReadFully(offset_ + symbol_index * entry_size_, &sym, sizeof(sym))) {
       return nullptr;
     }
-    Info info{.size = static_cast<uint32_t>(sym.st_size), .index = current};
-    it = symbols_.emplace(sym.st_value + sym.st_size, info).first;
+    // There shouldn't be multiple symbols with same end address, but in case there are,
+    // overwrite the cache with the last entry, so that 'sym' and 'info' are consistent.
+    Info& info = symbols_[sym.st_value + sym.st_size];
+    info = {.size = static_cast<uint32_t>(sym.st_size), .index = current};
     if (addr < sym.st_value) {
       last = current;
     } else if (addr < sym.st_value + sym.st_size) {
       *func_offset = addr - sym.st_value;
-      return &it->second;
+      return &info;
     } else {
       first = current + 1;
     }
@@ -104,7 +106,9 @@ void Symbols::BuildRemapTable(Memory* elf_memory) {
       SymType sym;
       memcpy(&sym, &buffer[offset], sizeof(SymType));  // Copy to ensure alignment.
       addrs.push_back(sym.st_value);  // Always insert so it is indexable by symbol index.
-      if (IsFunc(&sym)) {
+      // NB: It is important to filter our zero-sized symbols since otherwise we can get
+      // duplicate end addresses in the table (e.g. if there is custom "end" symbol marker).
+      if (IsFunc(&sym) && sym.st_size != 0) {
         remap_->push_back(symbol_idx);  // Indices of function symbols only.
       }
     }

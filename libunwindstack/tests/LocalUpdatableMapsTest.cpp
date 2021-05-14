@@ -58,19 +58,19 @@ class LocalUpdatableMapsTest : public ::testing::Test {
 
     MapInfo* map_info = maps_.Get(0);
     ASSERT_TRUE(map_info != nullptr);
-    EXPECT_EQ(0x3000U, map_info->start);
-    EXPECT_EQ(0x4000U, map_info->end);
-    EXPECT_EQ(0U, map_info->offset);
-    EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-    EXPECT_TRUE(map_info->name.empty());
+    EXPECT_EQ(0x3000U, map_info->start());
+    EXPECT_EQ(0x4000U, map_info->end());
+    EXPECT_EQ(0U, map_info->offset());
+    EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+    EXPECT_TRUE(map_info->name().empty());
 
     map_info = maps_.Get(1);
     ASSERT_TRUE(map_info != nullptr);
-    EXPECT_EQ(0x8000U, map_info->start);
-    EXPECT_EQ(0x9000U, map_info->end);
-    EXPECT_EQ(0U, map_info->offset);
-    EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-    EXPECT_TRUE(map_info->name.empty());
+    EXPECT_EQ(0x8000U, map_info->start());
+    EXPECT_EQ(0x9000U, map_info->end());
+    EXPECT_EQ(0U, map_info->offset());
+    EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+    EXPECT_TRUE(map_info->name().empty());
   }
 
   TestUpdatableMaps maps_;
@@ -87,19 +87,19 @@ TEST_F(LocalUpdatableMapsTest, same_map) {
 
   MapInfo* map_info = maps_.Get(0);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x3000U, map_info->start);
-  EXPECT_EQ(0x4000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x3000U, map_info->start());
+  EXPECT_EQ(0x4000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 
   map_info = maps_.Get(1);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x8000U, map_info->start);
-  EXPECT_EQ(0x9000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x8000U, map_info->start());
+  EXPECT_EQ(0x9000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 }
 
 TEST_F(LocalUpdatableMapsTest, same_map_new_perms) {
@@ -115,29 +115,29 @@ TEST_F(LocalUpdatableMapsTest, same_map_new_perms) {
 
   MapInfo* map_info = maps_.Get(0);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x3000U, map_info->start);
-  EXPECT_EQ(0x4000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x3000U, map_info->start());
+  EXPECT_EQ(0x4000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 
   map_info = maps_.Get(1);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x8000U, map_info->start);
-  EXPECT_EQ(0x9000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x8000U, map_info->start());
+  EXPECT_EQ(0x9000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 
   auto& saved_maps = maps_.TestGetSavedMaps();
   ASSERT_EQ(1U, saved_maps.size());
   map_info = saved_maps[0].get();
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x3000U, map_info->start);
-  EXPECT_EQ(0x4000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x3000U, map_info->start());
+  EXPECT_EQ(0x4000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 }
 
 TEST_F(LocalUpdatableMapsTest, same_map_new_name) {
@@ -153,29 +153,29 @@ TEST_F(LocalUpdatableMapsTest, same_map_new_name) {
 
   MapInfo* map_info = maps_.Get(0);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x3000U, map_info->start);
-  EXPECT_EQ(0x4000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_EQ("/fake/lib.so", map_info->name);
+  EXPECT_EQ(0x3000U, map_info->start());
+  EXPECT_EQ(0x4000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_EQ("/fake/lib.so", map_info->name());
 
   map_info = maps_.Get(1);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x8000U, map_info->start);
-  EXPECT_EQ(0x9000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x8000U, map_info->start());
+  EXPECT_EQ(0x9000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 
   auto& saved_maps = maps_.TestGetSavedMaps();
   ASSERT_EQ(1U, saved_maps.size());
   map_info = saved_maps[0].get();
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x3000U, map_info->start);
-  EXPECT_EQ(0x4000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x3000U, map_info->start());
+  EXPECT_EQ(0x4000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 }
 
 TEST_F(LocalUpdatableMapsTest, only_add_maps) {
@@ -194,35 +194,35 @@ TEST_F(LocalUpdatableMapsTest, only_add_maps) {
 
   MapInfo* map_info = maps_.Get(0);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x1000U, map_info->start);
-  EXPECT_EQ(0x2000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x1000U, map_info->start());
+  EXPECT_EQ(0x2000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 
   map_info = maps_.Get(1);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x3000U, map_info->start);
-  EXPECT_EQ(0x4000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x3000U, map_info->start());
+  EXPECT_EQ(0x4000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 
   map_info = maps_.Get(2);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x8000U, map_info->start);
-  EXPECT_EQ(0x9000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x8000U, map_info->start());
+  EXPECT_EQ(0x9000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 
   map_info = maps_.Get(3);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0xa000U, map_info->start);
-  EXPECT_EQ(0xf000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0xa000U, map_info->start());
+  EXPECT_EQ(0xf000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 }
 
 TEST_F(LocalUpdatableMapsTest, all_new_maps) {
@@ -238,37 +238,37 @@ TEST_F(LocalUpdatableMapsTest, all_new_maps) {
 
   MapInfo* map_info = maps_.Get(0);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x1000U, map_info->start);
-  EXPECT_EQ(0x2000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x1000U, map_info->start());
+  EXPECT_EQ(0x2000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 
   map_info = maps_.Get(1);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0xa000U, map_info->start);
-  EXPECT_EQ(0xf000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0xa000U, map_info->start());
+  EXPECT_EQ(0xf000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 
   auto& saved_maps = maps_.TestGetSavedMaps();
   ASSERT_EQ(2U, saved_maps.size());
   map_info = saved_maps[0].get();
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x3000U, map_info->start);
-  EXPECT_EQ(0x4000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x3000U, map_info->start());
+  EXPECT_EQ(0x4000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 
   map_info = saved_maps[1].get();
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x8000U, map_info->start);
-  EXPECT_EQ(0x9000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(0x8000U, map_info->start());
+  EXPECT_EQ(0x9000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
 }
 
 TEST_F(LocalUpdatableMapsTest, add_map_prev_name_updated) {
@@ -285,12 +285,12 @@ TEST_F(LocalUpdatableMapsTest, add_map_prev_name_updated) {
 
   MapInfo* map_info = maps_.Get(2);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x9000U, map_info->start);
-  EXPECT_EQ(0xA000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_TRUE(map_info->name.empty());
-  EXPECT_EQ(maps_.Get(1), map_info->prev_map);
+  EXPECT_EQ(0x9000U, map_info->start());
+  EXPECT_EQ(0xA000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_TRUE(map_info->name().empty());
+  EXPECT_EQ(maps_.Get(1), map_info->prev_map());
 }
 
 TEST_F(LocalUpdatableMapsTest, add_map_prev_real_name_updated) {
@@ -315,23 +315,23 @@ TEST_F(LocalUpdatableMapsTest, add_map_prev_real_name_updated) {
 
   MapInfo* map_info = maps_.Get(2);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x7000U, map_info->start);
-  EXPECT_EQ(0x8000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_EQ(maps_.Get(0), map_info->prev_real_map);
-  EXPECT_EQ(maps_.Get(1), map_info->prev_map);
-  EXPECT_EQ("/fake/lib1.so", map_info->name);
+  EXPECT_EQ(0x7000U, map_info->start());
+  EXPECT_EQ(0x8000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_EQ(maps_.Get(0), map_info->prev_real_map());
+  EXPECT_EQ(maps_.Get(1), map_info->prev_map());
+  EXPECT_EQ("/fake/lib1.so", map_info->name());
 
   map_info = maps_.Get(3);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x8000U, map_info->start);
-  EXPECT_EQ(0x9000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
+  EXPECT_EQ(0x8000U, map_info->start());
+  EXPECT_EQ(0x9000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
   EXPECT_TRUE(map_info->IsBlank());
-  EXPECT_EQ(maps_.Get(2), map_info->prev_real_map);
-  EXPECT_EQ(maps_.Get(2), map_info->prev_map);
-  EXPECT_TRUE(map_info->name.empty());
+  EXPECT_EQ(maps_.Get(2), map_info->prev_real_map());
+  EXPECT_EQ(maps_.Get(2), map_info->prev_map());
+  EXPECT_TRUE(map_info->name().empty());
 
   ASSERT_TRUE(
       android::base::WriteStringToFile("3000-4000 r-xp 00000 00:00 0 /fake/lib.so\n"
@@ -354,33 +354,33 @@ TEST_F(LocalUpdatableMapsTest, add_map_prev_real_name_updated) {
 
   map_info = maps_.Get(2);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x7000U, map_info->start);
-  EXPECT_EQ(0x8000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_EQ("/fake/lib1.so", map_info->name);
-  EXPECT_EQ(maps_.Get(1), map_info->prev_map);
-  EXPECT_EQ(maps_.Get(0), map_info->prev_real_map);
+  EXPECT_EQ(0x7000U, map_info->start());
+  EXPECT_EQ(0x8000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_EQ("/fake/lib1.so", map_info->name());
+  EXPECT_EQ(maps_.Get(1), map_info->prev_map());
+  EXPECT_EQ(maps_.Get(0), map_info->prev_real_map());
 
   map_info = maps_.Get(4);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0x9000U, map_info->start);
-  EXPECT_EQ(0xA000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_EQ("/fake/lib2.so", map_info->name);
-  EXPECT_EQ(maps_.Get(3), map_info->prev_map);
-  EXPECT_EQ(maps_.Get(2), map_info->prev_real_map);
+  EXPECT_EQ(0x9000U, map_info->start());
+  EXPECT_EQ(0xA000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_EQ("/fake/lib2.so", map_info->name());
+  EXPECT_EQ(maps_.Get(3), map_info->prev_map());
+  EXPECT_EQ(maps_.Get(2), map_info->prev_real_map());
 
   map_info = maps_.Get(5);
   ASSERT_TRUE(map_info != nullptr);
-  EXPECT_EQ(0xA000U, map_info->start);
-  EXPECT_EQ(0xB000U, map_info->end);
-  EXPECT_EQ(0U, map_info->offset);
-  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags);
-  EXPECT_EQ("/fake/lib3.so", map_info->name);
-  EXPECT_EQ(maps_.Get(4), map_info->prev_map);
-  EXPECT_EQ(maps_.Get(4), map_info->prev_real_map);
+  EXPECT_EQ(0xA000U, map_info->start());
+  EXPECT_EQ(0xB000U, map_info->end());
+  EXPECT_EQ(0U, map_info->offset());
+  EXPECT_EQ(PROT_READ | PROT_EXEC, map_info->flags());
+  EXPECT_EQ("/fake/lib3.so", map_info->name());
+  EXPECT_EQ(maps_.Get(4), map_info->prev_map());
+  EXPECT_EQ(maps_.Get(4), map_info->prev_real_map());
 }
 
 }  // namespace unwindstack
