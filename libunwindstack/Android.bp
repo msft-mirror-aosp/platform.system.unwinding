@@ -136,33 +136,33 @@ cc_library {
     defaults: ["libunwindstack_defaults"],
     srcs: ["DexFile.cpp"],
     cflags: ["-DDEXFILE_SUPPORT"],
-    shared_libs: ["libdexfile_support"],
+    static_libs: ["libdexfile_support"],
 
     target: {
         vendor: {
             cflags: ["-UDEXFILE_SUPPORT"],
             exclude_srcs: ["DexFile.cpp"],
-            exclude_shared_libs: ["libdexfile_support"],
+            exclude_static_libs: ["libdexfile_support"],
         },
         product: {
             cflags: ["-UDEXFILE_SUPPORT"],
             exclude_srcs: ["DexFile.cpp"],
-            exclude_shared_libs: ["libdexfile_support"],
+            exclude_static_libs: ["libdexfile_support"],
         },
         recovery: {
             cflags: ["-UDEXFILE_SUPPORT"],
             exclude_srcs: ["DexFile.cpp"],
-            exclude_shared_libs: ["libdexfile_support"],
+            exclude_static_libs: ["libdexfile_support"],
         },
         vendor_ramdisk: {
             cflags: ["-UDEXFILE_SUPPORT"],
             exclude_srcs: ["DexFile.cpp"],
-            exclude_shared_libs: ["libdexfile_support"],
+            exclude_static_libs: ["libdexfile_support"],
         },
         native_bridge: {
             cflags: ["-UDEXFILE_SUPPORT"],
             exclude_srcs: ["DexFile.cpp"],
-            exclude_shared_libs: ["libdexfile_support"],
+            exclude_static_libs: ["libdexfile_support"],
         },
     },
 
@@ -284,10 +284,10 @@ cc_defaults {
         "liblog",
         "liblzma",
         "libunwindstack",
-        "libdexfile_support",
     ],
 
     static_libs: [
+        "libdexfile_support",
         "libgmock",
     ],
 
@@ -362,6 +362,8 @@ cc_defaults {
         "liblog",
         "liblzma",
         "libunwindstack",
+    ],
+    static_libs: [
         "libdexfile_support",
     ],
 }
