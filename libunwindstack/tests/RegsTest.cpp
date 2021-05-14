@@ -171,7 +171,7 @@ TEST_F(RegsTest, rel_pc_arm) {
 TEST_F(RegsTest, elf_invalid) {
   MapInfo map_info(nullptr, nullptr, 0x1000, 0x2000, 0, 0, "");
   Elf* invalid_elf = new Elf(nullptr);
-  map_info.elf.reset(invalid_elf);
+  map_info.set_elf(invalid_elf);
 
   EXPECT_EQ(0x500U, invalid_elf->GetRelPc(0x1500, &map_info));
   EXPECT_EQ(2U, GetPcAdjustment(0x500U, invalid_elf, ARCH_ARM));
