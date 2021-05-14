@@ -66,7 +66,7 @@ void ElfAddMapInfo(Maps* maps, uint64_t start, uint64_t end, uint64_t offset, ui
   maps->Add(start, end, offset, flags, name, static_cast<uint64_t>(-1));
   if (elf != nullptr) {
     const auto& map_info = *--maps->end();
-    map_info->elf.reset(elf);
+    map_info->set_elf(elf);
   }
 }
 
