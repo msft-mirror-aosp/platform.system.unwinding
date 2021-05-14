@@ -307,6 +307,36 @@ TYPED_TEST_P(SymbolsTest, symtab_read_cached) {
   ASSERT_EQ(3U, func_offset);
 }
 
+TYPED_TEST_P(SymbolsTest, symtab_end_marker) {
+  Symbols symbols(0x1000, 3 * sizeof(TypeParam), sizeof(TypeParam), 0xa000, 0x1000);
+
+  TypeParam sym;
+  uint64_t offset = 0x1000;
+
+  // Add normal symbol function: Let's say this could be symbol from hand written assembly.
+  this->InitSym(&sym, 0x1000, 0x500, 0x100);
+  this->memory_.SetMemory(offset, &sym, sizeof(sym));
+  offset += sizeof(sym);
+
+  // And zero-sized symbol: A programmer might do that to label the end of assembly method.
+  // This might be a challenge for booking since both symbols end at the same address.
+  this->InitSym(&sym, 0x1500, 0x000, 0x200);
+  this->memory_.SetMemory(offset, &sym, sizeof(sym));
+  offset += sizeof(sym);
+
+  std::string fake_name;
+  fake_name = "entry";
+  this->memory_.SetMemory(0xa100, fake_name.c_str(), fake_name.size() + 1);
+  fake_name = "entry_end";
+  this->memory_.SetMemory(0xa200, fake_name.c_str(), fake_name.size() + 1);
+
+  SharedString name;
+  uint64_t func_offset;
+  ASSERT_TRUE(symbols.GetName<TypeParam>(0x1250, &this->memory_, &name, &func_offset));
+  ASSERT_EQ("entry", name);
+  ASSERT_EQ(0x250U, func_offset);
+}
+
 TYPED_TEST_P(SymbolsTest, get_global) {
   uint64_t start_offset = 0x1000;
   uint64_t str_offset = 0xa000;
@@ -377,7 +407,7 @@ TYPED_TEST_P(SymbolsTest, get_global) {
 
 REGISTER_TYPED_TEST_SUITE_P(SymbolsTest, function_bounds_check, no_symbol, multiple_entries,
                             multiple_entries_nonstandard_size, symtab_value_out_of_bounds,
-                            symtab_read_cached, get_global);
+                            symtab_read_cached, get_global, symtab_end_marker);
 
 typedef ::testing::Types<Elf32_Sym, Elf64_Sym> SymbolsTestTypes;
 INSTANTIATE_TYPED_TEST_SUITE_P(Libunwindstack, SymbolsTest, SymbolsTestTypes);
