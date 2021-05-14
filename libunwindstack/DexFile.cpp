@@ -48,20 +48,20 @@ static bool CheckDexSupport() {
 }
 
 std::shared_ptr<DexFile> DexFile::CreateFromDisk(uint64_t addr, uint64_t size, MapInfo* map) {
-  if (map == nullptr || map->name.empty()) {
+  if (map == nullptr || map->name().empty()) {
     return nullptr;  // MapInfo not backed by file.
   }
-  if (!(map->start <= addr && addr < map->end)) {
+  if (!(map->start() <= addr && addr < map->end())) {
     return nullptr;  // addr is not in MapInfo range.
   }
-  if (size > (map->end - addr)) {
+  if (size > (map->end() - addr)) {
     return nullptr;  // size is past the MapInfo end.
   }
-  uint64_t offset_in_file = (addr - map->start) + map->offset;
+  uint64_t offset_in_file = (addr - map->start()) + map->offset();
 
   // Fast-path: Check if the dex file was already mapped from disk.
   std::lock_guard<std::mutex> guard(g_lock);
-  MappedFileKey cache_key(map->name, offset_in_file, size);
+  MappedFileKey cache_key(map->name(), offset_in_file, size);
   std::weak_ptr<DexFileApi>& cache_entry = g_mapped_dex_files[cache_key];
   std::shared_ptr<DexFileApi> dex_api = cache_entry.lock();
   if (dex_api != nullptr) {
@@ -69,12 +69,12 @@ std::shared_ptr<DexFile> DexFile::CreateFromDisk(uint64_t addr, uint64_t size, M
   }
 
   // Load the file from disk and cache it.
-  std::unique_ptr<Memory> memory = Memory::CreateFileMemory(map->name, offset_in_file, size);
+  std::unique_ptr<Memory> memory = Memory::CreateFileMemory(map->name(), offset_in_file, size);
   if (memory == nullptr) {
     return nullptr;  // failed to map the file.
   }
   std::unique_ptr<art_api::dex::DexFile> dex;
-  art_api::dex::DexFile::Create(memory->GetPtr(), size, nullptr, map->name.c_str(), &dex);
+  art_api::dex::DexFile::Create(memory->GetPtr(), size, nullptr, map->name().c_str(), &dex);
   if (dex == nullptr) {
     return nullptr;  // invalid DEX file.
   }
