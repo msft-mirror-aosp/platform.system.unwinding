@@ -57,7 +57,7 @@ class Elf {
 
   bool GetGlobalVariableOffset(const std::string& name, uint64_t* memory_offset);
 
-  uint64_t GetRelPc(uint64_t pc, const MapInfo* map_info);
+  uint64_t GetRelPc(uint64_t pc, MapInfo* map_info);
 
   bool StepIfSignalHandler(uint64_t rel_pc, Regs* regs, Memory* process_memory);
 
