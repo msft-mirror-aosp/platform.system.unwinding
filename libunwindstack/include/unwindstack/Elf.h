@@ -37,7 +37,7 @@
 namespace unwindstack {
 
 // Forward declaration.
-struct MapInfo;
+class MapInfo;
 class Regs;
 
 class Elf {

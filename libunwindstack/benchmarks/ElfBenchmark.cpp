@@ -88,7 +88,7 @@ static void InitializeBuildId(benchmark::State& state, unwindstack::Maps& maps,
   // Find the libc.so share library and use that for benchmark purposes.
   *build_id_map_info = nullptr;
   for (auto& map_info : maps) {
-    if (map_info->offset == 0 && map_info->GetBuildID() != "") {
+    if (map_info->offset() == 0 && map_info->GetBuildID() != "") {
       *build_id_map_info = map_info.get();
       break;
     }
@@ -112,10 +112,10 @@ static void BM_elf_get_build_id_from_object(benchmark::State& state) {
 
   for (auto _ : state) {
     state.PauseTiming();
-    unwindstack::SharedString* id = build_id_map_info->build_id;
+    unwindstack::SharedString* id = build_id_map_info->build_id();
     if (id != nullptr) {
       delete id;
-      build_id_map_info->build_id = nullptr;
+      build_id_map_info->set_build_id(nullptr);
     }
     state.ResumeTiming();
     benchmark::DoNotOptimize(build_id_map_info->GetBuildID());
@@ -130,10 +130,10 @@ static void BM_elf_get_build_id_from_file(benchmark::State& state) {
 
   for (auto _ : state) {
     state.PauseTiming();
-    unwindstack::SharedString* id = build_id_map_info->build_id;
+    unwindstack::SharedString* id = build_id_map_info->build_id();
     if (id != nullptr) {
       delete id;
-      build_id_map_info->build_id = nullptr;
+      build_id_map_info->set_build_id(nullptr);
     }
     state.ResumeTiming();
     benchmark::DoNotOptimize(build_id_map_info->GetBuildID());
