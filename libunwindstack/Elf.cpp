@@ -101,7 +101,7 @@ std::string Elf::GetSoname() {
   return interface_->GetSoname();
 }
 
-uint64_t Elf::GetRelPc(uint64_t pc, const MapInfo* map_info) {
+uint64_t Elf::GetRelPc(uint64_t pc, MapInfo* map_info) {
   return pc - map_info->start() + load_bias_ + map_info->elf_offset();
 }
 
