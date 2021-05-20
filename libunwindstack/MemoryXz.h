@@ -17,6 +17,7 @@
 #ifndef _LIBUNWINDSTACK_MEMORY_XZ_H
 #define _LIBUNWINDSTACK_MEMORY_XZ_H
 
+#include <atomic>
 #include <memory>
 #include <vector>
 

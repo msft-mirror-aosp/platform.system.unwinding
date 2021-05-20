@@ -16,6 +16,7 @@
 
 #include <elf.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <algorithm>
 #include <string>
@@ -69,13 +70,15 @@ Symbols::Info* Symbols::BinarySearch(uint64_t addr, Memory* elf_memory, uint64_t
     if (!elf_memory->ReadFully(offset_ + symbol_index * entry_size_, &sym, sizeof(sym))) {
       return nullptr;
     }
-    Info info{.size = static_cast<uint32_t>(sym.st_size), .index = current};
-    it = symbols_.emplace(sym.st_value + sym.st_size, info).first;
+    // There shouldn't be multiple symbols with same end address, but in case there are,
+    // overwrite the cache with the last entry, so that 'sym' and 'info' are consistent.
+    Info& info = symbols_[sym.st_value + sym.st_size];
+    info = {.size = static_cast<uint32_t>(sym.st_size), .index = current};
     if (addr < sym.st_value) {
       last = current;
     } else if (addr < sym.st_value + sym.st_size) {
       *func_offset = addr - sym.st_value;
-      return &it->second;
+      return &info;
     } else {
       first = current + 1;
     }
@@ -103,7 +106,9 @@ void Symbols::BuildRemapTable(Memory* elf_memory) {
       SymType sym;
       memcpy(&sym, &buffer[offset], sizeof(SymType));  // Copy to ensure alignment.
       addrs.push_back(sym.st_value);  // Always insert so it is indexable by symbol index.
-      if (IsFunc(&sym)) {
+      // NB: It is important to filter our zero-sized symbols since otherwise we can get
+      // duplicate end addresses in the table (e.g. if there is custom "end" symbol marker).
+      if (IsFunc(&sym) && sym.st_size != 0) {
         remap_->push_back(symbol_idx);  // Indices of function symbols only.
       }
     }
@@ -160,6 +165,17 @@ bool Symbols::GetName(uint64_t addr, Memory* elf_memory, SharedString* name,
 
 template <typename SymType>
 bool Symbols::GetGlobal(Memory* elf_memory, const std::string& name, uint64_t* memory_address) {
+  // Lookup from cache.
+  auto it = global_variables_.find(name);
+  if (it != global_variables_.end()) {
+    if (it->second.has_value()) {
+      *memory_address = it->second.value();
+      return true;
+    }
+    return false;
+  }
+
+  // Linear scan of all symbols.
   for (uint32_t i = 0; i < count_; i++) {
     SymType entry;
     if (!elf_memory->ReadFully(offset_ + i * entry_size_, &entry, sizeof(entry))) {
@@ -172,12 +188,14 @@ bool Symbols::GetGlobal(Memory* elf_memory, const std::string& name, uint64_t* m
       if (str_offset < str_end_) {
         std::string symbol;
         if (elf_memory->ReadString(str_offset, &symbol, str_end_ - str_offset) && symbol == name) {
+          global_variables_.emplace(name, entry.st_value);
           *memory_address = entry.st_value;
           return true;
         }
       }
     }
   }
+  global_variables_.emplace(name, std::optional<uint64_t>());  // Remember "not found" outcome.
   return false;
 }
 

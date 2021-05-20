@@ -18,6 +18,7 @@
 #define _LIBUNWINDSTACK_GLOBAL_DEBUG_IMPL_H
 
 #include <stdint.h>
+#include <string.h>
 #include <sys/mman.h>
 
 #include <memory>
@@ -28,6 +29,7 @@
 
 #include "Check.h"
 #include "GlobalDebugInterface.h"
+#include "MemoryCache.h"
 #include "MemoryRange.h"
 
 // This implements the JIT Compilation Interface.
@@ -125,10 +127,10 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
 
   bool ReadVariableData(uint64_t ptr) { return ReadDescriptor(ptr); }
 
-  // Iterate over all symfiles and call the provided callback for reach symfile.
+  // Invoke callback for all symfiles that contain the given PC.
   // Returns true if any callback returns true (which also aborts the iteration).
   template <typename Callback /* (Symfile*) -> bool */>
-  bool ForEachSymfile(Maps* maps, Callback callback) {
+  bool ForEachSymfile(Maps* maps, uint64_t pc, Callback callback) {
     // Use a single lock, this object should be used so infrequently that
     // a fine grain lock is unnecessary.
     std::lock_guard<std::mutex> guard(lock_);
@@ -141,7 +143,9 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
 
     // Try to find the entry in already loaded symbol files.
     for (auto& it : entries_) {
-      if (callback(it.first, it.second.get())) {
+      Symfile* symfile = it.second.get();
+      // Check seqlock to make sure that entry is still valid (it may be very old).
+      if (symfile->IsValidPc(pc) && CheckSeqlock(it.first) && callback(symfile)) {
         return true;
       }
     }
@@ -149,7 +153,14 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
     // Update all entries and retry.
     ReadAllEntries(maps);
     for (auto& it : entries_) {
-      if (callback(it.first, it.second.get())) {
+      Symfile* symfile = it.second.get();
+      // Note that the entry could become invalid since the ReadAllEntries above,
+      // but that is ok.  We don't want to fail or refresh the entries yet again.
+      // This is as if we found the entry in time and it became invalid after return.
+      // This is relevant when ART moves/packs JIT entries. That is, the entry is
+      // technically deleted, but only because it was copied into merged uber-entry.
+      // So the JIT method is still alive and the deleted data is still correct.
+      if (symfile->IsValidPc(pc) && callback(symfile)) {
         return true;
       }
     }
@@ -159,28 +170,26 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
 
   bool GetFunctionName(Maps* maps, uint64_t pc, SharedString* name, uint64_t* offset) {
     // NB: If symfiles overlap in PC ranges, this will check all of them.
-    return ForEachSymfile(maps, [pc, name, offset, this](UID uid, Symfile* file) {
-      return file->IsValidPc(pc) && CheckSeqlock(uid) && file->GetFunctionName(pc, name, offset);
+    return ForEachSymfile(maps, pc, [pc, name, offset](Symfile* file) {
+      return file->GetFunctionName(pc, name, offset);
     });
   }
 
   Symfile* Find(Maps* maps, uint64_t pc) {
     // NB: If symfiles overlap in PC ranges (which can happen for both ELF and DEX),
     // this will check all of them and return one that also has a matching function.
-    // If there is no such symfile, it will return any symfile for which the PC is valid.
-    // This is a useful fallback for tests, which often have symfiles with no functions.
     Symfile* result = nullptr;
-    ForEachSymfile(maps, [&result, pc, this](UID uid, Symfile* file) {
-      if (file->IsValidPc(pc) && CheckSeqlock(uid)) {
-        result = file;
-        SharedString name;
-        uint64_t offset;
-        if (file->GetFunctionName(pc, &name, &offset)) {
-          return true;  // Abort iteration and return the result immediately.
-        }
-      }
-      return false;
+    bool found = ForEachSymfile(maps, pc, [pc, &result](Symfile* file) {
+      result = file;
+      SharedString name;
+      uint64_t offset;
+      return file->GetFunctionName(pc, &name, &offset);
     });
+    if (found) {
+      return result;  // Found symfile with symbol that also matches the PC.
+    }
+    // There is no matching symbol, so return any symfile for which the PC is valid.
+    // This is a useful fallback for tests, which often have symfiles with no functions.
     return result;
   }
 
@@ -242,6 +251,7 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
       if (!memory_->ReadFully(uid.address, &data, jit_entry_size_)) {
         return false;
       }
+      data.symfile_addr = StripAddressTag(data.symfile_addr);
 
       // Check the seqlock to verify the symfile_addr and symfile_size.
       if (!CheckSeqlock(uid, race)) {
@@ -254,7 +264,7 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
         // The symfile was already loaded - just copy the reference.
         entries->emplace(uid, it->second);
       } else if (data.symfile_addr != 0) {
-        std::unique_ptr<Symfile> symfile;
+        std::shared_ptr<Symfile> symfile;
         bool ok = this->Load(maps, memory_, data.symfile_addr, data.symfile_size.value, symfile);
         // Check seqlock first because load can fail due to race (so we want to trigger retry).
         // TODO: Extract the memory copy code before the load, so that it is immune to races.
@@ -263,7 +273,7 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
         }
         // Exclude symbol files that fail to load (but continue loading other files).
         if (ok) {
-          entries->emplace(uid, symfile.release());
+          entries->emplace(uid, symfile);
         }
       }
 
@@ -283,6 +293,14 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
 
   // Read the address and seqlock of entry from the next field of linked list.
   // This is non-trivial since they need to be consistent (as if we read both atomically).
+  //
+  // We're reading pointers, which can point at heap-allocated structures (the
+  // case for the __dex_debug_descriptor pointers at the time of writing).
+  // On 64 bit systems, the target process might have top-byte heap pointer
+  // tagging enabled, so we need to mask out the tag. We also know that the
+  // address must point to userspace, so the top byte of the address must be
+  // zero on both x64 and aarch64 without tagging. Therefore the masking can be
+  // done unconditionally.
   bool ReadNextField(uint64_t next_field_addr, UID* uid, bool* race) {
     Uintptr_T address[2]{0, 0};
     uint32_t seqlock[2]{0, 0};
@@ -292,6 +310,7 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
       if (!(memory_->ReadFully(next_field_addr, &address[i], sizeof(address[i])))) {
         return false;
       }
+      address[i] = StripAddressTag(address[i]);
       if (seqlock_offset_ == 0) {
         // There is no seqlock field.
         *uid = UID{.address = address[0], .seqlock = 0};
@@ -337,6 +356,16 @@ class GlobalDebugImpl : public GlobalDebugInterface<Symfile>, public Global {
     return true;
   }
 
+  // AArch64 has Address tagging (aka Top Byte Ignore) feature, which is used by
+  // HWASAN and MTE to store metadata in the address. We need to remove the tag.
+  Uintptr_T StripAddressTag(Uintptr_T addr) {
+    if (arch() == ARCH_ARM64) {
+      // Make the value signed so it will be sign extended if necessary.
+      return static_cast<Uintptr_T>((static_cast<int64_t>(addr) << 8) >> 8);
+    }
+    return addr;
+  }
+
  private:
   const char* global_variable_name_ = nullptr;
   uint64_t descriptor_addr_ = 0;  // Non-zero if we have found (non-empty) descriptor.
@@ -361,6 +390,14 @@ std::unique_ptr<GlobalDebugInterface<Symfile>> CreateGlobalDebugImpl(
     ArchEnum arch, std::shared_ptr<Memory>& memory, std::vector<std::string> search_libs,
     const char* global_variable_name) {
   CHECK(arch != ARCH_UNKNOWN);
+
+  // The interface needs to see real-time changes in memory for synchronization with the
+  // concurrently running ART JIT compiler. Skip caching and read the memory directly.
+  MemoryCacheBase* cached_memory = memory->AsMemoryCacheBase();
+  if (cached_memory != nullptr) {
+    memory = cached_memory->UnderlyingMemory();
+  }
+
   switch (arch) {
     case ARCH_X86: {
       using Impl = GlobalDebugImpl<Symfile, uint32_t, Uint64_P>;

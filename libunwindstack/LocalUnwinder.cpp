@@ -53,7 +53,7 @@ bool LocalUnwinder::Init() {
     return false;
   }
 
-  process_memory_ = unwindstack::Memory::CreateProcessMemory(getpid());
+  process_memory_ = unwindstack::Memory::CreateProcessMemoryThreadCached(getpid());
 
   return true;
 }
@@ -71,6 +71,9 @@ bool LocalUnwinder::Unwind(std::vector<LocalFrameData>* frame_info, size_t max_f
   std::unique_ptr<unwindstack::Regs> regs(unwindstack::Regs::CreateFromLocal());
   unwindstack::RegsGetLocal(regs.get());
   ArchEnum arch = regs->Arch();
+
+  // Clear any cached data from previous unwinds.
+  process_memory_->Clear();
 
   size_t num_frames = 0;
   bool adjust_pc = false;
@@ -104,7 +107,7 @@ bool LocalUnwinder::Unwind(std::vector<LocalFrameData>* frame_info, size_t max_f
     }
 
     // Skip any locations that are within this library.
-    if (num_frames != 0 || !ShouldSkipLibrary(map_info->name)) {
+    if (num_frames != 0 || !ShouldSkipLibrary(map_info->name())) {
       // Add frame information.
       SharedString func_name;
       uint64_t func_offset;

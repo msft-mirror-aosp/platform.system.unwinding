@@ -42,6 +42,7 @@
 #include <unwindstack/Unwinder.h>
 
 #include "ElfTestUtils.h"
+#include "MemoryFake.h"
 #include "MemoryOffline.h"
 #include "TestUtils.h"
 
@@ -126,6 +127,10 @@ class UnwindOfflineTest : public ::testing::Test {
       dir_ = std::string(cwd_) + '/' + dir_;
     }
     ASSERT_EQ(0, chdir(dir_.c_str()));
+
+    if (process_memory_ == nullptr) {
+      process_memory_.reset(new MemoryFake);
+    }
   }
 
   template <typename AddressType>
@@ -1889,6 +1894,100 @@ TEST_F(UnwindOfflineTest, signal_fde_x86_64) {
   EXPECT_EQ(0x7ffcaadde720U, unwinder.frames()[16].sp);
   EXPECT_EQ(0x707eb2c9c405U, unwinder.frames()[17].pc);
   EXPECT_EQ(0x7ffcaaddf870U, unwinder.frames()[17].sp);
+}
+
+TEST_F(UnwindOfflineTest, pauth_pc_arm64) {
+  ASSERT_NO_FATAL_FAILURE(Init("pauth_pc_arm64/", ARCH_ARM64));
+
+  static_cast<RegsArm64*>(regs_.get())->SetPACMask(0x007fff8000000000ULL);
+
+  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  unwinder.Unwind();
+
+  std::string frame_info(DumpFrames(unwinder));
+  ASSERT_EQ(26U, unwinder.NumFrames()) << "Unwind:\n" << frame_info;
+  EXPECT_EQ(
+      "  #00 pc 00000000000404a8  toybox (do_print+28)\n"
+      "  #01 pc 0000000000040270  toybox (do_find+5072)\n"
+      "  #02 pc 000000000002c640  toybox (dirtree_handle_callback+40)\n"
+      "  #03 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #04 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #05 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #06 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #07 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #08 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #09 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #10 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #11 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #12 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #13 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #14 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #15 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #16 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #17 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #18 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #19 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #20 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #21 pc 000000000003ee54  toybox (find_main+272)\n"
+      "  #22 pc 0000000000034834  toybox (toy_exec_which+88)\n"
+      "  #23 pc 00000000000342cc  toybox (toybox_main+148)\n"
+      "  #24 pc 00000000000348b4  toybox (main+120)\n"
+      "  #25 pc 00000000000499d8  libc.so "
+      "(__libc_init+112)\n",
+      frame_info);
+
+  EXPECT_EQ(0x5c390884a8U, unwinder.frames()[0].pc);
+  EXPECT_EQ(0x7ff3511750U, unwinder.frames()[0].sp);
+  EXPECT_EQ(0x5c39088270U, unwinder.frames()[1].pc);
+  EXPECT_EQ(0x7ff3511770U, unwinder.frames()[1].sp);
+  EXPECT_EQ(0x5c39074640U, unwinder.frames()[2].pc);
+  EXPECT_EQ(0x7ff3511930U, unwinder.frames()[2].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[3].pc);
+  EXPECT_EQ(0x7ff3511960U, unwinder.frames()[3].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[4].pc);
+  EXPECT_EQ(0x7ff35119a0U, unwinder.frames()[4].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[5].pc);
+  EXPECT_EQ(0x7ff35119d0U, unwinder.frames()[5].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[6].pc);
+  EXPECT_EQ(0x7ff3511a10U, unwinder.frames()[6].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[7].pc);
+  EXPECT_EQ(0x7ff3511a40U, unwinder.frames()[7].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[8].pc);
+  EXPECT_EQ(0x7ff3511a80U, unwinder.frames()[8].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[9].pc);
+  EXPECT_EQ(0x7ff3511ab0U, unwinder.frames()[9].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[10].pc);
+  EXPECT_EQ(0x7ff3511af0U, unwinder.frames()[10].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[11].pc);
+  EXPECT_EQ(0x7ff3511b20U, unwinder.frames()[11].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[12].pc);
+  EXPECT_EQ(0x7ff3511b60U, unwinder.frames()[12].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[13].pc);
+  EXPECT_EQ(0x7ff3511b90U, unwinder.frames()[13].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[14].pc);
+  EXPECT_EQ(0x7ff3511bd0U, unwinder.frames()[14].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[15].pc);
+  EXPECT_EQ(0x7ff3511c00U, unwinder.frames()[15].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[16].pc);
+  EXPECT_EQ(0x7ff3511c40U, unwinder.frames()[16].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[17].pc);
+  EXPECT_EQ(0x7ff3511c70U, unwinder.frames()[17].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[18].pc);
+  EXPECT_EQ(0x7ff3511cb0U, unwinder.frames()[18].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[19].pc);
+  EXPECT_EQ(0x7ff3511ce0U, unwinder.frames()[19].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[20].pc);
+  EXPECT_EQ(0x7ff3511d20U, unwinder.frames()[20].sp);
+  EXPECT_EQ(0x5c39086e54U, unwinder.frames()[21].pc);
+  EXPECT_EQ(0x7ff3511d50U, unwinder.frames()[21].sp);
+  EXPECT_EQ(0x5c3907c834U, unwinder.frames()[22].pc);
+  EXPECT_EQ(0x7ff3511db0U, unwinder.frames()[22].sp);
+  EXPECT_EQ(0x5c3907c2ccU, unwinder.frames()[23].pc);
+  EXPECT_EQ(0x7ff3511dc0U, unwinder.frames()[23].sp);
+  EXPECT_EQ(0x5c3907c8b4U, unwinder.frames()[24].pc);
+  EXPECT_EQ(0x7ff3511e40U, unwinder.frames()[24].sp);
+  EXPECT_EQ(0x7e4ede29d8U, unwinder.frames()[25].pc);
+  EXPECT_EQ(0x7ff3511e70U, unwinder.frames()[25].sp);
 }
 
 }  // namespace unwindstack
