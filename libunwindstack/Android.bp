@@ -469,15 +469,22 @@ cc_benchmark {
         "benchmarks/main.cpp",
         "benchmarks/remote_unwind_benchmarks.cpp",
         "benchmarks/thread_unwind_benchmarks.cpp",
+        "benchmarks/OfflineUnwindBenchmarks.cpp",
     ],
 
     data: [
         "benchmarks/files/*",
+        "tests/files/offline/jit_debug_x86/*",
+        "tests/files/offline/straddle_arm64/*",
     ],
 
     shared_libs: [
         "libbase",
         "libunwindstack",
+    ],
+
+    static_libs: [
+        "libc++fs",
     ],
 
     target: {
