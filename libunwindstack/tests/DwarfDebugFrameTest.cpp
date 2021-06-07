@@ -26,7 +26,7 @@
 #include "DwarfEncoding.h"
 
 #include "LogFake.h"
-#include "MemoryFake.h"
+#include "utils/MemoryFake.h"
 
 namespace unwindstack {
 

@@ -41,9 +41,9 @@
 #include <unwindstack/RegsX86_64.h>
 #include <unwindstack/Unwinder.h>
 
-#include "MemoryFake.h"
 #include "MemoryOffline.h"
 #include "TestUtils.h"
+#include "utils/MemoryFake.h"
 #include "utils/OfflineUnwindUtils.h"
 
 namespace unwindstack {

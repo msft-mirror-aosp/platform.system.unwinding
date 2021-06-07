@@ -29,7 +29,7 @@
 
 #include "DexFile.h"
 #include "DexFileData.h"
-#include "MemoryFake.h"
+#include "utils/MemoryFake.h"
 
 namespace unwindstack {
 

@@ -206,6 +206,7 @@ cc_library {
     ],
     srcs: [
         "utils/OfflineUnwindUtils.cpp",
+        "utils/MemoryFake.cpp",
     ],
 }
 
@@ -266,7 +267,6 @@ cc_defaults {
         "tests/MapsTest.cpp",
         "tests/MemoryBufferTest.cpp",
         "tests/MemoryCacheTest.cpp",
-        "tests/MemoryFake.cpp",
         "tests/MemoryFileTest.cpp",
         "tests/MemoryLocalTest.cpp",
         "tests/MemoryOfflineBufferTest.cpp",
@@ -390,7 +390,6 @@ cc_fuzz {
     name: "libunwindstack_fuzz_unwinder",
     defaults: ["libunwindstack_fuzz_defaults"],
     srcs: [
-        "tests/MemoryFake.cpp",
         "tests/ElfFake.cpp",
         "tests/fuzz/UnwinderComponentCreator.cpp",
         "tests/fuzz/UnwinderFuzz.cpp",
