@@ -41,10 +41,10 @@
 #include <unwindstack/RegsX86_64.h>
 #include <unwindstack/Unwinder.h>
 
-#include "ElfTestUtils.h"
 #include "MemoryFake.h"
 #include "MemoryOffline.h"
 #include "TestUtils.h"
+#include "utils/OfflineUnwindUtils.h"
 
 namespace unwindstack {
 
@@ -64,7 +64,7 @@ class UnwindOfflineTest : public ::testing::Test {
   }
 
   void Init(const char* file_dir, ArchEnum arch, bool add_stack = true) {
-    dir_ = TestGetFileDirectory() + "offline/" + file_dir;
+    dir_ = GetOfflineFilesDirectory() + file_dir;
 
     std::string data;
     ASSERT_TRUE(android::base::ReadFileToString((dir_ + "maps.txt"), &data));

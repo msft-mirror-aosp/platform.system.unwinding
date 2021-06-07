@@ -194,6 +194,22 @@ cc_library_static {
 }
 
 //-------------------------------------------------------------------------
+// Utils
+//-------------------------------------------------------------------------
+cc_library {
+    name: "libunwindstack_utils",
+    defaults: ["libunwindstack_flags"],
+    export_include_dirs: ["utils"],
+    shared_libs: [
+        "libbase",
+        "libunwindstack",
+    ],
+    srcs: [
+        "utils/OfflineUnwindUtils.cpp",
+    ],
+}
+
+//-------------------------------------------------------------------------
 // Unit Tests
 //-------------------------------------------------------------------------
 cc_library_shared {
@@ -289,6 +305,7 @@ cc_defaults {
     static_libs: [
         "libdexfile_support",
         "libgmock",
+        "libunwindstack_utils",
     ],
 
     test_suites: ["device-tests"],
@@ -300,30 +317,30 @@ cc_defaults {
         "tests/files/boot_arm.oat.gnu_debugdata.xz.one-block",
         "tests/files/elf32.xz",
         "tests/files/elf64.xz",
-        "tests/files/offline/art_quick_osr_stub_arm/*",
-        "tests/files/offline/bad_eh_frame_hdr_arm64/*",
-        "tests/files/offline/debug_frame_first_x86/*",
-        "tests/files/offline/debug_frame_load_bias_arm/*",
-        "tests/files/offline/eh_frame_bias_x86/*",
-        "tests/files/offline/eh_frame_hdr_begin_x86_64/*",
-        "tests/files/offline/empty_arm64/*",
-        "tests/files/offline/invalid_elf_offset_arm/*",
-        "tests/files/offline/jit_debug_arm/*",
-        "tests/files/offline/jit_debug_x86/*",
-        "tests/files/offline/jit_map_arm/*",
-        "tests/files/offline/gnu_debugdata_arm/*",
-        "tests/files/offline/load_bias_different_section_bias_arm64/*",
-        "tests/files/offline/load_bias_ro_rx_x86_64/*",
-        "tests/files/offline/offset_arm/*",
-        "tests/files/offline/pauth_pc_arm64/*",
-        "tests/files/offline/shared_lib_in_apk_arm64/*",
-        "tests/files/offline/shared_lib_in_apk_memory_only_arm64/*",
-        "tests/files/offline/shared_lib_in_apk_single_map_arm64/*",
-        "tests/files/offline/signal_load_bias_arm/*",
-        "tests/files/offline/signal_fde_x86/*",
-        "tests/files/offline/signal_fde_x86_64/*",
-        "tests/files/offline/straddle_arm/*",
-        "tests/files/offline/straddle_arm64/*",
+        "offline_files/art_quick_osr_stub_arm/*",
+        "offline_files/bad_eh_frame_hdr_arm64/*",
+        "offline_files/debug_frame_first_x86/*",
+        "offline_files/debug_frame_load_bias_arm/*",
+        "offline_files/eh_frame_bias_x86/*",
+        "offline_files/eh_frame_hdr_begin_x86_64/*",
+        "offline_files/empty_arm64/*",
+        "offline_files/invalid_elf_offset_arm/*",
+        "offline_files/jit_debug_arm/*",
+        "offline_files/jit_map_arm/*",
+        "offline_files/gnu_debugdata_arm/*",
+        "offline_files/load_bias_different_section_bias_arm64/*",
+        "offline_files/load_bias_ro_rx_x86_64/*",
+        "offline_files/offset_arm/*",
+        "offline_files/pauth_pc_arm64/*",
+        "offline_files/shared_lib_in_apk_arm64/*",
+        "offline_files/shared_lib_in_apk_memory_only_arm64/*",
+        "offline_files/shared_lib_in_apk_single_map_arm64/*",
+        "offline_files/signal_load_bias_arm/*",
+        "offline_files/signal_fde_x86/*",
+        "offline_files/signal_fde_x86_64/*",
+        "offline_files/straddle_arm/*",
+        "offline_files/jit_debug_x86/*",
+        "offline_files/straddle_arm64/*",
     ],
 
     target: {
@@ -365,6 +382,7 @@ cc_defaults {
     ],
     static_libs: [
         "libdexfile_support",
+        "libunwindstack_utils",
     ],
 }
 
@@ -474,8 +492,8 @@ cc_benchmark {
 
     data: [
         "benchmarks/files/*",
-        "tests/files/offline/jit_debug_x86/*",
-        "tests/files/offline/straddle_arm64/*",
+        "offline_files/jit_debug_x86/*",
+        "offline_files/straddle_arm64/*",
     ],
 
     shared_libs: [
@@ -485,6 +503,7 @@ cc_benchmark {
 
     static_libs: [
         "libc++fs",
+        "libunwindstack_utils",
     ],
 
     target: {

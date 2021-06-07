@@ -40,6 +40,7 @@
 
 #include "MemoryOffline.h"
 #include "Utils.h"
+#include "utils/OfflineUnwindUtils.h"
 
 namespace unwindstack {
 
@@ -71,7 +72,7 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
   void Init(const char* file_dir, ArchEnum arch, bool set_maps = false) {
     // Change to offline files directory so we can read the ELF files
     cwd_ = std::filesystem::current_path();
-    offline_dir_ = android::base::GetExecutableDirectory() + "/tests/files/offline/" + file_dir;
+    offline_dir_ = GetOfflineFilesDirectory() + file_dir;
     std::filesystem::current_path(std::filesystem::path(offline_dir_));
 
     if (!android::base::ReadFileToString((offline_dir_ + "maps.txt"), &map_buffer)) {

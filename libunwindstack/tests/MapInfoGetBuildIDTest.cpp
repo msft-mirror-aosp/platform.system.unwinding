@@ -37,6 +37,7 @@
 #include "ElfFake.h"
 #include "ElfTestUtils.h"
 #include "MemoryFake.h"
+#include "utils/OfflineUnwindUtils.h"
 
 namespace unwindstack {
 
@@ -198,7 +199,7 @@ TEST_F(MapInfoGetBuildIDTest, multiple_thread_elf_exists_in_memory) {
 
 TEST_F(MapInfoGetBuildIDTest, real_elf) {
   MapInfo map_info(nullptr, nullptr, 0x1000, 0x20000, 0, PROT_READ | PROT_WRITE,
-                   TestGetFileDirectory() + "offline/empty_arm64/libc.so");
+                   GetOfflineFilesDirectory() + "empty_arm64/libc.so");
   EXPECT_EQ("6df0590c4920f4c7b9f34fe833f37d54", map_info.GetPrintableBuildID());
 }
 
