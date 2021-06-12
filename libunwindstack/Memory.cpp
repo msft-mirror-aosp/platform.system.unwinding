@@ -559,6 +559,10 @@ size_t MemoryThreadCache::CachedRead(uint64_t addr, void* dst, size_t size) {
 }
 
 void MemoryThreadCache::Clear() {
+  if (!thread_cache_) {
+    return;
+  }
+
   CacheDataType* cache = reinterpret_cast<CacheDataType*>(pthread_getspecific(*thread_cache_));
   if (cache != nullptr) {
     delete cache;
