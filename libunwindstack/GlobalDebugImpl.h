@@ -393,9 +393,12 @@ std::unique_ptr<GlobalDebugInterface<Symfile>> CreateGlobalDebugImpl(
 
   // The interface needs to see real-time changes in memory for synchronization with the
   // concurrently running ART JIT compiler. Skip caching and read the memory directly.
+  std::shared_ptr<Memory> jit_memory;
   MemoryCacheBase* cached_memory = memory->AsMemoryCacheBase();
   if (cached_memory != nullptr) {
-    memory = cached_memory->UnderlyingMemory();
+    jit_memory = cached_memory->UnderlyingMemory();
+  } else {
+    jit_memory = memory;
   }
 
   switch (arch) {
@@ -405,7 +408,7 @@ std::unique_ptr<GlobalDebugInterface<Symfile>> CreateGlobalDebugImpl(
       static_assert(offsetof(typename Impl::JITCodeEntry, seqlock) == 28, "layout");
       static_assert(sizeof(typename Impl::JITCodeEntry) == 32, "layout");
       static_assert(sizeof(typename Impl::JITDescriptor) == 48, "layout");
-      return std::make_unique<Impl>(arch, memory, search_libs, global_variable_name);
+      return std::make_unique<Impl>(arch, jit_memory, search_libs, global_variable_name);
     }
     case ARCH_ARM:
     case ARCH_MIPS: {
@@ -414,7 +417,7 @@ std::unique_ptr<GlobalDebugInterface<Symfile>> CreateGlobalDebugImpl(
       static_assert(offsetof(typename Impl::JITCodeEntry, seqlock) == 32, "layout");
       static_assert(sizeof(typename Impl::JITCodeEntry) == 40, "layout");
       static_assert(sizeof(typename Impl::JITDescriptor) == 48, "layout");
-      return std::make_unique<Impl>(arch, memory, search_libs, global_variable_name);
+      return std::make_unique<Impl>(arch, jit_memory, search_libs, global_variable_name);
     }
     case ARCH_ARM64:
     case ARCH_X86_64:
@@ -424,7 +427,7 @@ std::unique_ptr<GlobalDebugInterface<Symfile>> CreateGlobalDebugImpl(
       static_assert(offsetof(typename Impl::JITCodeEntry, seqlock) == 40, "layout");
       static_assert(sizeof(typename Impl::JITCodeEntry) == 48, "layout");
       static_assert(sizeof(typename Impl::JITDescriptor) == 56, "layout");
-      return std::make_unique<Impl>(arch, memory, search_libs, global_variable_name);
+      return std::make_unique<Impl>(arch, jit_memory, search_libs, global_variable_name);
     }
     default:
       abort();
