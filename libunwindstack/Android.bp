@@ -204,6 +204,9 @@ cc_library {
         "libbase",
         "libunwindstack",
     ],
+    whole_static_libs: [
+        "libc++fs",
+    ],
     srcs: [
         "utils/OfflineUnwindUtils.cpp",
         "utils/MemoryFake.cpp",
@@ -501,7 +504,6 @@ cc_benchmark {
     ],
 
     static_libs: [
-        "libc++fs",
         "libunwindstack_utils",
     ],
 
