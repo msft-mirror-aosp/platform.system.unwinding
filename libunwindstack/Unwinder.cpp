@@ -408,14 +408,16 @@ bool UnwinderFromPid::Init() {
     maps_ = maps_ptr_.get();
   }
 
-  if (pid_ == getpid()) {
-    // Local unwind, so use thread cache to allow multiple threads
-    // to cache data even when multiple threads access the same object.
-    process_memory_ = Memory::CreateProcessMemoryThreadCached(pid_);
-  } else {
-    // Remote unwind should be safe to cache since the unwind will
-    // be occurring on a stopped process.
-    process_memory_ = Memory::CreateProcessMemoryCached(pid_);
+  if (process_memory_ == nullptr) {
+    if (pid_ == getpid()) {
+      // Local unwind, so use thread cache to allow multiple threads
+      // to cache data even when multiple threads access the same object.
+      process_memory_ = Memory::CreateProcessMemoryThreadCached(pid_);
+    } else {
+      // Remote unwind should be safe to cache since the unwind will
+      // be occurring on a stopped process.
+      process_memory_ = Memory::CreateProcessMemoryCached(pid_);
+    }
   }
 
   jit_debug_ptr_ = CreateJitDebug(arch_, process_memory_);
