@@ -1748,6 +1748,15 @@ TEST_F(UnwinderTest, build_frame_pc_in_jit) {
   EXPECT_EQ(0xeU, frame.function_offset);
 }
 
+TEST_F(UnwinderTest, unwinder_from_pid_set_process_memory) {
+  auto process_memory = Memory::CreateProcessMemoryCached(getpid());
+  UnwinderFromPid unwinder(10, getpid());
+  unwinder.SetProcessMemory(process_memory);
+  unwinder.SetArch(unwindstack::Regs::CurrentArch());
+  ASSERT_TRUE(unwinder.Init());
+  ASSERT_EQ(process_memory.get(), unwinder.GetProcessMemory().get());
+}
+
 using UnwinderDeathTest = SilentDeathTest;
 
 TEST_F(UnwinderDeathTest, unwinder_from_pid_init_error) {
