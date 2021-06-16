@@ -39,14 +39,6 @@ namespace unwindstack {
 std::map<DexFile::MappedFileKey, std::weak_ptr<DexFile::DexFileApi>> DexFile::g_mapped_dex_files;
 std::mutex DexFile::g_lock;
 
-static bool CheckDexSupport() {
-  if (std::string err_msg; !art_api::dex::TryLoadLibdexfile(&err_msg)) {
-    ALOGW("Failed to initialize DEX file support: %s", err_msg.c_str());
-    return false;
-  }
-  return true;
-}
-
 std::shared_ptr<DexFile> DexFile::CreateFromDisk(uint64_t addr, uint64_t size, MapInfo* map) {
   if (map == nullptr || map->name().empty()) {
     return nullptr;  // MapInfo not backed by file.
@@ -85,8 +77,7 @@ std::shared_ptr<DexFile> DexFile::CreateFromDisk(uint64_t addr, uint64_t size, M
 
 std::shared_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size, Memory* memory,
                                          MapInfo* info) {
-  static bool has_dex_support = CheckDexSupport();
-  if (!has_dex_support || file_size == 0) {
+  if (file_size == 0) {
     return nullptr;
   }
 
