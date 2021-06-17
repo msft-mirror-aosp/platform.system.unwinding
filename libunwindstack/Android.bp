@@ -164,6 +164,11 @@ cc_library {
             exclude_srcs: ["DexFile.cpp"],
             exclude_static_libs: ["libdexfile_support"],
         },
+        // Only needed for host since the library always exists
+        // in an Android environment.
+        linux_glibc: {
+            runtime_libs: ["libdexfile"],
+        }
     },
 
     apex_available: [
