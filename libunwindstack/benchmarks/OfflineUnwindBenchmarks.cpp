@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <err.h>
-#include <inttypes.h>
 #include <malloc.h>
 
 #include <cstddef>
@@ -25,34 +23,14 @@
 
 #include <benchmark/benchmark.h>
 
-#include <android-base/file.h>
-
-#include <unwindstack/MachineArm.h>
-#include <unwindstack/MachineArm64.h>
-#include <unwindstack/MachineX86.h>
-#include <unwindstack/MachineX86_64.h>
-#include <unwindstack/Maps.h>
-#include <unwindstack/RegsArm.h>
-#include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsX86.h>
-#include <unwindstack/RegsX86_64.h>
 #include <unwindstack/Unwinder.h>
 
-#include "MemoryOffline.h"
 #include "Utils.h"
 #include "utils/OfflineUnwindUtils.h"
 
 namespace unwindstack {
 
-static void AddMemory(std::string file_name, MemoryOfflineParts* parts) {
-  MemoryOffline* memory = new MemoryOffline;
-  if (!memory->Init(file_name.c_str(), 0)) {
-    errx(1, "Failed to add stack '%s' to stack memory.", file_name.c_str());
-  }
-  parts->Add(memory);
-}
-
-class OfflineUnwindBenchmark : public benchmark::Fixture {
+class OfflineUnwindBenchmark : public OfflineUnwindUtils, public benchmark::Fixture {
  public:
   void TearDown(benchmark::State& state) override {
     std::filesystem::current_path(cwd_);
@@ -69,126 +47,6 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
   }
 
  protected:
-  void Init(const char* file_dir, ArchEnum arch, bool set_maps = false) {
-    // Change to offline files directory so we can read the ELF files
-    cwd_ = std::filesystem::current_path();
-    offline_dir_ = GetOfflineFilesDirectory() + file_dir;
-    std::filesystem::current_path(std::filesystem::path(offline_dir_));
-
-    if (!android::base::ReadFileToString((offline_dir_ + "maps.txt"), &map_buffer)) {
-      errx(1, "Failed to read from '%s' into memory.", (offline_dir_ + "maps.txt").c_str());
-    }
-    if (set_maps) {
-      ResetMaps();
-    }
-
-    SetProcessMemory();
-    SetRegs(arch);
-  }
-
-  void ResetMaps() {
-    maps_.reset(new BufferMaps(map_buffer.c_str()));
-    if (!maps_->Parse()) {
-      errx(1, "Failed to parse offline maps.");
-    }
-  }
-
-  void SetProcessMemory() {
-    std::string stack_name(offline_dir_ + "stack.data");
-    struct stat st;
-    if (stat(stack_name.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
-      auto stack_memory = std::make_unique<MemoryOffline>();
-      if (!stack_memory->Init((offline_dir_ + "stack.data").c_str(), 0)) {
-        errx(1, "Failed to initialize stack memory from %s.",
-             (offline_dir_ + "stack.data").c_str());
-      }
-      process_memory_.reset(stack_memory.release());
-    } else {
-      std::unique_ptr<MemoryOfflineParts> stack_memory(new MemoryOfflineParts);
-      for (size_t i = 0;; i++) {
-        stack_name = offline_dir_ + "stack" + std::to_string(i) + ".data";
-        if (stat(stack_name.c_str(), &st) == -1 || !S_ISREG(st.st_mode)) {
-          if (i == 0) {
-            errx(1, "No stack data files found.");
-          }
-          break;
-        }
-        AddMemory(stack_name, stack_memory.get());
-      }
-      process_memory_.reset(stack_memory.release());
-    }
-  }
-
-  void SetJitProcessMemory() {
-    MemoryOfflineParts* memory = new MemoryOfflineParts;
-    AddMemory(offline_dir_ + "descriptor.data", memory);
-    AddMemory(offline_dir_ + "stack.data", memory);
-    for (size_t i = 0; i < 7; i++) {
-      AddMemory(offline_dir_ + "entry" + std::to_string(i) + ".data", memory);
-      AddMemory(offline_dir_ + "jit" + std::to_string(i) + ".data", memory);
-    }
-    process_memory_.reset(memory);
-  }
-
-  void SetRegs(ArchEnum arch) {
-    switch (arch) {
-      case ARCH_ARM: {
-        RegsArm* regs = new RegsArm;
-        regs_.reset(regs);
-        ReadRegs<uint32_t>(offline_dir_, regs, arm_regs_);
-        break;
-      }
-      case ARCH_ARM64: {
-        RegsArm64* regs = new RegsArm64;
-        regs_.reset(regs);
-        ReadRegs<uint64_t>(offline_dir_, regs, arm64_regs_);
-        break;
-      }
-      case ARCH_X86: {
-        RegsX86* regs = new RegsX86;
-        regs_.reset(regs);
-        ReadRegs<uint32_t>(offline_dir_, regs, x86_regs_);
-        break;
-      }
-      case ARCH_X86_64: {
-        RegsX86_64* regs = new RegsX86_64;
-        regs_.reset(regs);
-        ReadRegs<uint64_t>(offline_dir_, regs, x86_64_regs_);
-        break;
-      }
-      default:
-        errx(1, "Unknown arch %s", std::to_string(arch).c_str());
-    }
-  }
-
-  template <typename AddressType>
-  void ReadRegs(const std::string& offline_dir_, RegsImpl<AddressType>* regs,
-                const std::unordered_map<std::string, uint32_t>& name_to_reg) {
-    FILE* fp = fopen((offline_dir_ + "regs.txt").c_str(), "r");
-    if (fp == nullptr) {
-      err(1, NULL);
-    }
-    while (!feof(fp)) {
-      uint64_t value;
-      char reg_name[100];
-      if (fscanf(fp, "%s %" SCNx64 "\n", reg_name, &value) != 2) {
-        errx(1, "Failed to read in register name/values from %s.",
-             (offline_dir_ + "regs.txt").c_str());
-      }
-      std::string name(reg_name);
-      if (!name.empty()) {
-        // Remove the : from the end.
-        name.resize(name.size() - 1);
-      }
-      auto entry = name_to_reg.find(name);
-      if (entry == name_to_reg.end()) {
-        errx(1, "Unknown register named %s", reg_name);
-      }
-      (*regs)[entry->second] = value;
-    }
-    fclose(fp);
-  }
-
   void StartTrackingAllocations() {
 #if defined(__BIONIC__)
     mallopt(M_PURGE, 0);
@@ -215,17 +73,6 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
 #endif
   }
 
-  static std::unordered_map<std::string, uint32_t> arm_regs_;
-  static std::unordered_map<std::string, uint32_t> arm64_regs_;
-  static std::unordered_map<std::string, uint32_t> x86_regs_;
-  static std::unordered_map<std::string, uint32_t> x86_64_regs_;
-
-  std::string cwd_;
-  std::string offline_dir_;
-  std::string map_buffer;
-  std::unique_ptr<Regs> regs_;
-  std::unique_ptr<Maps> maps_;
-  std::shared_ptr<Memory> process_memory_;
 #if defined(__BIONIC__)
   uint64_t total_rss_bytes_ = 0;
   uint64_t min_rss_bytes_ = 0;
@@ -242,51 +89,6 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
   size_t total_iterations_ = 0;
 };
 
-std::unordered_map<std::string, uint32_t> OfflineUnwindBenchmark::arm_regs_ = {
-    {"r0", ARM_REG_R0},  {"r1", ARM_REG_R1}, {"r2", ARM_REG_R2},   {"r3", ARM_REG_R3},
-    {"r4", ARM_REG_R4},  {"r5", ARM_REG_R5}, {"r6", ARM_REG_R6},   {"r7", ARM_REG_R7},
-    {"r8", ARM_REG_R8},  {"r9", ARM_REG_R9}, {"r10", ARM_REG_R10}, {"r11", ARM_REG_R11},
-    {"ip", ARM_REG_R12}, {"sp", ARM_REG_SP}, {"lr", ARM_REG_LR},   {"pc", ARM_REG_PC},
-};
-
-std::unordered_map<std::string, uint32_t> OfflineUnwindBenchmark::arm64_regs_ = {
-    {"x0", ARM64_REG_R0},      {"x1", ARM64_REG_R1},   {"x2", ARM64_REG_R2},
-    {"x3", ARM64_REG_R3},      {"x4", ARM64_REG_R4},   {"x5", ARM64_REG_R5},
-    {"x6", ARM64_REG_R6},      {"x7", ARM64_REG_R7},   {"x8", ARM64_REG_R8},
-    {"x9", ARM64_REG_R9},      {"x10", ARM64_REG_R10}, {"x11", ARM64_REG_R11},
-    {"x12", ARM64_REG_R12},    {"x13", ARM64_REG_R13}, {"x14", ARM64_REG_R14},
-    {"x15", ARM64_REG_R15},    {"x16", ARM64_REG_R16}, {"x17", ARM64_REG_R17},
-    {"x18", ARM64_REG_R18},    {"x19", ARM64_REG_R19}, {"x20", ARM64_REG_R20},
-    {"x21", ARM64_REG_R21},    {"x22", ARM64_REG_R22}, {"x23", ARM64_REG_R23},
-    {"x24", ARM64_REG_R24},    {"x25", ARM64_REG_R25}, {"x26", ARM64_REG_R26},
-    {"x27", ARM64_REG_R27},    {"x28", ARM64_REG_R28}, {"x29", ARM64_REG_R29},
-    {"sp", ARM64_REG_SP},      {"lr", ARM64_REG_LR},   {"pc", ARM64_REG_PC},
-    {"pst", ARM64_REG_PSTATE},
-};
-
-std::unordered_map<std::string, uint32_t> OfflineUnwindBenchmark::x86_regs_ = {
-    {"eax", X86_REG_EAX}, {"ebx", X86_REG_EBX}, {"ecx", X86_REG_ECX},
-    {"edx", X86_REG_EDX}, {"ebp", X86_REG_EBP}, {"edi", X86_REG_EDI},
-    {"esi", X86_REG_ESI}, {"esp", X86_REG_ESP}, {"eip", X86_REG_EIP},
-};
-
-std::unordered_map<std::string, uint32_t> OfflineUnwindBenchmark::x86_64_regs_ = {
-    {"rax", X86_64_REG_RAX}, {"rbx", X86_64_REG_RBX}, {"rcx", X86_64_REG_RCX},
-    {"rdx", X86_64_REG_RDX}, {"r8", X86_64_REG_R8},   {"r9", X86_64_REG_R9},
-    {"r10", X86_64_REG_R10}, {"r11", X86_64_REG_R11}, {"r12", X86_64_REG_R12},
-    {"r13", X86_64_REG_R13}, {"r14", X86_64_REG_R14}, {"r15", X86_64_REG_R15},
-    {"rdi", X86_64_REG_RDI}, {"rsi", X86_64_REG_RSI}, {"rbp", X86_64_REG_RBP},
-    {"rsp", X86_64_REG_RSP}, {"rip", X86_64_REG_RIP},
-};
-
-static std::string DumpFrames(const Unwinder& unwinder) {
-  std::string str;
-  for (size_t i = 0; i < unwinder.NumFrames(); i++) {
-    str += unwinder.FormatFrame(i) + "\n";
-  }
-  return str;
-}
-
 static void VerifyFrames(const Unwinder unwinder, const std::string& expected_frame_info,
                          std::stringstream& err_stream, benchmark::State& state) {
   std::string frame_info(DumpFrames(unwinder));
@@ -302,7 +104,13 @@ static void VerifyFrames(const Unwinder unwinder, const std::string& expected_fr
 }
 
 BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)(benchmark::State& state) {
-  Init("straddle_arm64/", ARCH_ARM64);
+  std::string error_msg;
+  if (!Init("straddle_arm64/", ARCH_ARM64, error_msg,
+            /*add_stack=*/true, /*set_maps=*/false)) {
+    state.SkipWithError(error_msg.c_str());
+    return;
+  }
+
   Unwinder unwinder(0, nullptr, nullptr);
   std::stringstream err_stream;
   for (auto _ : state) {
@@ -311,7 +119,10 @@ BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)(benchmark::State&
     // the attributes of the regs object.
     std::unique_ptr<Regs> regs_copy(regs_->Clone());
     // Ensure unwinder does not used cached map data in next iteration
-    ResetMaps();
+    if (!ResetMaps(error_msg)) {
+      state.SkipWithError(error_msg.c_str());
+      return;
+    }
 
     StartTrackingAllocations();
     state.ResumeTiming();
@@ -343,9 +154,15 @@ BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)(benchmark::State&
 
 BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64_cached_maps)
 (benchmark::State& state) {
+  std::string error_msg;
   // Initialize maps in Init and do not reset unwinder's maps each time so the unwinder
   // uses the cached maps from the first iteration of the loop.
-  Init("straddle_arm64/", ARCH_ARM64, /*set_maps=*/true);
+  if (!Init("straddle_arm64/", ARCH_ARM64, error_msg,
+            /*add_stack=*/true, /*set_maps=*/true)) {
+    state.SkipWithError(error_msg.c_str());
+    return;
+  }
+
   Unwinder unwinder(0, nullptr, nullptr);
   std::stringstream err_stream;
   for (auto _ : state) {
@@ -383,15 +200,27 @@ BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64_cached_maps)
 }
 
 BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_jit_debug_x86)(benchmark::State& state) {
-  Init("jit_debug_x86/", ARCH_X86);
-  SetJitProcessMemory();
+  std::string error_msg;
+  if (!Init("jit_debug_x86/", ARCH_X86, error_msg,
+            /*add_stack=*/true, /*set_maps=*/false)) {
+    state.SkipWithError(error_msg.c_str());
+    return;
+  }
+
+  if (!SetJitProcessMemory(error_msg)) {
+    state.SkipWithError(error_msg.c_str());
+    return;
+  }
 
   Unwinder unwinder(0, nullptr, nullptr);
   std::stringstream err_stream;
   for (auto _ : state) {
     state.PauseTiming();
     std::unique_ptr<Regs> regs_copy(regs_->Clone());
-    ResetMaps();
+    if (!ResetMaps(error_msg)) {
+      state.SkipWithError(error_msg.c_str());
+      return;
+    }
 
     StartTrackingAllocations();
     state.ResumeTiming();
