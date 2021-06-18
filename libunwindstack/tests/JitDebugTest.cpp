@@ -29,7 +29,7 @@
 #include <unwindstack/Memory.h>
 
 #include "ElfFake.h"
-#include "MemoryFake.h"
+#include "utils/MemoryFake.h"
 
 namespace unwindstack {
 
