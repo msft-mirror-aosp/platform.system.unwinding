@@ -41,7 +41,7 @@ void MemoryFake::SetMemory(uint64_t addr, const void* memory, size_t length) {
     if (value != data_.end()) {
       value->second = src[i];
     } else {
-      data_.insert({ addr, src[i] });
+      data_.insert({addr, src[i]});
     }
   }
 }
