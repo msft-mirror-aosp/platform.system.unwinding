@@ -26,6 +26,7 @@
 #include <unwindstack/Elf.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/RegsArm.h>
+#include <unwindstack/SharedString.h>
 
 #include "ElfFake.h"
 #include "ElfTestUtils.h"
@@ -130,7 +131,7 @@ TEST_F(ElfTest, elf_invalid) {
 
   ASSERT_EQ("", elf.GetSoname());
 
-  std::string name;
+  SharedString name;
   uint64_t func_offset;
   ASSERT_FALSE(elf.GetFunctionName(0, &name, &func_offset));
 
@@ -138,8 +139,28 @@ TEST_F(ElfTest, elf_invalid) {
   EXPECT_EQ(ERROR_INVALID_ELF, elf.GetLastErrorCode());
 
   bool finished;
-  ASSERT_FALSE(elf.Step(0, nullptr, nullptr, &finished));
+  bool is_signal_frame;
+  ASSERT_FALSE(elf.Step(0, nullptr, nullptr, &finished, &is_signal_frame));
   EXPECT_EQ(ERROR_INVALID_ELF, elf.GetLastErrorCode());
+}
+
+TEST_F(ElfTest, elf_invalid_check_error_values) {
+  ElfFake elf(memory_);
+  elf.FakeSetValid(false);
+
+  EXPECT_EQ(ERROR_INVALID_ELF, elf.GetLastErrorCode());
+  EXPECT_EQ(0U, elf.GetLastErrorAddress());
+
+  ErrorData error = {};
+  elf.GetLastError(&error);
+  EXPECT_EQ(ERROR_INVALID_ELF, error.code);
+  EXPECT_EQ(0U, error.address);
+
+  error.code = ERROR_MEMORY_INVALID;
+  error.address = 0x100;
+  elf.GetLastError(&error);
+  EXPECT_EQ(ERROR_INVALID_ELF, error.code);
+  EXPECT_EQ(0U, error.address);
 }
 
 TEST_F(ElfTest, elf32_invalid_machine) {
@@ -324,10 +345,10 @@ class ElfInterfaceMock : public ElfInterface {
   bool Init(int64_t*) override { return false; }
   void InitHeaders() override {}
   std::string GetSoname() override { return ""; }
-  bool GetFunctionName(uint64_t, std::string*, uint64_t*) override { return false; }
+  bool GetFunctionName(uint64_t, SharedString*, uint64_t*) override { return false; }
   std::string GetBuildID() override { return ""; }
 
-  MOCK_METHOD(bool, Step, (uint64_t, Regs*, Memory*, bool*), (override));
+  MOCK_METHOD(bool, Step, (uint64_t, Regs*, Memory*, bool*, bool*), (override));
   MOCK_METHOD(bool, GetGlobalVariable, (const std::string&, uint64_t*), (override));
   MOCK_METHOD(bool, IsValidPc, (uint64_t), (override));
 
@@ -351,10 +372,11 @@ TEST_F(ElfTest, step_in_interface) {
   MemoryFake process_memory;
 
   bool finished;
-  EXPECT_CALL(*interface, Step(0x1000, &regs, &process_memory, &finished))
+  bool is_signal_frame;
+  EXPECT_CALL(*interface, Step(0x1000, &regs, &process_memory, &finished, &is_signal_frame))
       .WillOnce(::testing::Return(true));
 
-  ASSERT_TRUE(elf.Step(0x1000, &regs, &process_memory, &finished));
+  ASSERT_TRUE(elf.Step(0x1000, &regs, &process_memory, &finished, &is_signal_frame));
 }
 
 TEST_F(ElfTest, get_global_invalid_elf) {
@@ -438,6 +460,48 @@ TEST_F(ElfTest, get_global_vaddr_in_dynamic_section) {
   EXPECT_EQ(0xc080U, offset);
 }
 
+TEST_F(ElfTest, get_global_vaddr_with_tagged_pointer) {
+  ElfFake elf(memory_);
+  elf.FakeSetValid(true);
+  elf.FakeSetArch(ARCH_ARM64);
+
+  ElfInterfaceMock* interface = new ElfInterfaceMock(memory_);
+  elf.FakeSetInterface(interface);
+  interface->MockSetDataVaddrStart(0x500);
+  interface->MockSetDataVaddrEnd(0x600);
+  interface->MockSetDataOffset(0xa000);
+
+  std::string global("something");
+  EXPECT_CALL(*interface, GetGlobalVariable(global, ::testing::_))
+      .WillOnce(::testing::DoAll(::testing::SetArgPointee<1>(0x8800000000000580),
+                                 ::testing::Return(true)));
+
+  uint64_t offset;
+  ASSERT_TRUE(elf.GetGlobalVariableOffset(global, &offset));
+  EXPECT_EQ(0xa080U, offset);
+}
+
+TEST_F(ElfTest, get_global_vaddr_without_tagged_pointer) {
+  ElfFake elf(memory_);
+  elf.FakeSetValid(true);
+  elf.FakeSetArch(ARCH_X86_64);
+
+  ElfInterfaceMock* interface = new ElfInterfaceMock(memory_);
+  elf.FakeSetInterface(interface);
+  interface->MockSetDataVaddrStart(0x8800000000000500);
+  interface->MockSetDataVaddrEnd(0x8800000000000600);
+  interface->MockSetDataOffset(0x880000000000a000);
+
+  std::string global("something");
+  EXPECT_CALL(*interface, GetGlobalVariable(global, ::testing::_))
+      .WillOnce(::testing::DoAll(::testing::SetArgPointee<1>(0x8800000000000580),
+                                 ::testing::Return(true)));
+
+  uint64_t offset;
+  ASSERT_TRUE(elf.GetGlobalVariableOffset(global, &offset));
+  EXPECT_EQ(0x880000000000a080U, offset);
+}
+
 TEST_F(ElfTest, is_valid_pc_elf_invalid) {
   ElfFake elf(memory_);
   elf.FakeSetValid(false);
@@ -471,16 +535,6 @@ TEST_F(ElfTest, is_valid_pc_from_gnu_debugdata) {
   EXPECT_CALL(*gnu_interface, IsValidPc(0x1500)).WillOnce(::testing::Return(true));
 
   EXPECT_TRUE(elf.IsValidPc(0x1500));
-}
-
-TEST_F(ElfTest, error_code_not_valid) {
-  ElfFake elf(memory_);
-  elf.FakeSetValid(false);
-
-  ErrorData error{ERROR_MEMORY_INVALID, 0x100};
-  elf.GetLastError(&error);
-  EXPECT_EQ(ERROR_MEMORY_INVALID, error.code);
-  EXPECT_EQ(0x100U, error.address);
 }
 
 TEST_F(ElfTest, error_code_valid) {
