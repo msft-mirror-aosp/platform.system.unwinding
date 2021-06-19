@@ -52,11 +52,11 @@ bool Backtrace::Unwind(unwindstack::Regs* regs, BacktraceMap* back_map,
   unwinder.SetResolveNames(stack_map->ResolveNames());
   stack_map->SetArch(regs->Arch());
   if (stack_map->GetJitDebug() != nullptr) {
-    unwinder.SetJitDebug(stack_map->GetJitDebug(), regs->Arch());
+    unwinder.SetJitDebug(stack_map->GetJitDebug());
   }
 #if !defined(NO_LIBDEXFILE_SUPPORT)
   if (stack_map->GetDexFiles() != nullptr) {
-    unwinder.SetDexFiles(stack_map->GetDexFiles(), regs->Arch());
+    unwinder.SetDexFiles(stack_map->GetDexFiles());
   }
 #endif
   unwinder.Unwind(skip_names, &stack_map->GetSuffixesToIgnore());
@@ -93,6 +93,18 @@ bool Backtrace::Unwind(unwindstack::Regs* regs, BacktraceMap* back_map,
 
       case unwindstack::ERROR_INVALID_ELF:
         error->error_code = BACKTRACE_UNWIND_ERROR_INVALID_ELF;
+        break;
+
+      case unwindstack::ERROR_SYSTEM_CALL:
+        error->error_code = BACKTRACE_UNWIND_ERROR_INTERNAL;
+        break;
+
+      case unwindstack::ERROR_THREAD_DOES_NOT_EXIST:
+        error->error_code = BACKTRACE_UNWIND_ERROR_THREAD_DOESNT_EXIST;
+        break;
+
+      case unwindstack::ERROR_THREAD_TIMEOUT:
+        error->error_code = BACKTRACE_UNWIND_ERROR_THREAD_TIMEOUT;
         break;
     }
   }
@@ -180,5 +192,10 @@ bool UnwindStackPtrace::Unwind(size_t num_ignore_frames, void* context) {
 }
 
 size_t UnwindStackPtrace::Read(uint64_t addr, uint8_t* buffer, size_t bytes) {
+#if defined(__aarch64__)
+  // Tagged pointer after Android R would lead top byte to have random values
+  // https://source.android.com/devices/tech/debug/tagged-pointers
+  addr &= (1ULL << 56) - 1;
+#endif
   return memory_->Read(addr, buffer, bytes);
 }

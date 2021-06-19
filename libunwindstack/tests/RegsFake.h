@@ -54,8 +54,6 @@ class RegsFake : public Regs {
     return fake_arch_ == ARCH_ARM || fake_arch_ == ARCH_X86 || fake_arch_ == ARCH_MIPS;
   }
 
-  uint64_t GetPcAdjustment(uint64_t, Elf*) override { return 2; }
-
   bool StepIfSignalHandler(uint64_t, Elf*, Memory*) override { return false; }
 
   void FakeSetArch(ArchEnum arch) { fake_arch_ = arch; }
@@ -85,16 +83,33 @@ class RegsImplFake : public RegsImpl<TypeParam> {
   uint64_t sp() override { return fake_sp_; }
   void set_pc(uint64_t pc) override { fake_pc_ = pc; }
   void set_sp(uint64_t sp) override { fake_sp_ = sp; }
+  void set_pseudo_reg(uint64_t reg) { fake_pseudo_reg_ = reg; }
 
-  uint64_t GetPcAdjustment(uint64_t, Elf*) override { return 0; }
   bool SetPcFromReturnAddress(Memory*) override { return false; }
   bool StepIfSignalHandler(uint64_t, Elf*, Memory*) override { return false; }
+
+  bool SetPseudoRegister(uint16_t reg, uint64_t value) override {
+    if (fake_pseudo_reg_ != reg) {
+      return false;
+    }
+    fake_pseudo_reg_value_ = value;
+    return true;
+  }
+  bool GetPseudoRegister(uint16_t reg, uint64_t* value) override {
+    if (fake_pseudo_reg_ != reg) {
+      return false;
+    }
+    *value = fake_pseudo_reg_value_;
+    return true;
+  }
 
   Regs* Clone() override { return nullptr; }
 
  private:
   uint64_t fake_pc_ = 0;
   uint64_t fake_sp_ = 0;
+  uint16_t fake_pseudo_reg_ = 0;
+  uint64_t fake_pseudo_reg_value_ = 0;
 };
 
 }  // namespace unwindstack
