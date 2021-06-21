@@ -27,6 +27,7 @@
 
 #include <unwindstack/DwarfSection.h>
 #include <unwindstack/Error.h>
+#include <unwindstack/SharedString.h>
 
 namespace unwindstack {
 
@@ -47,6 +48,26 @@ enum : uint8_t {
   SONAME_INVALID,
 };
 
+struct ElfTypes32 {
+  using AddressType = uint32_t;
+  using Dyn = Elf32_Dyn;
+  using Ehdr = Elf32_Ehdr;
+  using Nhdr = Elf32_Nhdr;
+  using Phdr = Elf32_Phdr;
+  using Shdr = Elf32_Shdr;
+  using Sym = Elf32_Sym;
+};
+
+struct ElfTypes64 {
+  using AddressType = uint64_t;
+  using Dyn = Elf64_Dyn;
+  using Ehdr = Elf64_Ehdr;
+  using Nhdr = Elf64_Nhdr;
+  using Phdr = Elf64_Phdr;
+  using Shdr = Elf64_Shdr;
+  using Sym = Elf64_Sym;
+};
+
 class ElfInterface {
  public:
   ElfInterface(Memory* memory) : memory_(memory) {}
@@ -58,17 +79,20 @@ class ElfInterface {
 
   virtual std::string GetSoname() = 0;
 
-  virtual bool GetFunctionName(uint64_t addr, std::string* name, uint64_t* offset) = 0;
+  virtual bool GetFunctionName(uint64_t addr, SharedString* name, uint64_t* offset) = 0;
 
   virtual bool GetGlobalVariable(const std::string& name, uint64_t* memory_address) = 0;
 
   virtual std::string GetBuildID() = 0;
 
-  virtual bool Step(uint64_t rel_pc, Regs* regs, Memory* process_memory, bool* finished);
+  virtual bool Step(uint64_t rel_pc, Regs* regs, Memory* process_memory, bool* finished,
+                    bool* is_signal_frame);
 
   virtual bool IsValidPc(uint64_t pc);
 
-  Memory* CreateGnuDebugdataMemory();
+  bool GetTextRange(uint64_t* addr, uint64_t* size);
+
+  std::unique_ptr<Memory> CreateGnuDebugdataMemory();
 
   Memory* memory() { return memory_; }
 
@@ -110,34 +134,7 @@ class ElfInterface {
   static std::string ReadBuildIDFromMemory(Memory* memory);
 
  protected:
-  template <typename AddressType>
-  void InitHeadersWithTemplate();
-
-  template <typename EhdrType, typename PhdrType, typename ShdrType>
-  bool ReadAllHeaders(int64_t* load_bias);
-
-  template <typename EhdrType, typename PhdrType>
-  void ReadProgramHeaders(const EhdrType& ehdr, int64_t* load_bias);
-
-  template <typename EhdrType, typename ShdrType>
-  void ReadSectionHeaders(const EhdrType& ehdr);
-
-  template <typename DynType>
-  std::string GetSonameWithTemplate();
-
-  template <typename SymType>
-  bool GetFunctionNameWithTemplate(uint64_t addr, std::string* name, uint64_t* func_offset);
-
-  template <typename SymType>
-  bool GetGlobalVariableWithTemplate(const std::string& name, uint64_t* memory_address);
-
   virtual void HandleUnknownType(uint32_t, uint64_t, uint64_t) {}
-
-  template <typename EhdrType>
-  static void GetMaxSizeWithTemplate(Memory* memory, uint64_t* size);
-
-  template <typename NhdrType>
-  std::string ReadBuildID();
 
   Memory* memory_;
   std::unordered_map<uint64_t, LoadInfo> pt_loads_;
@@ -169,6 +166,9 @@ class ElfInterface {
   uint64_t gnu_build_id_offset_ = 0;
   uint64_t gnu_build_id_size_ = 0;
 
+  uint64_t text_addr_ = 0;
+  uint64_t text_size_ = 0;
+
   uint8_t soname_type_ = SONAME_UNKNOWN;
   std::string soname_;
 
@@ -183,61 +183,46 @@ class ElfInterface {
   std::vector<std::pair<uint64_t, uint64_t>> strtabs_;
 };
 
-class ElfInterface32 : public ElfInterface {
+template <typename ElfTypes>
+class ElfInterfaceImpl : public ElfInterface {
  public:
-  ElfInterface32(Memory* memory) : ElfInterface(memory) {}
-  virtual ~ElfInterface32() = default;
+  using AddressType = typename ElfTypes::AddressType;
+  using DynType = typename ElfTypes::Dyn;
+  using EhdrType = typename ElfTypes::Ehdr;
+  using NhdrType = typename ElfTypes::Nhdr;
+  using PhdrType = typename ElfTypes::Phdr;
+  using ShdrType = typename ElfTypes::Shdr;
+  using SymType = typename ElfTypes::Sym;
 
-  bool Init(int64_t* load_bias) override {
-    return ElfInterface::ReadAllHeaders<Elf32_Ehdr, Elf32_Phdr, Elf32_Shdr>(load_bias);
-  }
+  ElfInterfaceImpl(Memory* memory) : ElfInterface(memory) {}
+  virtual ~ElfInterfaceImpl() = default;
 
-  void InitHeaders() override { ElfInterface::InitHeadersWithTemplate<uint32_t>(); }
+  bool Init(int64_t* load_bias) override { return ReadAllHeaders(load_bias); }
 
-  std::string GetSoname() override { return ElfInterface::GetSonameWithTemplate<Elf32_Dyn>(); }
+  void InitHeaders() override;
 
-  bool GetFunctionName(uint64_t addr, std::string* name, uint64_t* func_offset) override {
-    return ElfInterface::GetFunctionNameWithTemplate<Elf32_Sym>(addr, name, func_offset);
-  }
+  std::string GetSoname() override;
 
-  bool GetGlobalVariable(const std::string& name, uint64_t* memory_address) override {
-    return ElfInterface::GetGlobalVariableWithTemplate<Elf32_Sym>(name, memory_address);
-  }
+  bool GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset) override;
 
-  std::string GetBuildID() override { return ElfInterface::ReadBuildID<Elf32_Nhdr>(); }
+  bool GetGlobalVariable(const std::string& name, uint64_t* memory_address) override;
 
-  static void GetMaxSize(Memory* memory, uint64_t* size) {
-    GetMaxSizeWithTemplate<Elf32_Ehdr>(memory, size);
-  }
+  std::string GetBuildID() override { return ReadBuildID(); }
+
+  static void GetMaxSize(Memory* memory, uint64_t* size);
+
+ protected:
+  bool ReadAllHeaders(int64_t* load_bias);
+
+  void ReadProgramHeaders(const EhdrType& ehdr, int64_t* load_bias);
+
+  void ReadSectionHeaders(const EhdrType& ehdr);
+
+  std::string ReadBuildID();
 };
 
-class ElfInterface64 : public ElfInterface {
- public:
-  ElfInterface64(Memory* memory) : ElfInterface(memory) {}
-  virtual ~ElfInterface64() = default;
-
-  bool Init(int64_t* load_bias) override {
-    return ElfInterface::ReadAllHeaders<Elf64_Ehdr, Elf64_Phdr, Elf64_Shdr>(load_bias);
-  }
-
-  void InitHeaders() override { ElfInterface::InitHeadersWithTemplate<uint64_t>(); }
-
-  std::string GetSoname() override { return ElfInterface::GetSonameWithTemplate<Elf64_Dyn>(); }
-
-  bool GetFunctionName(uint64_t addr, std::string* name, uint64_t* func_offset) override {
-    return ElfInterface::GetFunctionNameWithTemplate<Elf64_Sym>(addr, name, func_offset);
-  }
-
-  bool GetGlobalVariable(const std::string& name, uint64_t* memory_address) override {
-    return ElfInterface::GetGlobalVariableWithTemplate<Elf64_Sym>(name, memory_address);
-  }
-
-  std::string GetBuildID() override { return ElfInterface::ReadBuildID<Elf64_Nhdr>(); }
-
-  static void GetMaxSize(Memory* memory, uint64_t* size) {
-    GetMaxSizeWithTemplate<Elf64_Ehdr>(memory, size);
-  }
-};
+using ElfInterface32 = ElfInterfaceImpl<ElfTypes32>;
+using ElfInterface64 = ElfInterfaceImpl<ElfTypes64>;
 
 }  // namespace unwindstack
 
