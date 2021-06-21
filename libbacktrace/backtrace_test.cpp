@@ -1210,9 +1210,9 @@ static void CopySharedLibrary(const char* tmp_dir, std::string* tmp_so_name) {
   std::string test_lib(testing::internal::GetArgvs()[0]);
   auto const value = test_lib.find_last_of('/');
   if (value == std::string::npos) {
-    test_lib = "../backtrace_test_libs/";
+    test_lib = "./";
   } else {
-    test_lib = test_lib.substr(0, value + 1) + "../backtrace_test_libs/";
+    test_lib = test_lib.substr(0, value + 1) + "./";
   }
   test_lib += "libbacktrace_test.so";
 
@@ -1405,6 +1405,14 @@ static void VerifyUnreadableElfBacktrace(void* func) {
 typedef int (*test_func_t)(int, int, int, int, void (*)(void*), void*);
 
 TEST_F(BacktraceTest, unwind_through_unreadable_elf_local) {
+#if defined(__arm__)
+  // The exidx information does not include unwind information for the test
+  // library. The debug_frame is not findable because the symbol table
+  // that includes the ".debug_frame" name is also not in memory.
+  // So skip this test for arm.
+  GTEST_SKIP() << "Arm library does not contain unwind information in memory.";
+#endif
+
   TemporaryDir td;
   std::string tmp_so_name;
   ASSERT_NO_FATAL_FAILURE(CopySharedLibrary(td.path, &tmp_so_name));
@@ -1422,6 +1430,14 @@ TEST_F(BacktraceTest, unwind_through_unreadable_elf_local) {
 }
 
 TEST_F(BacktraceTest, unwind_through_unreadable_elf_remote) {
+#if defined(__arm__)
+  // The exidx information does not include unwind information for the test
+  // library. The debug_frame is not findable because the symbol table
+  // that includes the ".debug_frame" name is also not in memory.
+  // So skip this test for arm.
+  GTEST_SKIP() << "Arm library does not contain unwind information in memory.";
+#endif
+
   TemporaryDir td;
   std::string tmp_so_name;
   ASSERT_NO_FATAL_FAILURE(CopySharedLibrary(td.path, &tmp_so_name));
@@ -1584,7 +1600,7 @@ static void UnwindFromDevice(Backtrace* backtrace, void* device_map) {
   // Verify the flag is set.
   ASSERT_EQ(PROT_DEVICE_MAP, map.flags & PROT_DEVICE_MAP);
 
-  // Quick sanity checks.
+  // Quick basic checks of functionality.
   uint64_t offset;
   ASSERT_EQ(std::string(""), backtrace->GetFunctionName(device_map_uint, &offset));
   ASSERT_EQ(std::string(""), backtrace->GetFunctionName(device_map_uint, &offset, &map));
