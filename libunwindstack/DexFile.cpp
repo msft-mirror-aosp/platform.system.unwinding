@@ -32,95 +32,123 @@
 #include <unwindstack/Memory.h>
 
 #include "DexFile.h"
+#include "MemoryBuffer.h"
 
 namespace unwindstack {
 
+std::map<DexFile::MappedFileKey, std::weak_ptr<DexFile::DexFileApi>> DexFile::g_mapped_dex_files;
+std::mutex DexFile::g_lock;
+
 static bool CheckDexSupport() {
-  if (std::string err_msg; !art_api::dex::TryLoadLibdexfileExternal(&err_msg)) {
+  if (std::string err_msg; !art_api::dex::TryLoadLibdexfile(&err_msg)) {
     ALOGW("Failed to initialize DEX file support: %s", err_msg.c_str());
     return false;
   }
   return true;
 }
 
-static bool HasDexSupport() {
-  static bool has_dex_support = CheckDexSupport();
-  return has_dex_support;
+std::shared_ptr<DexFile> DexFile::CreateFromDisk(uint64_t addr, uint64_t size, MapInfo* map) {
+  if (map == nullptr || map->name().empty()) {
+    return nullptr;  // MapInfo not backed by file.
+  }
+  if (!(map->start() <= addr && addr < map->end())) {
+    return nullptr;  // addr is not in MapInfo range.
+  }
+  if (size > (map->end() - addr)) {
+    return nullptr;  // size is past the MapInfo end.
+  }
+  uint64_t offset_in_file = (addr - map->start()) + map->offset();
+
+  // Fast-path: Check if the dex file was already mapped from disk.
+  std::lock_guard<std::mutex> guard(g_lock);
+  MappedFileKey cache_key(map->name(), offset_in_file, size);
+  std::weak_ptr<DexFileApi>& cache_entry = g_mapped_dex_files[cache_key];
+  std::shared_ptr<DexFileApi> dex_api = cache_entry.lock();
+  if (dex_api != nullptr) {
+    return std::shared_ptr<DexFile>(new DexFile(addr, size, std::move(dex_api)));
+  }
+
+  // Load the file from disk and cache it.
+  std::unique_ptr<Memory> memory = Memory::CreateFileMemory(map->name(), offset_in_file, size);
+  if (memory == nullptr) {
+    return nullptr;  // failed to map the file.
+  }
+  std::unique_ptr<art_api::dex::DexFile> dex;
+  art_api::dex::DexFile::Create(memory->GetPtr(), size, nullptr, map->name().c_str(), &dex);
+  if (dex == nullptr) {
+    return nullptr;  // invalid DEX file.
+  }
+  dex_api.reset(new DexFileApi{std::move(dex), std::move(memory), std::mutex()});
+  cache_entry = dex_api;
+  return std::shared_ptr<DexFile>(new DexFile(addr, size, std::move(dex_api)));
 }
 
-std::unique_ptr<DexFile> DexFile::Create(uint64_t dex_file_offset_in_memory, Memory* memory,
+std::shared_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size, Memory* memory,
                                          MapInfo* info) {
-  if (!info->name.empty()) {
-    std::unique_ptr<DexFile> dex_file =
-        DexFileFromFile::Create(dex_file_offset_in_memory - info->start + info->offset, info->name);
-    if (dex_file) {
-      return dex_file;
-    }
+  static bool has_dex_support = CheckDexSupport();
+  if (!has_dex_support || file_size == 0) {
+    return nullptr;
   }
-  return DexFileFromMemory::Create(dex_file_offset_in_memory, memory, info->name);
+
+  // Do not try to open the DEX file if the file name ends with "(deleted)". It does not exist.
+  // This happens when an app is background-optimized by ART and all of its files are replaced.
+  // Furthermore, do NOT try to fallback to in-memory copy. It would work, but all apps tend to
+  // be background-optimized at the same time, so it would lead to excessive memory use during
+  // system-wide profiling (essentially copying all dex files for all apps: hundreds of MBs).
+  // This will cause missing symbols in the backtrace, however, that outcome is inevitable
+  // anyway, since we can not obtain mini-debug-info for the deleted .oat files.
+  const std::string_view filename(info != nullptr ? info->name() : "");
+  const std::string_view kDeleted("(deleted)");
+  if (filename.size() >= kDeleted.size() &&
+      filename.substr(filename.size() - kDeleted.size()) == kDeleted) {
+    return nullptr;
+  }
+
+  std::shared_ptr<DexFile> dex_file = CreateFromDisk(base_addr, file_size, info);
+  if (dex_file != nullptr) {
+    return dex_file;
+  }
+
+  // Fallback: make copy in local buffer.
+  std::unique_ptr<MemoryBuffer> copy(new MemoryBuffer);
+  if (!copy->Resize(file_size)) {
+    return nullptr;
+  }
+  if (!memory->ReadFully(base_addr, copy->GetPtr(0), file_size)) {
+    return nullptr;
+  }
+  std::unique_ptr<art_api::dex::DexFile> dex;
+  art_api::dex::DexFile::Create(copy->GetPtr(0), file_size, nullptr, "", &dex);
+  if (dex == nullptr) {
+    return nullptr;
+  }
+  std::shared_ptr<DexFileApi> api(new DexFileApi{std::move(dex), std::move(copy), std::mutex()});
+  return std::shared_ptr<DexFile>(new DexFile(base_addr, file_size, std::move(api)));
 }
 
-bool DexFile::GetMethodInformation(uint64_t dex_offset, std::string* method_name,
-                                   uint64_t* method_offset) {
-  art_api::dex::MethodInfo method_info = GetMethodInfoForOffset(dex_offset, false);
-  if (method_info.offset == 0) {
-    return false;
+bool DexFile::GetFunctionName(uint64_t dex_pc, SharedString* method_name, uint64_t* method_offset) {
+  uint64_t dex_offset = dex_pc - base_addr_;  // Convert absolute PC to file-relative offset.
+
+  // Lookup the function in the cache.
+  std::lock_guard<std::mutex> guard(dex_api_->lock_);  // Protect both the symbols and the C API.
+  auto it = symbols_.upper_bound(dex_offset);
+  if (it == symbols_.end() || dex_offset < it->second.offset) {
+    // Lookup the function in the underlying dex file.
+    size_t found = dex_api_->dex_->FindMethodAtOffset(dex_offset, [&](const auto& method) {
+      size_t code_size, name_size;
+      uint32_t offset = method.GetCodeOffset(&code_size);
+      const char* name = method.GetQualifiedName(/*with_params=*/false, &name_size);
+      it = symbols_.emplace(offset + code_size, Info{offset, std::string(name, name_size)}).first;
+    });
+    if (found == 0) {
+      return false;
+    }
   }
-  *method_name = method_info.name;
-  *method_offset = dex_offset - method_info.offset;
+
+  // Return the found function.
+  *method_offset = dex_offset - it->second.offset;
+  *method_name = it->second.name;
   return true;
-}
-
-std::unique_ptr<DexFileFromFile> DexFileFromFile::Create(uint64_t dex_file_offset_in_file,
-                                                         const std::string& file) {
-  if (UNLIKELY(!HasDexSupport())) {
-    return nullptr;
-  }
-
-  android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(file.c_str(), O_RDONLY | O_CLOEXEC)));
-  if (fd == -1) {
-    return nullptr;
-  }
-
-  std::string error_msg;
-  std::unique_ptr<art_api::dex::DexFile> art_dex_file =
-      OpenFromFd(fd, dex_file_offset_in_file, file, &error_msg);
-  if (art_dex_file == nullptr) {
-    return nullptr;
-  }
-
-  return std::unique_ptr<DexFileFromFile>(new DexFileFromFile(art_dex_file));
-}
-
-std::unique_ptr<DexFileFromMemory> DexFileFromMemory::Create(uint64_t dex_file_offset_in_memory,
-                                                             Memory* memory,
-                                                             const std::string& name) {
-  if (UNLIKELY(!HasDexSupport())) {
-    return nullptr;
-  }
-
-  std::vector<uint8_t> backing_memory;
-
-  for (size_t size = 0;;) {
-    std::string error_msg;
-    std::unique_ptr<art_api::dex::DexFile> art_dex_file =
-        OpenFromMemory(backing_memory.data(), &size, name, &error_msg);
-
-    if (art_dex_file != nullptr) {
-      return std::unique_ptr<DexFileFromMemory>(
-          new DexFileFromMemory(art_dex_file, std::move(backing_memory)));
-    }
-
-    if (!error_msg.empty()) {
-      return nullptr;
-    }
-
-    backing_memory.resize(size);
-    if (!memory->ReadFully(dex_file_offset_in_memory, backing_memory.data(),
-                           backing_memory.size())) {
-      return nullptr;
-    }
-  }
 }
 
 }  // namespace unwindstack
