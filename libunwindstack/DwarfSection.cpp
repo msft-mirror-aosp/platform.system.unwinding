@@ -21,6 +21,7 @@
 #include <unwindstack/DwarfMemory.h>
 #include <unwindstack/DwarfSection.h>
 #include <unwindstack/DwarfStructs.h>
+#include <unwindstack/Elf.h>
 #include <unwindstack/Log.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
@@ -36,7 +37,8 @@ namespace unwindstack {
 
 DwarfSection::DwarfSection(Memory* memory) : memory_(memory) {}
 
-bool DwarfSection::Step(uint64_t pc, Regs* regs, Memory* process_memory, bool* finished) {
+bool DwarfSection::Step(uint64_t pc, Regs* regs, Memory* process_memory, bool* finished,
+                        bool* is_signal_frame) {
   // Lookup the pc in the cache.
   auto it = loc_regs_.upper_bound(pc);
   if (it == loc_regs_.end() || pc < it->second.pc_start) {
@@ -48,8 +50,8 @@ bool DwarfSection::Step(uint64_t pc, Regs* regs, Memory* process_memory, bool* f
     }
 
     // Now get the location information for this pc.
-    dwarf_loc_regs_t loc_regs;
-    if (!GetCfaLocationInfo(pc, fde, &loc_regs)) {
+    DwarfLocations loc_regs;
+    if (!GetCfaLocationInfo(pc, fde, &loc_regs, regs->Arch())) {
       return false;
     }
     loc_regs.cie = fde->cie;
@@ -57,6 +59,8 @@ bool DwarfSection::Step(uint64_t pc, Regs* regs, Memory* process_memory, bool* f
     // Store it in the cache.
     it = loc_regs_.emplace(loc_regs.pc_end, std::move(loc_regs)).first;
   }
+
+  *is_signal_frame = it->second.cie->is_signal_frame;
 
   // Now eval the actual registers.
   return Eval(it->second.cie, process_memory, it->second, regs, finished);
@@ -240,6 +244,9 @@ bool DwarfSectionImpl<AddressType>::FillInCie(DwarfCie* cie) {
           return false;
         }
         break;
+      case 'S':
+        cie->is_signal_frame = true;
+        break;
     }
   }
   return true;
@@ -405,7 +412,7 @@ bool DwarfSectionImpl<AddressType>::EvalExpression(const DwarfLocation& loc, Mem
 
 template <typename AddressType>
 struct EvalInfo {
-  const dwarf_loc_regs_t* loc_regs;
+  const DwarfLocations* loc_regs;
   const DwarfCie* cie;
   Memory* regular_memory;
   AddressType cfa;
@@ -464,6 +471,9 @@ bool DwarfSectionImpl<AddressType>::EvalRegister(const DwarfLocation* loc, uint3
         eval_info->return_address_undefined = true;
       }
       break;
+    case DWARF_LOCATION_PSEUDO_REGISTER:
+      last_error_.code = DWARF_ERROR_ILLEGAL_VALUE;
+      return false;
     default:
       break;
   }
@@ -473,7 +483,7 @@ bool DwarfSectionImpl<AddressType>::EvalRegister(const DwarfLocation* loc, uint3
 
 template <typename AddressType>
 bool DwarfSectionImpl<AddressType>::Eval(const DwarfCie* cie, Memory* regular_memory,
-                                         const dwarf_loc_regs_t& loc_regs, Regs* regs,
+                                         const DwarfLocations& loc_regs, Regs* regs,
                                          bool* finished) {
   RegsImpl<AddressType>* cur_regs = reinterpret_cast<RegsImpl<AddressType>*>(regs);
   if (cie->return_address_register >= cur_regs->total_regs()) {
@@ -490,6 +500,10 @@ bool DwarfSectionImpl<AddressType>::Eval(const DwarfCie* cie, Memory* regular_me
 
   // Always set the dex pc to zero when evaluating.
   cur_regs->set_dex_pc(0);
+
+  // Reset necessary pseudo registers before evaluation.
+  // This is needed for ARM64, for example.
+  regs->ResetPseudoRegisters();
 
   EvalInfo<AddressType> eval_info{.loc_regs = &loc_regs,
                                   .cie = cie,
@@ -527,13 +541,19 @@ bool DwarfSectionImpl<AddressType>::Eval(const DwarfCie* cie, Memory* regular_me
 
     AddressType* reg_ptr;
     if (reg >= cur_regs->total_regs()) {
-      // Skip this unknown register.
-      continue;
-    }
-
-    reg_ptr = eval_info.regs_info.Save(reg);
-    if (!EvalRegister(&entry.second, reg, reg_ptr, &eval_info)) {
-      return false;
+      if (entry.second.type != DWARF_LOCATION_PSEUDO_REGISTER) {
+        // Skip this unknown register.
+        continue;
+      }
+      if (!eval_info.regs_info.regs->SetPseudoRegister(reg, entry.second.values[0])) {
+        last_error_.code = DWARF_ERROR_ILLEGAL_VALUE;
+        return false;
+      }
+    } else {
+      reg_ptr = eval_info.regs_info.Save(reg);
+      if (!EvalRegister(&entry.second, reg, reg_ptr, &eval_info)) {
+        return false;
+      }
     }
   }
 
@@ -544,8 +564,10 @@ bool DwarfSectionImpl<AddressType>::Eval(const DwarfCie* cie, Memory* regular_me
     cur_regs->set_pc((*cur_regs)[cie->return_address_register]);
   }
 
-  // If the pc was set to zero, consider this the final frame.
-  *finished = (cur_regs->pc() == 0) ? true : false;
+  // If the pc was set to zero, consider this the final frame. Exception: if
+  // this is the sigreturn frame, then we want to try to recover the real PC
+  // using the return address (from LR or the stack), so keep going.
+  *finished = (cur_regs->pc() == 0 && !cie->is_signal_frame) ? true : false;
 
   cur_regs->set_sp(eval_info.cfa);
 
@@ -554,8 +576,8 @@ bool DwarfSectionImpl<AddressType>::Eval(const DwarfCie* cie, Memory* regular_me
 
 template <typename AddressType>
 bool DwarfSectionImpl<AddressType>::GetCfaLocationInfo(uint64_t pc, const DwarfFde* fde,
-                                                       dwarf_loc_regs_t* loc_regs) {
-  DwarfCfa<AddressType> cfa(&memory_, fde);
+                                                       DwarfLocations* loc_regs, ArchEnum arch) {
+  DwarfCfa<AddressType> cfa(&memory_, fde, arch);
 
   // Look for the cached copy of the cie data.
   auto reg_entry = cie_loc_regs_.find(fde->cie_offset);
@@ -576,8 +598,9 @@ bool DwarfSectionImpl<AddressType>::GetCfaLocationInfo(uint64_t pc, const DwarfF
 }
 
 template <typename AddressType>
-bool DwarfSectionImpl<AddressType>::Log(uint8_t indent, uint64_t pc, const DwarfFde* fde) {
-  DwarfCfa<AddressType> cfa(&memory_, fde);
+bool DwarfSectionImpl<AddressType>::Log(uint8_t indent, uint64_t pc, const DwarfFde* fde,
+                                        ArchEnum arch) {
+  DwarfCfa<AddressType> cfa(&memory_, fde, arch);
 
   // Always print the cie information.
   const DwarfCie* cie = fde->cie;
@@ -596,7 +619,6 @@ template <typename AddressType>
 bool DwarfSectionImpl<AddressType>::Init(uint64_t offset, uint64_t size, int64_t section_bias) {
   section_bias_ = section_bias;
   entries_offset_ = offset;
-  next_entries_offset_ = offset;
   entries_end_ = offset + size;
 
   memory_.clear_func_offset();
@@ -607,38 +629,15 @@ bool DwarfSectionImpl<AddressType>::Init(uint64_t offset, uint64_t size, int64_t
   return true;
 }
 
-// Create a cached version of the fde information such that it is a std::map
-// that is indexed by end pc and contains a pair that represents the start pc
-// followed by the fde object. The fde pointers are owned by fde_entries_
-// and not by the map object.
-// It is possible for an fde to be represented by multiple entries in
-// the map. This can happen if the the start pc and end pc overlap already
-// existing entries. For example, if there is already an entry of 0x400, 0x200,
-// and an fde has a start pc of 0x100 and end pc of 0x500, two new entries
-// will be added: 0x200, 0x100 and 0x500, 0x400.
+// Read CIE or FDE entry at the given offset, and set the offset to the following entry.
+// The 'fde' argument is set only if we have seen an FDE entry.
 template <typename AddressType>
-void DwarfSectionImpl<AddressType>::InsertFde(const DwarfFde* fde) {
-  uint64_t start = fde->pc_start;
-  uint64_t end = fde->pc_end;
-  auto it = fdes_.upper_bound(start);
-  while (it != fdes_.end() && start < end && it->second.first < end) {
-    if (start < it->second.first) {
-      fdes_[it->second.first] = std::make_pair(start, fde);
-    }
-    start = it->first;
-    ++it;
-  }
-  if (start < end) {
-    fdes_[end] = std::make_pair(start, fde);
-  }
-}
-
-template <typename AddressType>
-bool DwarfSectionImpl<AddressType>::GetNextCieOrFde(const DwarfFde** fde_entry) {
-  uint64_t start_offset = next_entries_offset_;
+bool DwarfSectionImpl<AddressType>::GetNextCieOrFde(uint64_t& next_entries_offset,
+                                                    std::optional<DwarfFde>& fde_entry) {
+  const uint64_t start_offset = next_entries_offset;
 
   memory_.set_data_offset(entries_offset_);
-  memory_.set_cur_offset(next_entries_offset_);
+  memory_.set_cur_offset(next_entries_offset);
   uint32_t value32;
   if (!memory_.ReadBytes(&value32, sizeof(value32))) {
     last_error_.code = DWARF_ERROR_MEMORY_INVALID;
@@ -658,7 +657,7 @@ bool DwarfSectionImpl<AddressType>::GetNextCieOrFde(const DwarfFde** fde_entry) 
       return false;
     }
 
-    next_entries_offset_ = memory_.cur_offset() + value64;
+    next_entries_offset = memory_.cur_offset() + value64;
     // Read the Cie Id of a Cie or the pointer of the Fde.
     if (!memory_.ReadBytes(&value64, sizeof(value64))) {
       last_error_.code = DWARF_ERROR_MEMORY_INVALID;
@@ -673,7 +672,7 @@ bool DwarfSectionImpl<AddressType>::GetNextCieOrFde(const DwarfFde** fde_entry) 
       cie_offset = GetCieOffsetFromFde64(value64);
     }
   } else {
-    next_entries_offset_ = memory_.cur_offset() + value32;
+    next_entries_offset = memory_.cur_offset() + value32;
 
     // 32 bit Cie
     if (!memory_.ReadBytes(&value32, sizeof(value32))) {
@@ -695,7 +694,7 @@ bool DwarfSectionImpl<AddressType>::GetNextCieOrFde(const DwarfFde** fde_entry) 
     if (entry == cie_entries_.end()) {
       DwarfCie* cie = &cie_entries_[start_offset];
       cie->lsda_encoding = DW_EH_PE_omit;
-      cie->cfa_instructions_end = next_entries_offset_;
+      cie->cfa_instructions_end = next_entries_offset;
       cie->fde_address_encoding = cie_fde_encoding;
 
       if (!FillInCie(cie)) {
@@ -703,21 +702,13 @@ bool DwarfSectionImpl<AddressType>::GetNextCieOrFde(const DwarfFde** fde_entry) 
         return false;
       }
     }
-    *fde_entry = nullptr;
+    fde_entry.reset();
   } else {
-    auto entry = fde_entries_.find(start_offset);
-    if (entry != fde_entries_.end()) {
-      *fde_entry = &entry->second;
-    } else {
-      DwarfFde* fde = &fde_entries_[start_offset];
-      fde->cfa_instructions_end = next_entries_offset_;
-      fde->cie_offset = cie_offset;
-
-      if (!FillInFde(fde)) {
-        fde_entries_.erase(start_offset);
-        return false;
-      }
-      *fde_entry = fde;
+    fde_entry = DwarfFde{};
+    fde_entry->cfa_instructions_end = next_entries_offset;
+    fde_entry->cie_offset = cie_offset;
+    if (!FillInFde(&*fde_entry)) {
+      return false;
     }
   }
   return true;
@@ -725,71 +716,87 @@ bool DwarfSectionImpl<AddressType>::GetNextCieOrFde(const DwarfFde** fde_entry) 
 
 template <typename AddressType>
 void DwarfSectionImpl<AddressType>::GetFdes(std::vector<const DwarfFde*>* fdes) {
-  // Loop through the already cached entries.
-  uint64_t entry_offset = entries_offset_;
-  while (entry_offset < next_entries_offset_) {
-    auto cie_it = cie_entries_.find(entry_offset);
-    if (cie_it != cie_entries_.end()) {
-      entry_offset = cie_it->second.cfa_instructions_end;
-    } else {
-      auto fde_it = fde_entries_.find(entry_offset);
-      if (fde_it == fde_entries_.end()) {
-        // No fde or cie at this entry, should not be possible.
-        return;
-      }
-      entry_offset = fde_it->second.cfa_instructions_end;
-      fdes->push_back(&fde_it->second);
-    }
+  if (fde_index_.empty()) {
+    BuildFdeIndex();
   }
-
-  while (next_entries_offset_ < entries_end_) {
-    const DwarfFde* fde;
-    if (!GetNextCieOrFde(&fde)) {
-      break;
-    }
-    if (fde != nullptr) {
-      InsertFde(fde);
-      fdes->push_back(fde);
-    }
-
-    if (next_entries_offset_ < memory_.cur_offset()) {
-      // Simply consider the processing done in this case.
-      break;
-    }
+  for (auto& it : fde_index_) {
+    fdes->push_back(GetFdeFromOffset(it.second));
   }
 }
 
 template <typename AddressType>
 const DwarfFde* DwarfSectionImpl<AddressType>::GetFdeFromPc(uint64_t pc) {
-  // Search in the list of fdes we already have.
-  auto it = fdes_.upper_bound(pc);
-  if (it != fdes_.end()) {
-    if (pc >= it->second.first) {
-      return it->second.second;
-    }
+  // Ensure that the binary search table is initialized.
+  if (fde_index_.empty()) {
+    BuildFdeIndex();
   }
 
-  // The section might have overlapping pcs in fdes, so it is necessary
-  // to do a linear search of the fdes by pc. As fdes are read, a cached
-  // search map is created.
-  while (next_entries_offset_ < entries_end_) {
-    const DwarfFde* fde;
-    if (!GetNextCieOrFde(&fde)) {
-      return nullptr;
-    }
-    if (fde != nullptr) {
-      InsertFde(fde);
-      if (pc >= fde->pc_start && pc < fde->pc_end) {
-        return fde;
-      }
-    }
+  // Find the FDE offset in the binary search table.
+  auto comp = [](uint64_t pc, auto& entry) { return pc < entry.first; };
+  auto it = std::upper_bound(fde_index_.begin(), fde_index_.end(), pc, comp);
+  if (it == fde_index_.end()) {
+    return nullptr;
+  }
 
-    if (next_entries_offset_ < memory_.cur_offset()) {
-      // Simply consider the processing done in this case.
+  // Load the full FDE entry based on the offset.
+  const DwarfFde* fde = GetFdeFromOffset(/*fde_offset=*/it->second);
+  return fde != nullptr && fde->pc_start <= pc ? fde : nullptr;
+}
+
+// Create binary search table to make FDE lookups fast (sorted by pc_end).
+// We store only the FDE offset rather than the full entry to save memory.
+//
+// If there are overlapping entries, it inserts additional entries to ensure
+// that one of the overlapping entries is found (it is undefined which one).
+template <typename AddressType>
+void DwarfSectionImpl<AddressType>::BuildFdeIndex() {
+  struct FdeInfo {
+    uint64_t pc_start, pc_end, fde_offset;
+  };
+  std::vector<FdeInfo> fdes;
+  for (uint64_t offset = entries_offset_; offset < entries_end_;) {
+    const uint64_t initial_offset = offset;
+    std::optional<DwarfFde> fde;
+    if (!GetNextCieOrFde(offset, fde)) {
       break;
     }
+    if (fde.has_value() && /* defensive check */ (fde->pc_start < fde->pc_end)) {
+      fdes.push_back({fde->pc_start, fde->pc_end, initial_offset});
+    }
+    if (offset <= initial_offset) {
+      break;  // Jump back. Simply consider the processing done in this case.
+    }
   }
-  return nullptr;
+  std::sort(fdes.begin(), fdes.end(), [](const FdeInfo& a, const FdeInfo& b) {
+    return std::tie(a.pc_end, a.fde_offset) < std::tie(b.pc_end, b.fde_offset);
+  });
+
+  // If there are overlapping entries, ensure that we can always find one of them.
+  // For example, for entries:   [300, 350)  [400, 450)  [100, 550)  [600, 650)
+  // We add the following:  [100, 300)  [100, 400)
+  // Which ensures that the [100, 550) entry can be found in its whole range.
+  if (!fdes.empty()) {
+    FdeInfo filling = fdes.back();  // Entry with the minimal pc_start seen so far.
+    for (ssize_t i = fdes.size() - 1; i >= 0; i--) {  // Iterate backwards.
+      uint64_t prev_pc_end = (i > 0) ? fdes[i - 1].pc_end : 0;
+      // If there is a gap between entries and the filling reaches the gap, fill it.
+      if (prev_pc_end < fdes[i].pc_start && filling.pc_start < fdes[i].pc_start) {
+        fdes.push_back({filling.pc_start, fdes[i].pc_start, filling.fde_offset});
+      }
+      if (fdes[i].pc_start < filling.pc_start) {
+        filling = fdes[i];
+      }
+    }
+  }
+
+  // Copy data to the final binary search table (pc_end, fde_offset) and sort it.
+  fde_index_.reserve(fdes.size());
+  for (const FdeInfo& it : fdes) {
+    fde_index_.emplace_back(it.pc_end, it.fde_offset);
+  }
+  if (!std::is_sorted(fde_index_.begin(), fde_index_.end())) {
+    std::sort(fde_index_.begin(), fde_index_.end());
+  }
 }
 
 // Explicitly instantiate DwarfSectionImpl

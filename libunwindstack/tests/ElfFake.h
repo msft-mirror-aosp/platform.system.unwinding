@@ -27,6 +27,7 @@
 #include <unwindstack/ElfInterface.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
+#include <unwindstack/SharedString.h>
 
 #include "ElfInterfaceArm.h"
 
@@ -55,6 +56,8 @@ class ElfFake : public Elf {
 
   void FakeSetLoadBias(uint64_t load_bias) { load_bias_ = load_bias; }
 
+  void FakeSetArch(ArchEnum arch) { arch_ = arch; }
+
   void FakeSetInterface(ElfInterface* interface) { interface_.reset(interface); }
   void FakeSetGnuDebugdataInterface(ElfInterface* interface) {
     gnu_debugdata_interface_.reset(interface);
@@ -70,11 +73,11 @@ class ElfInterfaceFake : public ElfInterface {
   void InitHeaders() override {}
   std::string GetSoname() override { return fake_soname_; }
 
-  bool GetFunctionName(uint64_t, std::string*, uint64_t*) override;
+  bool GetFunctionName(uint64_t, SharedString*, uint64_t*) override;
   bool GetGlobalVariable(const std::string&, uint64_t*) override;
   std::string GetBuildID() override { return fake_build_id_; }
 
-  bool Step(uint64_t, Regs*, Memory*, bool*) override;
+  bool Step(uint64_t, Regs*, Memory*, bool*, bool*) override;
 
   void FakeSetGlobalVariable(const std::string& global, uint64_t offset) {
     globals_[global] = offset;
