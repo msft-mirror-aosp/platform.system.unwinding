@@ -51,42 +51,43 @@ cc_defaults {
     },
 }
 
+libunwindstack_common_src_files = [
+    "ArmExidx.cpp",
+    "DexFiles.cpp",
+    "DwarfCfa.cpp",
+    "DwarfEhFrameWithHdr.cpp",
+    "DwarfMemory.cpp",
+    "DwarfOp.cpp",
+    "DwarfSection.cpp",
+    "Elf.cpp",
+    "ElfInterface.cpp",
+    "ElfInterfaceArm.cpp",
+    "Global.cpp",
+    "JitDebug.cpp",
+    "MapInfo.cpp",
+    "Maps.cpp",
+    "Memory.cpp",
+    "MemoryMte.cpp",
+    "LocalUnwinder.cpp",
+    "Regs.cpp",
+    "RegsArm.cpp",
+    "RegsArm64.cpp",
+    "RegsX86.cpp",
+    "RegsX86_64.cpp",
+    "RegsMips.cpp",
+    "RegsMips64.cpp",
+    "Symbols.cpp",
+    "ThreadEntry.cpp",
+    "ThreadUnwinder.cpp",
+    "Unwinder.cpp",
+]
+
 cc_defaults {
     name: "libunwindstack_defaults",
     defaults: ["libunwindstack_flags"],
     export_include_dirs: ["include"],
 
-    srcs: [
-        "ArmExidx.cpp",
-        "DexFiles.cpp",
-        "DwarfCfa.cpp",
-        "DwarfEhFrameWithHdr.cpp",
-        "DwarfMemory.cpp",
-        "DwarfOp.cpp",
-        "DwarfSection.cpp",
-        "Elf.cpp",
-        "ElfInterface.cpp",
-        "ElfInterfaceArm.cpp",
-        "Global.cpp",
-        "JitDebug.cpp",
-        "Log.cpp",
-        "MapInfo.cpp",
-        "Maps.cpp",
-        "Memory.cpp",
-        "MemoryMte.cpp",
-        "LocalUnwinder.cpp",
-        "Regs.cpp",
-        "RegsArm.cpp",
-        "RegsArm64.cpp",
-        "RegsX86.cpp",
-        "RegsX86_64.cpp",
-        "RegsMips.cpp",
-        "RegsMips64.cpp",
-        "Symbols.cpp",
-        "ThreadEntry.cpp",
-        "ThreadUnwinder.cpp",
-        "Unwinder.cpp",
-    ],
+    srcs: libunwindstack_common_src_files,
 
     cflags: [
         "-Wexit-time-destructors",
@@ -140,7 +141,10 @@ cc_library {
         support_system_process: true,
     },
     defaults: ["libunwindstack_defaults"],
-    srcs: ["DexFile.cpp"],
+    srcs: [
+        "DexFile.cpp",
+        "LogAndroid.cpp",
+    ],
     cflags: ["-DDEXFILE_SUPPORT"],
     static_libs: ["libdexfile_support"],
 
@@ -185,6 +189,15 @@ cc_library {
     min_sdk_version: "29",
 }
 
+// Make sure that the code can be compiled without Android Logging.
+cc_library {
+    name: "libunwindstack_stdout_log",
+    defaults: ["libunwindstack_defaults"],
+    srcs: [
+        "LogStdout.cpp",
+    ],
+}
+
 // Static library without DEX support to avoid dependencies on the ART APEX.
 cc_library_static {
     name: "libunwindstack_no_dex",
@@ -192,6 +205,7 @@ cc_library_static {
     recovery_available: true,
     vendor_ramdisk_available: true,
     defaults: ["libunwindstack_defaults"],
+    srcs: ["LogAndroid.cpp"],
 
     visibility: [
         "//external/gwp_asan",
