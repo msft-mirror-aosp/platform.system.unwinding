@@ -32,45 +32,51 @@
 
 namespace unwindstack {
 
-static bool g_print_to_stdout = false;
-
-void log_to_stdout(bool enable) {
-  g_print_to_stdout = enable;
-}
+namespace Log {
 
 // Send the data to the log.
-void log(uint8_t indent, const char* format, ...) {
+static void LogWithPriority(int priority, uint8_t indent, const char* format, va_list args) {
   std::string real_format;
   if (indent > 0) {
     real_format = android::base::StringPrintf("%*s%s", 2 * indent, " ", format);
   } else {
     real_format = format;
   }
+  LOG_PRI_VA(priority, LOG_TAG, real_format.c_str(), args);
+}
+
+void Info(const char* format, ...) {
   va_list args;
   va_start(args, format);
-  if (g_print_to_stdout) {
-    real_format += '\n';
-    vprintf(real_format.c_str(), args);
-  } else {
-    LOG_PRI_VA(ANDROID_LOG_INFO, LOG_TAG, real_format.c_str(), args);
-  }
+  LogWithPriority(ANDROID_LOG_INFO, 0, format, args);
+  va_end(args);
+}
+
+void Info(uint8_t indent, const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+  LogWithPriority(ANDROID_LOG_INFO, indent, format, args);
+  va_end(args);
+}
+
+void Error(const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+  LogWithPriority(ANDROID_LOG_ERROR, 0, format, args);
   va_end(args);
 }
 
 #if defined(__BIONIC__)
-void log_async_safe(const char* format, ...) {
-  if (g_print_to_stdout) {
-    // Printing to stdout is never async safe, so throw the message away.
-    return;
-  }
-
+void AsyncSafe(const char* format, ...) {
   va_list args;
   va_start(args, format);
   async_safe_format_log_va_list(ANDROID_LOG_ERROR, "libunwindstack", format, args);
   va_end(args);
 }
 #else
-void log_async_safe(const char*, ...) {}
+void AsyncSafe(const char*, ...) {}
 #endif
+
+}  // namespace Log
 
 }  // namespace unwindstack
