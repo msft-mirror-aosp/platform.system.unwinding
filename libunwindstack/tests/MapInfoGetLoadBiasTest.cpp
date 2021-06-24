@@ -39,7 +39,7 @@
 
 #include "ElfFake.h"
 #include "ElfTestUtils.h"
-#include "MemoryFake.h"
+#include "utils/MemoryFake.h"
 
 namespace unwindstack {
 
@@ -69,7 +69,7 @@ TEST_F(MapInfoGetLoadBiasTest, no_elf_and_no_valid_elf_in_memory) {
 }
 
 TEST_F(MapInfoGetLoadBiasTest, load_bias_cached_from_elf) {
-  map_info_->elf.reset(elf_container_.release());
+  map_info_->set_elf(elf_container_.release());
 
   elf_->FakeSetLoadBias(0);
   EXPECT_EQ(0U, map_info_->GetLoadBias(process_memory_));
@@ -79,12 +79,12 @@ TEST_F(MapInfoGetLoadBiasTest, load_bias_cached_from_elf) {
 }
 
 TEST_F(MapInfoGetLoadBiasTest, elf_exists) {
-  map_info_->elf.reset(elf_container_.release());
+  map_info_->set_elf(elf_container_.release());
 
   elf_->FakeSetLoadBias(0);
   EXPECT_EQ(0U, map_info_->GetLoadBias(process_memory_));
 
-  map_info_->load_bias = INT64_MAX;
+  map_info_->set_load_bias(INT64_MAX);
   elf_->FakeSetLoadBias(0x1000);
   EXPECT_EQ(0x1000U, map_info_->GetLoadBias(process_memory_));
 }
@@ -122,7 +122,7 @@ void MapInfoGetLoadBiasTest::MultipleThreadTest(uint64_t expected_load_bias) {
 }
 
 TEST_F(MapInfoGetLoadBiasTest, multiple_thread_elf_exists) {
-  map_info_->elf.reset(elf_container_.release());
+  map_info_->set_elf(elf_container_.release());
   elf_->FakeSetLoadBias(0x1000);
 
   MultipleThreadTest(0x1000);
@@ -148,13 +148,13 @@ static void InitElfData(MemoryFake* memory, uint64_t offset) {
 }
 
 TEST_F(MapInfoGetLoadBiasTest, elf_exists_in_memory) {
-  InitElfData(memory_, map_info_->start);
+  InitElfData(memory_, map_info_->start());
 
   EXPECT_EQ(0xe000U, map_info_->GetLoadBias(process_memory_));
 }
 
 TEST_F(MapInfoGetLoadBiasTest, elf_exists_in_memory_cached) {
-  InitElfData(memory_, map_info_->start);
+  InitElfData(memory_, map_info_->start());
 
   EXPECT_EQ(0xe000U, map_info_->GetLoadBias(process_memory_));
 
@@ -163,7 +163,7 @@ TEST_F(MapInfoGetLoadBiasTest, elf_exists_in_memory_cached) {
 }
 
 TEST_F(MapInfoGetLoadBiasTest, multiple_thread_elf_exists_in_memory) {
-  InitElfData(memory_, map_info_->start);
+  InitElfData(memory_, map_info_->start());
 
   MultipleThreadTest(0xe000);
 }

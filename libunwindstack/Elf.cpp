@@ -22,11 +22,9 @@
 #include <string>
 #include <utility>
 
-#define LOG_TAG "unwind"
-#include <log/log.h>
-
 #include <unwindstack/Elf.h>
 #include <unwindstack/ElfInterface.h>
+#include <unwindstack/Log.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
@@ -101,8 +99,8 @@ std::string Elf::GetSoname() {
   return interface_->GetSoname();
 }
 
-uint64_t Elf::GetRelPc(uint64_t pc, const MapInfo* map_info) {
-  return pc - map_info->start + load_bias_ + map_info->elf_offset;
+uint64_t Elf::GetRelPc(uint64_t pc, MapInfo* map_info) {
+  return pc - map_info->start() + load_bias_ + map_info->elf_offset();
 }
 
 bool Elf::GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset) {
@@ -302,7 +300,7 @@ ElfInterface* Elf::CreateInterfaceFromMemory(Memory* memory) {
       interface.reset(new ElfInterface32(memory));
     } else {
       // Unsupported.
-      ALOGI("32 bit elf that is neither arm nor x86 nor mips: e_machine = %d\n", e_machine);
+      log(0, "32 bit elf that is neither arm nor x86 nor mips: e_machine = %d\n", e_machine);
       return nullptr;
     }
   } else if (class_type_ == ELFCLASS64) {
@@ -320,8 +318,8 @@ ElfInterface* Elf::CreateInterfaceFromMemory(Memory* memory) {
       arch_ = ARCH_MIPS64;
     } else {
       // Unsupported.
-      ALOGI("64 bit elf that is neither aarch64 nor x86_64 nor mips64: e_machine = %d\n",
-            e_machine);
+      log(0, "64 bit elf that is neither aarch64 nor x86_64 nor mips64: e_machine = %d\n",
+          e_machine);
       return nullptr;
     }
     interface.reset(new ElfInterface64(memory));
@@ -376,24 +374,24 @@ void Elf::CacheAdd(MapInfo* info) {
   // where each reference the entire boot.odex, the cache will properly
   // use the same cached elf object.
 
-  if (info->offset == 0 || info->elf_offset != 0) {
-    (*cache_)[info->name] = std::make_pair(info->elf, true);
+  if (info->offset() == 0 || info->elf_offset() != 0) {
+    (*cache_)[info->name()] = std::make_pair(info->elf(), true);
   }
 
-  if (info->offset != 0) {
+  if (info->offset() != 0) {
     // The second element in the pair indicates whether elf_offset should
     // be set to offset when getting out of the cache.
-    std::string key = std::string(info->name) + ':' + std::to_string(info->offset);
-    (*cache_)[key] = std::make_pair(info->elf, info->elf_offset != 0);
+    std::string key = std::string(info->name()) + ':' + std::to_string(info->offset());
+    (*cache_)[key] = std::make_pair(info->elf(), info->elf_offset() != 0);
   }
 }
 
 bool Elf::CacheAfterCreateMemory(MapInfo* info) {
-  if (info->name.empty() || info->offset == 0 || info->elf_offset == 0) {
+  if (info->name().empty() || info->offset() == 0 || info->elf_offset() == 0) {
     return false;
   }
 
-  auto entry = cache_->find(info->name);
+  auto entry = cache_->find(info->name());
   if (entry == cache_->end()) {
     return false;
   }
@@ -401,22 +399,22 @@ bool Elf::CacheAfterCreateMemory(MapInfo* info) {
   // In this case, the whole file is the elf, and the name has already
   // been cached. Add an entry at name:offset to get this directly out
   // of the cache next time.
-  info->elf = entry->second.first;
-  std::string key = std::string(info->name) + ':' + std::to_string(info->offset);
-  (*cache_)[key] = std::make_pair(info->elf, true);
+  info->set_elf(entry->second.first);
+  std::string key = std::string(info->name()) + ':' + std::to_string(info->offset());
+  (*cache_)[key] = std::make_pair(info->elf(), true);
   return true;
 }
 
 bool Elf::CacheGet(MapInfo* info) {
-  std::string name(info->name);
-  if (info->offset != 0) {
-    name += ':' + std::to_string(info->offset);
+  std::string name(info->name());
+  if (info->offset() != 0) {
+    name += ':' + std::to_string(info->offset());
   }
   auto entry = cache_->find(name);
   if (entry != cache_->end()) {
-    info->elf = entry->second.first;
+    info->set_elf(entry->second.first);
     if (entry->second.second) {
-      info->elf_offset = info->offset;
+      info->set_elf_offset(info->offset());
     }
     return true;
   }

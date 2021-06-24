@@ -29,8 +29,8 @@
 #include <unwindstack/RegsMips64.h>
 
 #include "ElfFake.h"
-#include "MemoryFake.h"
 #include "RegsFake.h"
+#include "utils/MemoryFake.h"
 
 namespace unwindstack {
 
@@ -171,7 +171,7 @@ TEST_F(RegsTest, rel_pc_arm) {
 TEST_F(RegsTest, elf_invalid) {
   MapInfo map_info(nullptr, nullptr, 0x1000, 0x2000, 0, 0, "");
   Elf* invalid_elf = new Elf(nullptr);
-  map_info.elf.reset(invalid_elf);
+  map_info.set_elf(invalid_elf);
 
   EXPECT_EQ(0x500U, invalid_elf->GetRelPc(0x1500, &map_info));
   EXPECT_EQ(2U, GetPcAdjustment(0x500U, invalid_elf, ARCH_ARM));
@@ -252,6 +252,14 @@ TEST_F(RegsTest, arm64_strip_pac_mask) {
   arm64.SetPseudoRegister(Arm64Reg::ARM64_PREG_RA_SIGN_STATE, 1);
   arm64.SetPACMask(0x007fff8000000000ULL);
   arm64.set_pc(0x0020007214bb3a04ULL);
+  EXPECT_EQ(0x0000007214bb3a04ULL, arm64.pc());
+}
+
+TEST_F(RegsTest, arm64_fallback_pc) {
+  RegsArm64 arm64;
+  arm64.SetPACMask(0x007fff8000000000ULL);
+  arm64.set_pc(0x0020007214bb3a04ULL);
+  arm64.fallback_pc();
   EXPECT_EQ(0x0000007214bb3a04ULL, arm64.pc());
 }
 

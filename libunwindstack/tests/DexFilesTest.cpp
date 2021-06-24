@@ -31,7 +31,7 @@
 #include "DexFile.h"
 #include "DexFileData.h"
 #include "ElfFake.h"
-#include "MemoryFake.h"
+#include "utils/MemoryFake.h"
 
 namespace unwindstack {
 
@@ -49,7 +49,7 @@ class DexFilesTest : public ::testing::Test {
     interface->FakeSetDataOffset(data_offset);
     interface->FakeSetDataVaddrStart(data_vaddr);
     interface->FakeSetDataVaddrEnd(data_vaddr + data_size);
-    map_info->elf.reset(elf);
+    map_info->set_elf(elf);
   }
 
   void Init(ArchEnum arch) {
@@ -279,11 +279,11 @@ TEST_F(DexFilesTest, get_method_information_search_libs) {
   EXPECT_EQ(0x124U, method_offset);
 
   MapInfo* map_info = maps_->Get(kMapGlobal);
-  map_info->name = "/system/lib/libart.so";
+  map_info->set_name("/system/lib/libart.so");
   dex_files_ = CreateDexFiles(ARCH_ARM, process_memory_, libs);
   // Set the rw map to the same name or this will not scan this entry.
   map_info = maps_->Get(kMapGlobalRw);
-  map_info->name = "/system/lib/libart.so";
+  map_info->set_name("/system/lib/libart.so");
   // Make sure that clearing out copy of the libs doesn't affect the
   // DexFiles object.
   libs.clear();
@@ -356,6 +356,23 @@ TEST_F(DexFilesTest, get_method_information_with_empty_map) {
   dex_files_->GetFunctionName(maps_.get(), 0x510100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
+}
+
+TEST_F(DexFilesTest, get_method_information_tagged_descriptor_entry_addr_arm64) {
+  Init(ARCH_ARM64);
+
+  SharedString method_name = "nothing";
+  uint64_t method_offset = 0x124;
+
+  // Descriptor-stored adddress (first_entry) with a tag in the top byte, which
+  // should be masked out.
+  WriteDescriptor64(0x100800, 0xb400'0000'0020'0000ull);
+  WriteEntry64(0x200000, 0, 0, 0x301000, sizeof(kDexData));
+  WriteDex(0x301000);
+
+  dex_files_->GetFunctionName(maps_.get(), 0x301102, &method_name, &method_offset);
+  EXPECT_EQ("Main.<init>", method_name);
+  EXPECT_EQ(2U, method_offset);
 }
 
 }  // namespace unwindstack

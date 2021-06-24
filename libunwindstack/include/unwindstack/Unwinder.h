@@ -174,6 +174,10 @@ class UnwinderFromPid : public Unwinder {
       : Unwinder(max_frames, arch, maps), pid_(pid) {}
   virtual ~UnwinderFromPid() = default;
 
+  void SetProcessMemory(std::shared_ptr<Memory>& process_memory) {
+    process_memory_ = process_memory;
+  }
+
   bool Init();
 
   void Unwind(const std::vector<std::string>* initial_map_names_to_skip = nullptr,

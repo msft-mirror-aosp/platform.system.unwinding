@@ -14,200 +14,29 @@
  * limitations under the License.
  */
 
-#include <inttypes.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/mman.h>
-#include <unistd.h>
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
-#include <android-base/file.h>
-
-#include <unwindstack/JitDebug.h>
-#include <unwindstack/MachineArm.h>
-#include <unwindstack/MachineArm64.h>
-#include <unwindstack/MachineX86.h>
-#include <unwindstack/MachineX86_64.h>
-#include <unwindstack/Maps.h>
-#include <unwindstack/RegsArm.h>
-#include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsX86.h>
-#include <unwindstack/RegsX86_64.h>
 #include <unwindstack/Unwinder.h>
 
-#include "ElfTestUtils.h"
-#include "MemoryOffline.h"
 #include "TestUtils.h"
+#include "utils/MemoryFake.h"
+#include "utils/OfflineUnwindUtils.h"
 
 namespace unwindstack {
 
-static void AddMemory(std::string file_name, MemoryOfflineParts* parts) {
-  MemoryOffline* memory = new MemoryOffline;
-  ASSERT_TRUE(memory->Init(file_name.c_str(), 0));
-  parts->Add(memory);
-}
-
-class UnwindOfflineTest : public ::testing::Test {
+class UnwindOfflineTest : public OfflineUnwindUtils, public ::testing::Test {
  protected:
-  void TearDown() override {
-    if (cwd_ != nullptr) {
-      ASSERT_EQ(0, chdir(cwd_));
-    }
-    free(cwd_);
-  }
-
-  void Init(const char* file_dir, ArchEnum arch, bool add_stack = true) {
-    dir_ = TestGetFileDirectory() + "offline/" + file_dir;
-
-    std::string data;
-    ASSERT_TRUE(android::base::ReadFileToString((dir_ + "maps.txt"), &data));
-
-    maps_.reset(new BufferMaps(data.c_str()));
-    ASSERT_TRUE(maps_->Parse());
-
-    if (add_stack) {
-      std::string stack_name(dir_ + "stack.data");
-      struct stat st;
-      if (stat(stack_name.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
-        std::unique_ptr<MemoryOffline> stack_memory(new MemoryOffline);
-        ASSERT_TRUE(stack_memory->Init((dir_ + "stack.data").c_str(), 0));
-        process_memory_.reset(stack_memory.release());
-      } else {
-        std::unique_ptr<MemoryOfflineParts> stack_memory(new MemoryOfflineParts);
-        for (size_t i = 0;; i++) {
-          stack_name = dir_ + "stack" + std::to_string(i) + ".data";
-          if (stat(stack_name.c_str(), &st) == -1 || !S_ISREG(st.st_mode)) {
-            ASSERT_TRUE(i != 0) << "No stack data files found.";
-            break;
-          }
-          AddMemory(stack_name, stack_memory.get());
-        }
-        process_memory_.reset(stack_memory.release());
-      }
-    }
-
-    switch (arch) {
-      case ARCH_ARM: {
-        RegsArm* regs = new RegsArm;
-        regs_.reset(regs);
-        ReadRegs<uint32_t>(regs, arm_regs_);
-        break;
-      }
-      case ARCH_ARM64: {
-        RegsArm64* regs = new RegsArm64;
-        regs_.reset(regs);
-        ReadRegs<uint64_t>(regs, arm64_regs_);
-        break;
-      }
-      case ARCH_X86: {
-        RegsX86* regs = new RegsX86;
-        regs_.reset(regs);
-        ReadRegs<uint32_t>(regs, x86_regs_);
-        break;
-      }
-      case ARCH_X86_64: {
-        RegsX86_64* regs = new RegsX86_64;
-        regs_.reset(regs);
-        ReadRegs<uint64_t>(regs, x86_64_regs_);
-        break;
-      }
-      default:
-        ASSERT_TRUE(false) << "Unknown arch " << std::to_string(arch);
-    }
-    cwd_ = getcwd(nullptr, 0);
-    // Make dir_ an absolute directory.
-    if (dir_.empty() || dir_[0] != '/') {
-      dir_ = std::string(cwd_) + '/' + dir_;
-    }
-    ASSERT_EQ(0, chdir(dir_.c_str()));
-  }
-
-  template <typename AddressType>
-  void ReadRegs(RegsImpl<AddressType>* regs,
-                const std::unordered_map<std::string, uint32_t>& name_to_reg) {
-    FILE* fp = fopen((dir_ + "regs.txt").c_str(), "r");
-    ASSERT_TRUE(fp != nullptr);
-    while (!feof(fp)) {
-      uint64_t value;
-      char reg_name[100];
-      ASSERT_EQ(2, fscanf(fp, "%s %" SCNx64 "\n", reg_name, &value));
-      std::string name(reg_name);
-      if (!name.empty()) {
-        // Remove the : from the end.
-        name.resize(name.size() - 1);
-      }
-      auto entry = name_to_reg.find(name);
-      ASSERT_TRUE(entry != name_to_reg.end()) << "Unknown register named " << name;
-      (*regs)[entry->second] = value;
-    }
-    fclose(fp);
-  }
-
-  static std::unordered_map<std::string, uint32_t> arm_regs_;
-  static std::unordered_map<std::string, uint32_t> arm64_regs_;
-  static std::unordered_map<std::string, uint32_t> x86_regs_;
-  static std::unordered_map<std::string, uint32_t> x86_64_regs_;
-
-  char* cwd_ = nullptr;
-  std::string dir_;
-  std::unique_ptr<Regs> regs_;
-  std::unique_ptr<Maps> maps_;
-  std::shared_ptr<Memory> process_memory_;
+  void TearDown() override { std::filesystem::current_path(cwd_); }
 };
-
-std::unordered_map<std::string, uint32_t> UnwindOfflineTest::arm_regs_ = {
-    {"r0", ARM_REG_R0},  {"r1", ARM_REG_R1}, {"r2", ARM_REG_R2},   {"r3", ARM_REG_R3},
-    {"r4", ARM_REG_R4},  {"r5", ARM_REG_R5}, {"r6", ARM_REG_R6},   {"r7", ARM_REG_R7},
-    {"r8", ARM_REG_R8},  {"r9", ARM_REG_R9}, {"r10", ARM_REG_R10}, {"r11", ARM_REG_R11},
-    {"ip", ARM_REG_R12}, {"sp", ARM_REG_SP}, {"lr", ARM_REG_LR},   {"pc", ARM_REG_PC},
-};
-
-std::unordered_map<std::string, uint32_t> UnwindOfflineTest::arm64_regs_ = {
-    {"x0", ARM64_REG_R0},      {"x1", ARM64_REG_R1},   {"x2", ARM64_REG_R2},
-    {"x3", ARM64_REG_R3},      {"x4", ARM64_REG_R4},   {"x5", ARM64_REG_R5},
-    {"x6", ARM64_REG_R6},      {"x7", ARM64_REG_R7},   {"x8", ARM64_REG_R8},
-    {"x9", ARM64_REG_R9},      {"x10", ARM64_REG_R10}, {"x11", ARM64_REG_R11},
-    {"x12", ARM64_REG_R12},    {"x13", ARM64_REG_R13}, {"x14", ARM64_REG_R14},
-    {"x15", ARM64_REG_R15},    {"x16", ARM64_REG_R16}, {"x17", ARM64_REG_R17},
-    {"x18", ARM64_REG_R18},    {"x19", ARM64_REG_R19}, {"x20", ARM64_REG_R20},
-    {"x21", ARM64_REG_R21},    {"x22", ARM64_REG_R22}, {"x23", ARM64_REG_R23},
-    {"x24", ARM64_REG_R24},    {"x25", ARM64_REG_R25}, {"x26", ARM64_REG_R26},
-    {"x27", ARM64_REG_R27},    {"x28", ARM64_REG_R28}, {"x29", ARM64_REG_R29},
-    {"sp", ARM64_REG_SP},      {"lr", ARM64_REG_LR},   {"pc", ARM64_REG_PC},
-    {"pst", ARM64_REG_PSTATE},
-};
-
-std::unordered_map<std::string, uint32_t> UnwindOfflineTest::x86_regs_ = {
-    {"eax", X86_REG_EAX}, {"ebx", X86_REG_EBX}, {"ecx", X86_REG_ECX},
-    {"edx", X86_REG_EDX}, {"ebp", X86_REG_EBP}, {"edi", X86_REG_EDI},
-    {"esi", X86_REG_ESI}, {"esp", X86_REG_ESP}, {"eip", X86_REG_EIP},
-};
-
-std::unordered_map<std::string, uint32_t> UnwindOfflineTest::x86_64_regs_ = {
-    {"rax", X86_64_REG_RAX}, {"rbx", X86_64_REG_RBX}, {"rcx", X86_64_REG_RCX},
-    {"rdx", X86_64_REG_RDX}, {"r8", X86_64_REG_R8},   {"r9", X86_64_REG_R9},
-    {"r10", X86_64_REG_R10}, {"r11", X86_64_REG_R11}, {"r12", X86_64_REG_R12},
-    {"r13", X86_64_REG_R13}, {"r14", X86_64_REG_R14}, {"r15", X86_64_REG_R15},
-    {"rdi", X86_64_REG_RDI}, {"rsi", X86_64_REG_RSI}, {"rbp", X86_64_REG_RBP},
-    {"rsp", X86_64_REG_RSP}, {"rip", X86_64_REG_RIP},
-};
-
-static std::string DumpFrames(Unwinder& unwinder) {
-  std::string str;
-  for (size_t i = 0; i < unwinder.NumFrames(); i++) {
-    str += unwinder.FormatFrame(i) + "\n";
-  }
-  return str;
-}
 
 TEST_F(UnwindOfflineTest, pc_straddle_arm) {
-  ASSERT_NO_FATAL_FAILURE(Init("straddle_arm/", ARCH_ARM));
+  std::string error_msg;
+  if (!Init("straddle_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
   std::unique_ptr<Regs> regs_copy(regs_->Clone());
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
@@ -248,7 +77,8 @@ TEST_F(UnwindOfflineTest, pc_straddle_arm) {
 }
 
 TEST_F(UnwindOfflineTest, pc_in_gnu_debugdata_arm) {
-  ASSERT_NO_FATAL_FAILURE(Init("gnu_debugdata_arm/", ARCH_ARM));
+  std::string error_msg;
+  if (!Init("gnu_debugdata_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -269,7 +99,8 @@ TEST_F(UnwindOfflineTest, pc_in_gnu_debugdata_arm) {
 }
 
 TEST_F(UnwindOfflineTest, pc_straddle_arm64) {
-  ASSERT_NO_FATAL_FAILURE(Init("straddle_arm64/", ARCH_ARM64));
+  std::string error_msg;
+  if (!Init("straddle_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -301,16 +132,10 @@ TEST_F(UnwindOfflineTest, pc_straddle_arm64) {
 }
 
 TEST_F(UnwindOfflineTest, jit_debug_x86) {
-  ASSERT_NO_FATAL_FAILURE(Init("jit_debug_x86/", ARCH_X86));
+  std::string error_msg;
+  if (!Init("jit_debug_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
 
-  MemoryOfflineParts* memory = new MemoryOfflineParts;
-  AddMemory(dir_ + "descriptor.data", memory);
-  AddMemory(dir_ + "stack.data", memory);
-  for (size_t i = 0; i < 7; i++) {
-    AddMemory(dir_ + "entry" + std::to_string(i) + ".data", memory);
-    AddMemory(dir_ + "jit" + std::to_string(i) + ".data", memory);
-  }
-  process_memory_.reset(memory);
+  if (!SetJitProcessMemory(error_msg)) FAIL() << error_msg;
 
   std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs_->Arch(), process_memory_);
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
@@ -602,17 +427,10 @@ TEST_F(UnwindOfflineTest, jit_debug_x86) {
 }
 
 TEST_F(UnwindOfflineTest, jit_debug_arm) {
-  ASSERT_NO_FATAL_FAILURE(Init("jit_debug_arm/", ARCH_ARM));
+  std::string error_msg;
+  if (!Init("jit_debug_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  MemoryOfflineParts* memory = new MemoryOfflineParts;
-  AddMemory(dir_ + "descriptor.data", memory);
-  AddMemory(dir_ + "descriptor1.data", memory);
-  AddMemory(dir_ + "stack.data", memory);
-  for (size_t i = 0; i < 7; i++) {
-    AddMemory(dir_ + "entry" + std::to_string(i) + ".data", memory);
-    AddMemory(dir_ + "jit" + std::to_string(i) + ".data", memory);
-  }
-  process_memory_.reset(memory);
+  if (!SetJitProcessMemory(error_msg)) FAIL() << error_msg;
 
   std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs_->Arch(), process_memory_);
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
@@ -946,17 +764,10 @@ static void OfflineUnwind(void* data) {
 }
 
 TEST_F(UnwindOfflineTest, unwind_offline_check_for_leaks) {
-  ASSERT_NO_FATAL_FAILURE(Init("jit_debug_arm/", ARCH_ARM));
+  std::string error_msg;
+  if (!Init("jit_debug_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  MemoryOfflineParts* memory = new MemoryOfflineParts;
-  AddMemory(dir_ + "descriptor.data", memory);
-  AddMemory(dir_ + "descriptor1.data", memory);
-  AddMemory(dir_ + "stack.data", memory);
-  for (size_t i = 0; i < 7; i++) {
-    AddMemory(dir_ + "entry" + std::to_string(i) + ".data", memory);
-    AddMemory(dir_ + "jit" + std::to_string(i) + ".data", memory);
-  }
-  process_memory_.reset(memory);
+  if (!SetJitProcessMemory(error_msg)) FAIL() << error_msg;
 
   LeakType data(maps_.get(), regs_.get(), process_memory_);
   TestCheckForLeaks(OfflineUnwind, &data);
@@ -966,7 +777,8 @@ TEST_F(UnwindOfflineTest, unwind_offline_check_for_leaks) {
 // fallback to iterating over the cies/fdes and ignore the eh_frame_hdr.
 // No .gnu_debugdata section in the elf file, so no symbols.
 TEST_F(UnwindOfflineTest, bad_eh_frame_hdr_arm64) {
-  ASSERT_NO_FATAL_FAILURE(Init("bad_eh_frame_hdr_arm64/", ARCH_ARM64));
+  std::string error_msg;
+  if (!Init("bad_eh_frame_hdr_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -995,7 +807,8 @@ TEST_F(UnwindOfflineTest, bad_eh_frame_hdr_arm64) {
 // The elf has bad eh_frame unwind information for the pcs. If eh_frame
 // is used first, the unwind will not match the expected output.
 TEST_F(UnwindOfflineTest, debug_frame_first_x86) {
-  ASSERT_NO_FATAL_FAILURE(Init("debug_frame_first_x86/", ARCH_X86));
+  std::string error_msg;
+  if (!Init("debug_frame_first_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1023,7 +836,8 @@ TEST_F(UnwindOfflineTest, debug_frame_first_x86) {
 
 // Make sure that a pc that is at the beginning of an fde unwinds correctly.
 TEST_F(UnwindOfflineTest, eh_frame_hdr_begin_x86_64) {
-  ASSERT_NO_FATAL_FAILURE(Init("eh_frame_hdr_begin_x86_64/", ARCH_X86_64));
+  std::string error_msg;
+  if (!Init("eh_frame_hdr_begin_x86_64/", ARCH_X86_64, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1050,16 +864,10 @@ TEST_F(UnwindOfflineTest, eh_frame_hdr_begin_x86_64) {
 }
 
 TEST_F(UnwindOfflineTest, art_quick_osr_stub_arm) {
-  ASSERT_NO_FATAL_FAILURE(Init("art_quick_osr_stub_arm/", ARCH_ARM));
+  std::string error_msg;
+  if (!Init("art_quick_osr_stub_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  MemoryOfflineParts* memory = new MemoryOfflineParts;
-  AddMemory(dir_ + "descriptor.data", memory);
-  AddMemory(dir_ + "stack.data", memory);
-  for (size_t i = 0; i < 2; i++) {
-    AddMemory(dir_ + "entry" + std::to_string(i) + ".data", memory);
-    AddMemory(dir_ + "jit" + std::to_string(i) + ".data", memory);
-  }
-  process_memory_.reset(memory);
+  if (!SetJitProcessMemory(error_msg)) FAIL() << error_msg;
 
   std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs_->Arch(), process_memory_);
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
@@ -1168,7 +976,8 @@ TEST_F(UnwindOfflineTest, art_quick_osr_stub_arm) {
 }
 
 TEST_F(UnwindOfflineTest, jit_map_arm) {
-  ASSERT_NO_FATAL_FAILURE(Init("jit_map_arm/", ARCH_ARM));
+  std::string error_msg;
+  if (!Init("jit_map_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
   maps_->Add(0xd025c788, 0xd025c9f0, 0, PROT_READ | PROT_EXEC | MAPS_FLAGS_JIT_SYMFILE_MAP,
              "jit_map0.so", 0);
@@ -1208,7 +1017,8 @@ TEST_F(UnwindOfflineTest, jit_map_arm) {
 }
 
 TEST_F(UnwindOfflineTest, offset_arm) {
-  ASSERT_NO_FATAL_FAILURE(Init("offset_arm/", ARCH_ARM));
+  std::string error_msg;
+  if (!Init("offset_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1284,7 +1094,8 @@ TEST_F(UnwindOfflineTest, offset_arm) {
 // Test using a non-zero load bias library that has the fde entries
 // encoded as 0xb, which is not set as pc relative.
 TEST_F(UnwindOfflineTest, debug_frame_load_bias_arm) {
-  ASSERT_NO_FATAL_FAILURE(Init("debug_frame_load_bias_arm/", ARCH_ARM));
+  std::string error_msg;
+  if (!Init("debug_frame_load_bias_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1321,7 +1132,8 @@ TEST_F(UnwindOfflineTest, debug_frame_load_bias_arm) {
 }
 
 TEST_F(UnwindOfflineTest, shared_lib_in_apk_arm64) {
-  ASSERT_NO_FATAL_FAILURE(Init("shared_lib_in_apk_arm64/", ARCH_ARM64));
+  std::string error_msg;
+  if (!Init("shared_lib_in_apk_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1358,10 +1170,11 @@ TEST_F(UnwindOfflineTest, shared_lib_in_apk_arm64) {
 }
 
 TEST_F(UnwindOfflineTest, shared_lib_in_apk_memory_only_arm64) {
-  ASSERT_NO_FATAL_FAILURE(Init("shared_lib_in_apk_memory_only_arm64/", ARCH_ARM64));
+  std::string error_msg;
+  if (!Init("shared_lib_in_apk_memory_only_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
   // Add the memory that represents the shared library.
   MemoryOfflineParts* memory = reinterpret_cast<MemoryOfflineParts*>(process_memory_.get());
-  AddMemory(dir_ + "lib_mem.data", memory);
+  if (!AddMemory(offline_dir_ + "lib_mem.data", memory, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1397,7 +1210,8 @@ TEST_F(UnwindOfflineTest, shared_lib_in_apk_memory_only_arm64) {
 }
 
 TEST_F(UnwindOfflineTest, shared_lib_in_apk_single_map_arm64) {
-  ASSERT_NO_FATAL_FAILURE(Init("shared_lib_in_apk_single_map_arm64/", ARCH_ARM64));
+  std::string error_msg;
+  if (!Init("shared_lib_in_apk_single_map_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1449,7 +1263,10 @@ TEST_F(UnwindOfflineTest, shared_lib_in_apk_single_map_arm64) {
 }
 
 TEST_F(UnwindOfflineTest, invalid_elf_offset_arm) {
-  ASSERT_NO_FATAL_FAILURE(Init("invalid_elf_offset_arm/", ARCH_ARM, false));
+  std::string error_msg;
+  if (!Init("invalid_elf_offset_arm/", ARCH_ARM, error_msg,
+            /*add_stack=*/false))
+    FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1462,7 +1279,8 @@ TEST_F(UnwindOfflineTest, invalid_elf_offset_arm) {
 }
 
 TEST_F(UnwindOfflineTest, load_bias_ro_rx_x86_64) {
-  ASSERT_NO_FATAL_FAILURE(Init("load_bias_ro_rx_x86_64/", ARCH_X86_64));
+  std::string error_msg;
+  if (!Init("load_bias_ro_rx_x86_64/", ARCH_X86_64, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1539,7 +1357,8 @@ TEST_F(UnwindOfflineTest, load_bias_ro_rx_x86_64) {
 }
 
 TEST_F(UnwindOfflineTest, load_bias_different_section_bias_arm64) {
-  ASSERT_NO_FATAL_FAILURE(Init("load_bias_different_section_bias_arm64/", ARCH_ARM64));
+  std::string error_msg;
+  if (!Init("load_bias_different_section_bias_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1588,7 +1407,8 @@ TEST_F(UnwindOfflineTest, load_bias_different_section_bias_arm64) {
 }
 
 TEST_F(UnwindOfflineTest, eh_frame_bias_x86) {
-  ASSERT_NO_FATAL_FAILURE(Init("eh_frame_bias_x86/", ARCH_X86));
+  std::string error_msg;
+  if (!Init("eh_frame_bias_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1634,7 +1454,8 @@ TEST_F(UnwindOfflineTest, eh_frame_bias_x86) {
 }
 
 TEST_F(UnwindOfflineTest, signal_load_bias_arm) {
-  ASSERT_NO_FATAL_FAILURE(Init("signal_load_bias_arm/", ARCH_ARM));
+  std::string error_msg;
+  if (!Init("signal_load_bias_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1702,7 +1523,8 @@ TEST_F(UnwindOfflineTest, signal_load_bias_arm) {
 }
 
 TEST_F(UnwindOfflineTest, empty_arm64) {
-  ASSERT_NO_FATAL_FAILURE(Init("empty_arm64/", ARCH_ARM64));
+  std::string error_msg;
+  if (!Init("empty_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1741,7 +1563,8 @@ TEST_F(UnwindOfflineTest, empty_arm64) {
 // that the signal handler match does not occur and it uses the
 // fde to do the unwind.
 TEST_F(UnwindOfflineTest, signal_fde_x86) {
-  ASSERT_NO_FATAL_FAILURE(Init("signal_fde_x86/", ARCH_X86));
+  std::string error_msg;
+  if (!Init("signal_fde_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1821,7 +1644,8 @@ TEST_F(UnwindOfflineTest, signal_fde_x86) {
 // that the signal handler match does not occur and it uses the
 // fde to do the unwind.
 TEST_F(UnwindOfflineTest, signal_fde_x86_64) {
-  ASSERT_NO_FATAL_FAILURE(Init("signal_fde_x86_64/", ARCH_X86_64));
+  std::string error_msg;
+  if (!Init("signal_fde_x86_64/", ARCH_X86_64, error_msg)) FAIL() << error_msg;
 
   Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
   unwinder.Unwind();
@@ -1889,6 +1713,101 @@ TEST_F(UnwindOfflineTest, signal_fde_x86_64) {
   EXPECT_EQ(0x7ffcaadde720U, unwinder.frames()[16].sp);
   EXPECT_EQ(0x707eb2c9c405U, unwinder.frames()[17].pc);
   EXPECT_EQ(0x7ffcaaddf870U, unwinder.frames()[17].sp);
+}
+
+TEST_F(UnwindOfflineTest, pauth_pc_arm64) {
+  std::string error_msg;
+  if (!Init("pauth_pc_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
+
+  static_cast<RegsArm64*>(regs_.get())->SetPACMask(0x007fff8000000000ULL);
+
+  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  unwinder.Unwind();
+
+  std::string frame_info(DumpFrames(unwinder));
+  ASSERT_EQ(26U, unwinder.NumFrames()) << "Unwind:\n" << frame_info;
+  EXPECT_EQ(
+      "  #00 pc 00000000000404a8  toybox (do_print+28)\n"
+      "  #01 pc 0000000000040270  toybox (do_find+5072)\n"
+      "  #02 pc 000000000002c640  toybox (dirtree_handle_callback+40)\n"
+      "  #03 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #04 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #05 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #06 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #07 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #08 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #09 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #10 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #11 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #12 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #13 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #14 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #15 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #16 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #17 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #18 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #19 pc 000000000002c588  toybox (dirtree_recurse+200)\n"
+      "  #20 pc 000000000002c6a8  toybox (dirtree_handle_callback+144)\n"
+      "  #21 pc 000000000003ee54  toybox (find_main+272)\n"
+      "  #22 pc 0000000000034834  toybox (toy_exec_which+88)\n"
+      "  #23 pc 00000000000342cc  toybox (toybox_main+148)\n"
+      "  #24 pc 00000000000348b4  toybox (main+120)\n"
+      "  #25 pc 00000000000499d8  libc.so "
+      "(__libc_init+112)\n",
+      frame_info);
+
+  EXPECT_EQ(0x5c390884a8U, unwinder.frames()[0].pc);
+  EXPECT_EQ(0x7ff3511750U, unwinder.frames()[0].sp);
+  EXPECT_EQ(0x5c39088270U, unwinder.frames()[1].pc);
+  EXPECT_EQ(0x7ff3511770U, unwinder.frames()[1].sp);
+  EXPECT_EQ(0x5c39074640U, unwinder.frames()[2].pc);
+  EXPECT_EQ(0x7ff3511930U, unwinder.frames()[2].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[3].pc);
+  EXPECT_EQ(0x7ff3511960U, unwinder.frames()[3].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[4].pc);
+  EXPECT_EQ(0x7ff35119a0U, unwinder.frames()[4].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[5].pc);
+  EXPECT_EQ(0x7ff35119d0U, unwinder.frames()[5].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[6].pc);
+  EXPECT_EQ(0x7ff3511a10U, unwinder.frames()[6].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[7].pc);
+  EXPECT_EQ(0x7ff3511a40U, unwinder.frames()[7].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[8].pc);
+  EXPECT_EQ(0x7ff3511a80U, unwinder.frames()[8].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[9].pc);
+  EXPECT_EQ(0x7ff3511ab0U, unwinder.frames()[9].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[10].pc);
+  EXPECT_EQ(0x7ff3511af0U, unwinder.frames()[10].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[11].pc);
+  EXPECT_EQ(0x7ff3511b20U, unwinder.frames()[11].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[12].pc);
+  EXPECT_EQ(0x7ff3511b60U, unwinder.frames()[12].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[13].pc);
+  EXPECT_EQ(0x7ff3511b90U, unwinder.frames()[13].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[14].pc);
+  EXPECT_EQ(0x7ff3511bd0U, unwinder.frames()[14].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[15].pc);
+  EXPECT_EQ(0x7ff3511c00U, unwinder.frames()[15].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[16].pc);
+  EXPECT_EQ(0x7ff3511c40U, unwinder.frames()[16].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[17].pc);
+  EXPECT_EQ(0x7ff3511c70U, unwinder.frames()[17].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[18].pc);
+  EXPECT_EQ(0x7ff3511cb0U, unwinder.frames()[18].sp);
+  EXPECT_EQ(0x5c39074588U, unwinder.frames()[19].pc);
+  EXPECT_EQ(0x7ff3511ce0U, unwinder.frames()[19].sp);
+  EXPECT_EQ(0x5c390746a8U, unwinder.frames()[20].pc);
+  EXPECT_EQ(0x7ff3511d20U, unwinder.frames()[20].sp);
+  EXPECT_EQ(0x5c39086e54U, unwinder.frames()[21].pc);
+  EXPECT_EQ(0x7ff3511d50U, unwinder.frames()[21].sp);
+  EXPECT_EQ(0x5c3907c834U, unwinder.frames()[22].pc);
+  EXPECT_EQ(0x7ff3511db0U, unwinder.frames()[22].sp);
+  EXPECT_EQ(0x5c3907c2ccU, unwinder.frames()[23].pc);
+  EXPECT_EQ(0x7ff3511dc0U, unwinder.frames()[23].sp);
+  EXPECT_EQ(0x5c3907c8b4U, unwinder.frames()[24].pc);
+  EXPECT_EQ(0x7ff3511e40U, unwinder.frames()[24].sp);
+  EXPECT_EQ(0x7e4ede29d8U, unwinder.frames()[25].pc);
+  EXPECT_EQ(0x7ff3511e70U, unwinder.frames()[25].sp);
 }
 
 }  // namespace unwindstack
