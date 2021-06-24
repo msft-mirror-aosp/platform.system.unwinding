@@ -39,7 +39,7 @@ std::mutex DexFile::g_lock;
 
 static bool CheckDexSupport() {
   if (std::string err_msg; !art_api::dex::TryLoadLibdexfile(&err_msg)) {
-    log(0, "Failed to initialize DEX file support: %s", err_msg.c_str());
+    Log::Error("Failed to initialize DEX file support: %s", err_msg.c_str());
     return false;
   }
   return true;
