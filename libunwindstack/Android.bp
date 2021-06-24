@@ -433,7 +433,7 @@ cc_defaults {
     defaults: ["libunwindstack_flags"],
 
     shared_libs: [
-        "libunwindstack",
+        "libunwindstack_stdout_log",
         "libbase",
         "liblzma",
     ],

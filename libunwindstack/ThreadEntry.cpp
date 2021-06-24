@@ -80,7 +80,7 @@ bool ThreadEntry::Wait(WaitType type) {
   if (wait_cond_.wait_for(lock, wait_time, [this, type] { return wait_value_ == type; })) {
     return true;
   } else {
-    log_async_safe("pthread_cond_timedwait for value %d failed", type);
+    Log::AsyncSafe("pthread_cond_timedwait for value %d failed", type);
     return false;
   }
 }
