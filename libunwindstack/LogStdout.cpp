@@ -26,11 +26,9 @@
 
 namespace unwindstack {
 
-// This code will always print to stdout.
-void log_to_stdout(bool) {}
+namespace Log {
 
-// Send the data to the log.
-void log(uint8_t indent, const char* format, ...) {
+static void PrintToStdout(uint8_t indent, const char* format, va_list args) {
   std::string real_format;
   if (indent > 0) {
     real_format = android::base::StringPrintf("%*s%s", 2 * indent, " ", format);
@@ -39,13 +37,33 @@ void log(uint8_t indent, const char* format, ...) {
   }
   real_format += '\n';
 
+  vprintf(real_format.c_str(), args);
+}
+
+void Info(const char* format, ...) {
   va_list args;
   va_start(args, format);
-  vprintf(real_format.c_str(), args);
+  PrintToStdout(0, format, args);
+  va_end(args);
+}
+
+void Info(uint8_t indent, const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+  PrintToStdout(indent, format, args);
+  va_end(args);
+}
+
+void Error(const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+  PrintToStdout(0, format, args);
   va_end(args);
 }
 
 // Do nothing for async safe.
-void log_async_safe(const char*, ...) {}
+void AsyncSafe(const char*, ...) {}
+
+}  // namespace Log
 
 }  // namespace unwindstack
