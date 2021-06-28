@@ -531,7 +531,7 @@ MemoryThreadCache::MemoryThreadCache(Memory* memory) : MemoryCacheBase(memory) {
         CacheDataType* cache = reinterpret_cast<CacheDataType*>(memory);
         delete cache;
       }) != 0) {
-    log_async_safe("Failed to create pthread key.");
+    Log::AsyncSafe("Failed to create pthread key.");
     thread_cache_.reset();
   }
 }
@@ -559,6 +559,10 @@ size_t MemoryThreadCache::CachedRead(uint64_t addr, void* dst, size_t size) {
 }
 
 void MemoryThreadCache::Clear() {
+  if (!thread_cache_) {
+    return;
+  }
+
   CacheDataType* cache = reinterpret_cast<CacheDataType*>(pthread_getspecific(*thread_cache_));
   if (cache != nullptr) {
     delete cache;
@@ -775,16 +779,16 @@ bool MemoryXz::Decompress(XzBlock* block) {
                       compressed_data.get(), &compressed_size, true, CODER_FINISH_END, &status);
   XzUnpacker_Free(&state);
   if (return_val != SZ_OK || status != CODER_STATUS_FINISHED_WITH_MARK) {
-    log(0, "Can not decompress \"%s\"", name_.c_str());
+    Log::Error("Cannot decompress \"%s\"", name_.c_str());
     return false;
   }
 
   used_ += block->decompressed_size;
   total_used_ += block->decompressed_size;
   if (kLogMemoryXzUsage) {
-    log(0, "decompressed memory: %zi%% of %ziKB (%zi files), %i%% of %iKB (%s)",
-        100 * total_used_ / total_size_, total_size_ / 1024, total_open_.load(),
-        100 * used_ / size_, size_ / 1024, name_.c_str());
+    Log::Info("decompressed memory: %zi%% of %ziKB (%zi files), %i%% of %iKB (%s)",
+              100 * total_used_ / total_size_, total_size_ / 1024, total_open_.load(),
+              100 * used_ / size_, size_ / 1024, name_.c_str());
   }
 
   block->decompressed_data = std::move(decompressed_data);
