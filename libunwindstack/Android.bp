@@ -68,6 +68,7 @@ libunwindstack_common_src_files = [
     "Maps.cpp",
     "Memory.cpp",
     "MemoryMte.cpp",
+    "MemoryXz.cpp",
     "LocalUnwinder.cpp",
     "Regs.cpp",
     "RegsArm.cpp",
