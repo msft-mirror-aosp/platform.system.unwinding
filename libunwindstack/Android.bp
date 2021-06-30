@@ -516,6 +516,7 @@ cc_benchmark {
         "benchmarks/remote_unwind_benchmarks.cpp",
         "benchmarks/thread_unwind_benchmarks.cpp",
         "benchmarks/OfflineUnwindBenchmarks.cpp",
+        "benchmarks/EvalBenchmark.cpp",
     ],
 
     data: [
