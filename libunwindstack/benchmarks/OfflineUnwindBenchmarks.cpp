@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <malloc.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -34,59 +32,10 @@ class OfflineUnwindBenchmark : public OfflineUnwindUtils, public benchmark::Fixt
  public:
   void TearDown(benchmark::State& state) override {
     std::filesystem::current_path(cwd_);
-    total_iterations_ += state.iterations();
-#if defined(__BIONIC__)
-    state.counters["MEAN_RSS_BYTES"] = total_rss_bytes_ / static_cast<double>(total_iterations_);
-    state.counters["MAX_RSS_BYTES"] = max_rss_bytes_;
-    state.counters["MIN_RSS_BYTES"] = min_rss_bytes_;
-#endif
-    state.counters["MEAN_ALLOCATED_BYTES"] =
-        total_alloc_bytes_ / static_cast<double>(total_iterations_);
-    state.counters["MAX_ALLOCATED_BYTES"] = max_alloc_bytes_;
-    state.counters["MIN_ALLOCATED_BYTES"] = min_alloc_bytes_;
+    mem_tracker_.SetBenchmarkCounters(state);
   }
-
  protected:
-  void StartTrackingAllocations() {
-#if defined(__BIONIC__)
-    mallopt(M_PURGE, 0);
-    rss_bytes_before_ = 0;
-    GatherRss(&rss_bytes_before_);
-#endif
-    alloc_bytes_before_ = mallinfo().uordblks;
-  }
-
-  void StopTrackingAllocations() {
-#if defined(__BIONIC__)
-    mallopt(M_PURGE, 0);
-#endif
-    uint64_t bytes_alloced = mallinfo().uordblks - alloc_bytes_before_;
-    total_alloc_bytes_ += bytes_alloced;
-    if (bytes_alloced > max_alloc_bytes_) max_alloc_bytes_ = bytes_alloced;
-    if (bytes_alloced < min_alloc_bytes_) min_alloc_bytes_ = bytes_alloced;
-#if defined(__BIONIC__)
-    uint64_t rss_bytes = 0;
-    GatherRss(&rss_bytes);
-    total_rss_bytes_ += rss_bytes - rss_bytes_before_;
-    if (rss_bytes > max_rss_bytes_) max_rss_bytes_ = rss_bytes;
-    if (rss_bytes < min_rss_bytes_) min_rss_bytes_ = rss_bytes;
-#endif
-  }
-
-#if defined(__BIONIC__)
-  uint64_t total_rss_bytes_ = 0;
-  uint64_t min_rss_bytes_ = 0;
-  uint64_t max_rss_bytes_ = 0;
-  uint64_t rss_bytes_before_;
-#endif
-  uint64_t total_alloc_bytes_ = 0;
-  uint64_t min_alloc_bytes_ = std::numeric_limits<uint64_t>::max();
-  uint64_t max_alloc_bytes_ = 0;
-  uint64_t alloc_bytes_before_;
-  // Benchmarks may run multiple times (the whole benchmark not just what is in the ranged based
-  // for loop) but this instance is not destructed and re-constructed each time. So this holds the
-  // total number of iterations of the ranged for loop across all runs of a single benchmark.
-  size_t total_iterations_ = 0;
+  MemoryTracker mem_tracker_;
 };
 
 static void VerifyFrames(const Unwinder unwinder, const std::string& expected_frame_info,
@@ -124,14 +73,14 @@ BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)(benchmark::State&
       return;
     }
 
-    StartTrackingAllocations();
+    mem_tracker_.StartTrackingAllocations();
     state.ResumeTiming();
 
     unwinder = Unwinder(128, maps_.get(), regs_copy.get(), process_memory_);
     unwinder.Unwind();
 
     state.PauseTiming();
-    StopTrackingAllocations();
+    mem_tracker_.StopTrackingAllocations();
     if (unwinder.NumFrames() != 6U) {
       err_stream << "Failed to unwind properly.Expected 6 frames, but unwinder contained "
                  << unwinder.NumFrames() << " frames.\n";
@@ -171,14 +120,14 @@ BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64_cached_maps)
     // the attributes of the regs object.
     std::unique_ptr<Regs> regs_copy(regs_->Clone());
 
-    StartTrackingAllocations();
+    mem_tracker_.StartTrackingAllocations();
     state.ResumeTiming();
 
     unwinder = Unwinder(128, maps_.get(), regs_copy.get(), process_memory_);
     unwinder.Unwind();
 
     state.PauseTiming();
-    StopTrackingAllocations();
+    mem_tracker_.StopTrackingAllocations();
     if (unwinder.NumFrames() != 6U) {
       err_stream << "Failed to unwind properly. Expected 6 frames, but unwinder contained "
                  << unwinder.NumFrames() << " frames.\n";
@@ -222,7 +171,7 @@ BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_jit_debug_x86)(benchmark::State& 
       return;
     }
 
-    StartTrackingAllocations();
+    mem_tracker_.StartTrackingAllocations();
     state.ResumeTiming();
 
     std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs_copy->Arch(), process_memory_);
@@ -231,7 +180,7 @@ BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_jit_debug_x86)(benchmark::State& 
     unwinder.Unwind();
 
     state.PauseTiming();
-    StopTrackingAllocations();
+    mem_tracker_.StopTrackingAllocations();
 
     if (unwinder.NumFrames() != 69U) {
       err_stream << "Failed to unwind properly. Expected 6 frames, but unwinder contained "
