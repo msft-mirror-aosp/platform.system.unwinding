@@ -39,8 +39,8 @@
 
 #include "ElfFake.h"
 #include "ElfTestUtils.h"
-#include "RegsFake.h"
 #include "utils/MemoryFake.h"
+#include "utils/RegsFake.h"
 
 namespace unwindstack {
 
