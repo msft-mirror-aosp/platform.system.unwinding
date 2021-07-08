@@ -111,5 +111,24 @@ BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_register_many_regs, uint64_t)(benchm
   RunBenchmark(state, loc_regs);
 }
 
+// Benchmarks exercising Eval with the DWARF_LOCATION_VAL_OFFSET evaluation method.
+BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_val_offset_few_regs, uint64_t)
+(benchmark::State& state) {
+  DwarfLocations loc_regs;
+  loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
+  loc_regs[kReturnAddressReg] = DwarfLocation{DWARF_LOCATION_VAL_OFFSET, {0x50000000, 0}};
+  RunBenchmark(state, loc_regs);
+}
+
+BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_val_offset_many_regs, uint64_t)
+(benchmark::State& state) {
+  DwarfLocations loc_regs;
+  loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
+  for (uint64_t i = 0; i < 64; i++) {
+    loc_regs[i] = DwarfLocation{DWARF_LOCATION_VAL_OFFSET, {i * 0x10000000, 0}};
+  }
+  RunBenchmark(state, loc_regs);
+}
+
 }  // namespace
 }  // namespace unwindstack
