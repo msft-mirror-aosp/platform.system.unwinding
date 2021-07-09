@@ -130,5 +130,30 @@ BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_val_offset_many_regs, uint64_t)
   RunBenchmark(state, loc_regs);
 }
 
+// Benchmarks exercising Eval with the DWARF_LOCATION_OFFSET evaluation method.
+BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_offset_few_regs, uint64_t)
+(benchmark::State& state) {
+  memory_.SetData64(0x20000000, 0x60000000);
+  DwarfLocations loc_regs;
+  loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
+  loc_regs[kReturnAddressReg] = DwarfLocation{DWARF_LOCATION_OFFSET, {0x10000000, 0}};
+  RunBenchmark(state, loc_regs);
+}
+
+BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_offset_many_regs, uint64_t)
+(benchmark::State& state) {
+  memory_.SetData64(0x20000000, 0x60000000);
+  memory_.SetData64(0x30000000, 0x10000000);
+  DwarfLocations loc_regs;
+  loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
+  for (uint64_t i = 1; i < 64; i++) {
+    loc_regs[i] = DwarfLocation{DWARF_LOCATION_OFFSET, {0x10000000, 0}};
+  }
+  // Read from different place in memory for reg 0 so reg 0 maintains value of 0x10000000
+  // across multiple calls to Eval.
+  loc_regs[0] = DwarfLocation{DWARF_LOCATION_OFFSET, {0x20000000, 0}};
+  RunBenchmark(state, loc_regs);
+}
+
 }  // namespace
 }  // namespace unwindstack
