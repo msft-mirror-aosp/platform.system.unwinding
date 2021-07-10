@@ -189,5 +189,31 @@ BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_expression_many_regs, uint64_t)
   RunBenchmark(state, loc_regs);
 }
 
+// Benchmarks exercising Eval with the DWARF_LOCATION_VAL_EXPRESSION evaluation method.
+// The dwarf op-code used for the value expression benchmarks are OP_const4u (see DwarfOp::Eval).
+BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_val_expression_few_regs, uint64_t)
+(benchmark::State& state) {
+  memory_.SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x60});
+  DwarfLocations loc_regs;
+  loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
+  loc_regs[kReturnAddressReg] = DwarfLocation{DWARF_LOCATION_VAL_EXPRESSION, {0x4, 0x5004}};
+  RunBenchmark(state, loc_regs);
+}
+
+BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_val_expression_many_regs, uint64_t)
+(benchmark::State& state) {
+  memory_.SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x60});
+  memory_.SetMemory(0x6000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x10});
+  DwarfLocations loc_regs;
+  loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
+  for (uint64_t i = 1; i < 64; i++) {
+    loc_regs[i] = DwarfLocation{DWARF_LOCATION_VAL_EXPRESSION, {0x4, 0x5004}};
+  }
+  // Read from different place in memory for reg 0 so reg 0 maintains value of 0x10000000
+  // across multiple calls to Eval.
+  loc_regs[0] = DwarfLocation{DWARF_LOCATION_VAL_EXPRESSION, {0x4, 0x6004}};
+  RunBenchmark(state, loc_regs);
+}
+
 }  // namespace
 }  // namespace unwindstack
