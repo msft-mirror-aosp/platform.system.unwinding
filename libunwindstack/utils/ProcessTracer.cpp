@@ -15,17 +15,31 @@
  */
 
 #include <errno.h>
-#include <signal.h>
+#include <fcntl.h>
 #include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <csignal>
+#include <cstddef>
 #include <cstdio>
+#include <cstring>
+#include <memory>
+#include <regex>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
+#include <unwindstack/MapInfo.h>
+#include <unwindstack/Maps.h>
+#include <unwindstack/Regs.h>
+#include <unwindstack/Unwinder.h>
+
+#include <android-base/file.h>
+#include <android-base/stringprintf.h>
 #include <procinfo/process.h>
 
 #include "ProcessTracer.h"
@@ -125,5 +139,74 @@ bool ProcessTracer::Attach(pid_t tid) {
 
   cur_attached_tid_ = tid;
   return true;
+}
+
+bool ProcessTracer::StopInDesiredElf(const std::string& elf_name) {
+  signal(SIGINT, [](int) { keepWaitingForPcInElf = false; });
+  bool pc_in_desired_elf = true;
+  do {
+    if (!Attach(pid_)) return false;
+    pc_in_desired_elf = ProcIsInDesiredElf(pid_, elf_name);
+    if (!Detach(pid_)) return false;
+
+    if (!pc_in_desired_elf) {
+      for (pid_t tid : tids_) {
+        if (!Attach(tid)) return false;
+        pc_in_desired_elf = ProcIsInDesiredElf(tid, elf_name);
+        if (!Detach(tid)) return false;
+        if (pc_in_desired_elf) break;
+      }
+    }
+
+    // If the process is not in the desired ELF, resume it for a short time, then check again.
+    if (!pc_in_desired_elf) {
+      Resume();
+      usleep(1000);  // 1 ms
+      Stop();
+    }
+  } while (!pc_in_desired_elf && keepWaitingForPcInElf);
+
+  if (!pc_in_desired_elf) {
+    fprintf(stderr, "\nExited while waiting for pid %d to enter %s.\n", pid_, elf_name.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ProcessTracer::UsesSharedLibrary(pid_t pid, const std::string& desired_elf_name) {
+  std::unique_ptr<Maps> maps = std::make_unique<RemoteMaps>(pid);
+  if (!maps->Parse()) {
+    fprintf(stderr, "Could not parse maps for pid %d.\n", pid);
+    return false;
+  }
+  for (const auto& map : *maps) {
+    if (basename(map->name().c_str()) == desired_elf_name) return true;
+  }
+  return false;
+}
+
+bool ProcessTracer::ProcIsInDesiredElf(pid_t pid, const std::string& desired_elf_name) {
+  std::unique_ptr<Regs> regs(Regs::RemoteGet(pid));
+  if (regs == nullptr) {
+    fprintf(stderr, "Unable to get remote reg data.\n");
+    return false;
+  }
+  UnwinderFromPid unwinder(1024, pid);
+  unwinder.SetRegs(regs.get());
+  if (!unwinder.Init()) {
+    fprintf(stderr, "Unable to intitialize unwinder.\n");
+    return false;
+  }
+  Maps* maps = unwinder.GetMaps();
+  MapInfo* map_info = maps->Find(regs->pc());
+  if (map_info == nullptr) {
+    regs->fallback_pc();
+    map_info = maps->Find(regs->pc());
+  }
+  const std::string& current_elf_name = basename(map_info->name().c_str());
+
+  bool in_desired_elf = map_info != nullptr && current_elf_name == desired_elf_name;
+  if (in_desired_elf) printf("pid %d is in %s! Unwinding...\n\n", pid, desired_elf_name.c_str());
+  return in_desired_elf;
 }
 }  // namespace unwindstack

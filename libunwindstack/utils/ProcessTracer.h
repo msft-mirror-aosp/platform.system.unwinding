@@ -55,6 +55,21 @@ class ProcessTracer final {
 
   bool Attach(pid_t tid);
 
+  // This method for determining whether a thread is currently executing instructions from a
+  // desired ELF is not the most time efficient solution. In the interest of simplicity and
+  // limiting memory usage, the UnwinderFromPid, Regs, and Maps instances constructed for
+  // in each check (loop iteration) are thrown away.
+  //
+  // A SIGINT signal handler is set up to allow the user to gracefully exit with CTRL-C if they
+  // decide that they no longer want to wait for the process to enter the desired ELF.
+  bool StopInDesiredElf(const std::string& elf_name);
+
+  // `desired_elf_name` should match the filename of the path (the component following the final
+  // '/') corresponding to the shared library as indicated in /proc/pid/maps.
+  static bool UsesSharedLibrary(pid_t pid, const std::string& desired_elf_name);
+
+  static bool ProcIsInDesiredElf(pid_t tid, const std::string& desired_elf_name);
+
  private:
   // Initialize tids_ such that the main thread is the first element and
   // the remaining tids are in order from least to greatest.
@@ -64,6 +79,7 @@ class ProcessTracer final {
   static constexpr pid_t kKillFailed = -1;
   static constexpr pid_t kPtraceFailed = -1;
   static constexpr pid_t kWaitpidFailed = -1;
+  static inline std::atomic_bool keepWaitingForPcInElf = true;
   const pid_t pid_;
   bool is_tracing_threads_ = false;
   std::set<pid_t> tids_;

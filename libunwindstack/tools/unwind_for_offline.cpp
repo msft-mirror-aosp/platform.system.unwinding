@@ -53,9 +53,29 @@ struct map_info_t {
 };
 
 int usage(int exit_code) {
-  fprintf(stderr, "usage: unwind_for_offline [-t] <PID>\n\n");
-  fprintf(stderr, "-t, --threads   dump offline snapshot for all threads of <PID>\n");
+  fprintf(stderr, "USAGE: unwind_for_offline [-t] [-e FILE] <PID>\n\n");
+  fprintf(stderr, "OPTIONS:\n");
+  fprintf(stderr, "-t\n");
+  fprintf(stderr, "       Dump offline snapshot for all threads of <PID>\n");
+  fprintf(stderr, "-e FILE\n");
+  fprintf(stderr, "       If FILE is a valid ELF file included in /proc/<PID>/maps,\n");
+  fprintf(stderr, "       unwind_for_offline will wait until the current frame (PC)\n");
+  fprintf(stderr, "       lies within the .so file given by FILE. FILE should be\n");
+  fprintf(stderr, "       base name of the path (the component following the final\n");
+  fprintf(stderr, "       '/') rather than the fully qualified path.\n");
   return exit_code;
+}
+
+bool EnsureProcInDesiredElf(const std::string& elf_name, unwindstack::ProcessTracer& proc) {
+  if (proc.UsesSharedLibrary(proc.pid(), elf_name)) {
+    printf("Confirmed pid %d does use %s. Waiting for PC to lie within %s...\n", proc.pid(),
+           elf_name.c_str(), elf_name.c_str());
+    if (!proc.StopInDesiredElf(elf_name)) return false;
+  } else {
+    fprintf(stderr, "Process %d does not use library %s.\n", proc.pid(), elf_name.c_str());
+    return false;
+  }
+  return true;
 }
 
 bool CreateAndChangeDumpDir(std::filesystem::path thread_dir, pid_t tid, bool is_main_thread) {
@@ -337,12 +357,17 @@ bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread) 
 int main(int argc, char** argv) {
   if (argc < 2) return usage(EXIT_FAILURE);
 
+  std::string elf_name;
   int opt;
   bool dump_threads = false;
-  while ((opt = getopt(argc, argv, "t")) != kAllCmdOptionsParsed) {
+  while ((opt = getopt(argc, argv, ":te:")) != kAllCmdOptionsParsed) {
     switch (opt) {
       case 't': {
         dump_threads = true;
+        break;
+      }
+      case 'e': {
+        elf_name = optarg;
         break;
       }
       case '?': {
@@ -350,6 +375,10 @@ int main(int argc, char** argv) {
           fprintf(stderr, "Unknown option `-%c'.\n", optopt);
         else
           fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
+        return usage(EXIT_FAILURE);
+      }
+      case ':': {
+        fprintf(stderr, "Missing arg for option %c.\n", optopt);
         return usage(EXIT_FAILURE);
       }
       default: {
@@ -365,6 +394,9 @@ int main(int argc, char** argv) {
 
   unwindstack::ProcessTracer proc(pid, dump_threads);
   if (!proc.Stop()) return EXIT_FAILURE;
+  if (!elf_name.empty()) {
+    if (!EnsureProcInDesiredElf(elf_name, proc)) return EXIT_FAILURE;
+  }
   std::filesystem::path cwd = std::filesystem::current_path();
 
   if (!proc.Attach(proc.pid())) return EXIT_FAILURE;
