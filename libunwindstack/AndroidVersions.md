@@ -6,8 +6,8 @@ meant to allow an app developer to know what might be supported
 on different versions. It also describes the different way an unwind
 will display on different versions of Android.
 
-## Android P
-libunwindstack was first introduced in Android P.
+## Android 9 ("Pie", API level 28)
+libunwindstack was first introduced in API level 28.
 
 * Supports up to and including Dwarf 4 unwinding information.
   See http://dwarfstd.org/ for Dwarf standards.
@@ -22,16 +22,16 @@ libunwindstack was first introduced in Android P.
 By default, lld creates two separate maps of the elf in memory, one read-only
 and one read/executable. The libunwindstack on P and the unwinder on older
 versions of Android will not unwind properly in this case. For apps that
-target Android P or older, make sure that `-Wl,--no-rosegment` is
+target API level 28 or older, make sure that `-Wl,--no-rosegment` is
 included in linker arguments when using lld.
 
-## Android Q
+## Android 10 ("Q", API level 29)
 * Fix bug (b/109824792) that handled load bias data incorrectly when
   FDEs use pc relative addressing in the eh\_frame\_hdr.
   Unfortunately, this wasn't fixed correctly in Q since it assumes
   that the bias is coming from the program header for the executable
   load. The real fix was to use the bias from the actual section data and
-  is not completely fixed until Android R. For apps targeting Android Q,
+  is not completely fixed until API level 30. For apps targeting API level 29,
   if it is being compiled with the llvm linker lld, it might be necessary
   to add the linker option `-Wl,-zseparate-code` to avoid creating an elf
   created this way.
@@ -50,8 +50,8 @@ included in linker arguments when using lld.
   without an eh\_frame/eh\_frame\_hdr section and only a debug\_frame. The
   other way this has been observed is when running simpleperf to unwind since
   sometimes there is not enough information in the eh\_frame for all points
-  in the executable. On Android P, this would result in some incorrect
-  unwinds coming from simpleperf. Nearly all crashes from Android P should
+  in the executable. On API level 28, this would result in some incorrect
+  unwinds coming from simpleperf. Nearly all crashes from API level 28 should
   be correct since the eh\_frame information was enough to do the unwind
   properly.
 * Be permissive of badly formed elf files. Previously, any detected error
@@ -85,13 +85,13 @@ included in linker arguments when using lld.
 * Fix bug in pc handling of signal frames (b/130302288). In the previous
   version, the pc would be wrong in the signal frame. The rest of the
   unwind was correct, only the frame in the signal handler was incorrect
-  in Android P.
+  in API level 28.
 * Detect when an elf file is not readable so that a message can be
   displayed indicating that. This can happen when an app puts the shared
   libraries in non-standard locations that are not readable due to
   security restrictions (selinux rules).
 
-## Android R
+## Android 11 ("R", API level 30)
 * Display the offsets for Java interpreter frames. If this frame came
   from a non-zero offset map, no offset is printed. Previously, the
   line would look like:

@@ -54,8 +54,8 @@ static DwarfLocationEnum GetReturnAddressLocation(uint64_t rel_pc, DwarfSection*
   if (fde == nullptr || fde->cie == nullptr) {
     return DWARF_LOCATION_INVALID;
   }
-  dwarf_loc_regs_t regs;
-  if (!section->GetCfaLocationInfo(rel_pc, fde, &regs)) {
+  DwarfLocations regs;
+  if (!section->GetCfaLocationInfo(rel_pc, fde, &regs, ARCH_UNKNOWN)) {
     return DWARF_LOCATION_INVALID;
   }
 
@@ -70,8 +70,8 @@ static void VerifyReturnAddress(const FrameData& frame) {
   // Now go and find information about the register data and verify that the relative pc results in
   // an undefined register.
   Elf elf(Memory::CreateFileMemory(frame.map_name, 0).release());
-  ASSERT_TRUE(elf.Init()) << "Failed to init elf object from " << frame.map_name;
-  ASSERT_TRUE(elf.valid()) << "Elf " << frame.map_name << " is not valid.";
+  ASSERT_TRUE(elf.Init()) << "Failed to init elf object from " << frame.map_name.c_str();
+  ASSERT_TRUE(elf.valid()) << "Elf " << frame.map_name.c_str() << " is not valid.";
   ElfInterface* interface = elf.interface();
 
   // Only check the eh_frame and the debug_frame since the undefined register
@@ -94,7 +94,6 @@ TEST(VerifyBionicTermination, local_terminate) {
   std::unique_ptr<Regs> regs(Regs::CreateFromLocal());
 
   UnwinderFromPid unwinder(512, getpid());
-  ASSERT_TRUE(unwinder.Init(regs->Arch()));
   unwinder.SetRegs(regs.get());
 
   RegsGetLocal(regs.get());
