@@ -25,8 +25,10 @@
 #include <unordered_map>
 #include <utility>
 
+#include <unwindstack/Arch.h>
 #include <unwindstack/ElfInterface.h>
 #include <unwindstack/Memory.h>
+#include <unwindstack/SharedString.h>
 
 #if !defined(EM_AARCH64)
 #define EM_AARCH64 183
@@ -35,18 +37,8 @@
 namespace unwindstack {
 
 // Forward declaration.
-struct MapInfo;
+class MapInfo;
 class Regs;
-
-enum ArchEnum : uint8_t {
-  ARCH_UNKNOWN = 0,
-  ARCH_ARM,
-  ARCH_ARM64,
-  ARCH_X86,
-  ARCH_X86_64,
-  ARCH_MIPS,
-  ARCH_MIPS64,
-};
 
 class Elf {
  public:
@@ -61,15 +53,16 @@ class Elf {
 
   std::string GetSoname();
 
-  bool GetFunctionName(uint64_t addr, std::string* name, uint64_t* func_offset);
+  bool GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset);
 
   bool GetGlobalVariableOffset(const std::string& name, uint64_t* memory_offset);
 
-  uint64_t GetRelPc(uint64_t pc, const MapInfo* map_info);
+  uint64_t GetRelPc(uint64_t pc, MapInfo* map_info);
 
   bool StepIfSignalHandler(uint64_t rel_pc, Regs* regs, Memory* process_memory);
 
-  bool Step(uint64_t rel_pc, Regs* regs, Memory* process_memory, bool* finished);
+  bool Step(uint64_t rel_pc, Regs* regs, Memory* process_memory, bool* finished,
+            bool* is_signal_frame);
 
   ElfInterface* CreateInterfaceFromMemory(Memory* memory);
 
@@ -78,6 +71,8 @@ class Elf {
   int64_t GetLoadBias() { return load_bias_; }
 
   bool IsValidPc(uint64_t pc);
+
+  bool GetTextRange(uint64_t* addr, uint64_t* size);
 
   void GetLastError(ErrorData* data);
   ErrorCode GetLastErrorCode();
