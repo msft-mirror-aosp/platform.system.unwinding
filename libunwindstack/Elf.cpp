@@ -68,7 +68,7 @@ void Elf::InitGnuDebugdata() {
     return;
   }
 
-  gnu_debugdata_memory_.reset(interface_->CreateGnuDebugdataMemory());
+  gnu_debugdata_memory_ = interface_->CreateGnuDebugdataMemory();
   gnu_debugdata_interface_.reset(CreateInterfaceFromMemory(gnu_debugdata_memory_.get()));
   ElfInterface* gnu = gnu_debugdata_interface_.get();
   if (gnu == nullptr) {
@@ -101,11 +101,11 @@ std::string Elf::GetSoname() {
   return interface_->GetSoname();
 }
 
-uint64_t Elf::GetRelPc(uint64_t pc, const MapInfo* map_info) {
-  return pc - map_info->start + load_bias_ + map_info->elf_offset;
+uint64_t Elf::GetRelPc(uint64_t pc, MapInfo* map_info) {
+  return pc - map_info->start() + load_bias_ + map_info->elf_offset();
 }
 
-bool Elf::GetFunctionName(uint64_t addr, std::string* name, uint64_t* func_offset) {
+bool Elf::GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset) {
   std::lock_guard<std::mutex> guard(lock_);
   return valid_ && (interface_->GetFunctionName(addr, name, func_offset) ||
                     (gnu_debugdata_interface_ &&
@@ -122,6 +122,12 @@ bool Elf::GetGlobalVariableOffset(const std::string& name, uint64_t* memory_offs
       (gnu_debugdata_interface_ == nullptr ||
        !gnu_debugdata_interface_->GetGlobalVariable(name, &vaddr))) {
     return false;
+  }
+
+  if (arch() == ARCH_ARM64) {
+    // Tagged pointer after Android R would lead top byte to have random values
+    // https://source.android.com/devices/tech/debug/tagged-pointers
+    vaddr &= (1ULL << 56) - 1;
   }
 
   // Check the .data section.
@@ -151,6 +157,9 @@ std::string Elf::GetBuildID() {
 void Elf::GetLastError(ErrorData* data) {
   if (valid_) {
     *data = interface_->last_error();
+  } else {
+    data->code = ERROR_INVALID_ELF;
+    data->address = 0;
   }
 }
 
@@ -182,14 +191,15 @@ bool Elf::StepIfSignalHandler(uint64_t rel_pc, Regs* regs, Memory* process_memor
 }
 
 // The relative pc is always relative to the start of the map from which it comes.
-bool Elf::Step(uint64_t rel_pc, Regs* regs, Memory* process_memory, bool* finished) {
+bool Elf::Step(uint64_t rel_pc, Regs* regs, Memory* process_memory, bool* finished,
+               bool* is_signal_frame) {
   if (!valid_) {
     return false;
   }
 
   // Lock during the step which can update information in the object.
   std::lock_guard<std::mutex> guard(lock_);
-  return interface_->Step(rel_pc, regs, process_memory, finished);
+  return interface_->Step(rel_pc, regs, process_memory, finished, is_signal_frame);
 }
 
 bool Elf::IsValidElf(Memory* memory) {
@@ -241,6 +251,24 @@ bool Elf::IsValidPc(uint64_t pc) {
   }
 
   if (gnu_debugdata_interface_ != nullptr && gnu_debugdata_interface_->IsValidPc(pc)) {
+    return true;
+  }
+
+  return false;
+}
+
+bool Elf::GetTextRange(uint64_t* addr, uint64_t* size) {
+  if (!valid_) {
+    return false;
+  }
+
+  if (interface_->GetTextRange(addr, size)) {
+    *addr += load_bias_;
+    return true;
+  }
+
+  if (gnu_debugdata_interface_ != nullptr && gnu_debugdata_interface_->GetTextRange(addr, size)) {
+    *addr += load_bias_;
     return true;
   }
 
@@ -348,24 +376,24 @@ void Elf::CacheAdd(MapInfo* info) {
   // where each reference the entire boot.odex, the cache will properly
   // use the same cached elf object.
 
-  if (info->offset == 0 || info->elf_offset != 0) {
-    (*cache_)[info->name] = std::make_pair(info->elf, true);
+  if (info->offset() == 0 || info->elf_offset() != 0) {
+    (*cache_)[info->name()] = std::make_pair(info->elf(), true);
   }
 
-  if (info->offset != 0) {
+  if (info->offset() != 0) {
     // The second element in the pair indicates whether elf_offset should
     // be set to offset when getting out of the cache.
-    (*cache_)[info->name + ':' + std::to_string(info->offset)] =
-        std::make_pair(info->elf, info->elf_offset != 0);
+    std::string key = std::string(info->name()) + ':' + std::to_string(info->offset());
+    (*cache_)[key] = std::make_pair(info->elf(), info->elf_offset() != 0);
   }
 }
 
 bool Elf::CacheAfterCreateMemory(MapInfo* info) {
-  if (info->name.empty() || info->offset == 0 || info->elf_offset == 0) {
+  if (info->name().empty() || info->offset() == 0 || info->elf_offset() == 0) {
     return false;
   }
 
-  auto entry = cache_->find(info->name);
+  auto entry = cache_->find(info->name());
   if (entry == cache_->end()) {
     return false;
   }
@@ -373,21 +401,22 @@ bool Elf::CacheAfterCreateMemory(MapInfo* info) {
   // In this case, the whole file is the elf, and the name has already
   // been cached. Add an entry at name:offset to get this directly out
   // of the cache next time.
-  info->elf = entry->second.first;
-  (*cache_)[info->name + ':' + std::to_string(info->offset)] = std::make_pair(info->elf, true);
+  info->set_elf(entry->second.first);
+  std::string key = std::string(info->name()) + ':' + std::to_string(info->offset());
+  (*cache_)[key] = std::make_pair(info->elf(), true);
   return true;
 }
 
 bool Elf::CacheGet(MapInfo* info) {
-  std::string name(info->name);
-  if (info->offset != 0) {
-    name += ':' + std::to_string(info->offset);
+  std::string name(info->name());
+  if (info->offset() != 0) {
+    name += ':' + std::to_string(info->offset());
   }
   auto entry = cache_->find(name);
   if (entry != cache_->end()) {
-    info->elf = entry->second.first;
+    info->set_elf(entry->second.first);
     if (entry->second.second) {
-      info->elf_offset = info->offset;
+      info->set_elf_offset(info->offset());
     }
     return true;
   }
