@@ -19,6 +19,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -27,6 +28,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 
+#include <unwindstack/DexFiles.h>
 #include <unwindstack/Elf.h>
 #include <unwindstack/JitDebug.h>
 #include <unwindstack/MapInfo.h>
@@ -34,7 +36,7 @@
 #include <unwindstack/Memory.h>
 #include <unwindstack/Unwinder.h>
 
-#include <unwindstack/DexFiles.h>
+#include "Check.h"
 
 // Use the demangler from libc++.
 extern "C" char* __cxa_demangle(const char*, char*, size_t*, int* status);
@@ -60,21 +62,22 @@ void Unwinder::FillInDexFrame() {
 
   MapInfo* info = maps_->Find(dex_pc);
   if (info != nullptr) {
-    frame->map_start = info->start;
-    frame->map_end = info->end;
+    frame->map_start = info->start();
+    frame->map_end = info->end();
     // Since this is a dex file frame, the elf_start_offset is not set
     // by any of the normal code paths. Use the offset of the map since
     // that matches the actual offset.
-    frame->map_elf_start_offset = info->offset;
-    frame->map_exact_offset = info->offset;
-    frame->map_load_bias = info->load_bias;
-    frame->map_flags = info->flags;
+    frame->map_elf_start_offset = info->offset();
+    frame->map_exact_offset = info->offset();
+    frame->map_load_bias = info->load_bias();
+    frame->map_flags = info->flags();
     if (resolve_names_) {
-      frame->map_name = info->name;
+      frame->map_name = info->name();
     }
-    frame->rel_pc = dex_pc - info->start;
+    frame->rel_pc = dex_pc - info->start();
   } else {
     frame->rel_pc = dex_pc;
+    warnings_ |= WARNING_DEX_PC_NOT_IN_MAP;
     return;
   }
 
@@ -87,8 +90,7 @@ void Unwinder::FillInDexFrame() {
     return;
   }
 
-  dex_files_->GetMethodInformation(maps_, info, dex_pc, &frame->function_name,
-                                   &frame->function_offset);
+  dex_files_->GetFunctionName(maps_, dex_pc, &frame->function_name, &frame->function_offset);
 #endif
 }
 
@@ -108,25 +110,29 @@ FrameData* Unwinder::FillInFrame(MapInfo* map_info, Elf* elf, uint64_t rel_pc,
   }
 
   if (resolve_names_) {
-    frame->map_name = map_info->name;
-    if (embedded_soname_ && map_info->elf_start_offset != 0 && !frame->map_name.empty()) {
+    frame->map_name = map_info->name();
+    if (embedded_soname_ && map_info->elf_start_offset() != 0 && !frame->map_name.empty()) {
       std::string soname = elf->GetSoname();
       if (!soname.empty()) {
-        frame->map_name += '!' + soname;
+        std::string map_with_soname;
+        map_with_soname += frame->map_name;
+        map_with_soname += '!';
+        map_with_soname += soname;
+        frame->map_name = SharedString(std::move(map_with_soname));
       }
     }
   }
-  frame->map_elf_start_offset = map_info->elf_start_offset;
-  frame->map_exact_offset = map_info->offset;
-  frame->map_start = map_info->start;
-  frame->map_end = map_info->end;
-  frame->map_flags = map_info->flags;
+  frame->map_elf_start_offset = map_info->elf_start_offset();
+  frame->map_exact_offset = map_info->offset();
+  frame->map_start = map_info->start();
+  frame->map_end = map_info->end();
+  frame->map_flags = map_info->flags();
   frame->map_load_bias = elf->GetLoadBias();
   return frame;
 }
 
 static bool ShouldStop(const std::vector<std::string>* map_suffixes_to_ignore,
-                       std::string& map_name) {
+                       const std::string& map_name) {
   if (map_suffixes_to_ignore == nullptr) {
     return false;
   }
@@ -141,12 +147,18 @@ static bool ShouldStop(const std::vector<std::string>* map_suffixes_to_ignore,
 
 void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
                       const std::vector<std::string>* map_suffixes_to_ignore) {
+  CHECK(arch_ != ARCH_UNKNOWN);
+  ClearErrors();
+
   frames_.clear();
-  last_error_.code = ERROR_NONE;
-  last_error_.address = 0;
   elf_from_memory_not_file_ = false;
 
-  ArchEnum arch = regs_->Arch();
+  // Clear any cached data from previous unwinds.
+  process_memory_->Clear();
+
+  if (maps_->Find(regs_->pc()) == nullptr) {
+    regs_->fallback_pc();
+  }
 
   bool return_address_attempt = false;
   bool adjust_pc = false;
@@ -163,25 +175,27 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
       step_pc = regs_->pc();
       rel_pc = step_pc;
       last_error_.code = ERROR_INVALID_MAP;
+      elf = nullptr;
     } else {
-      if (ShouldStop(map_suffixes_to_ignore, map_info->name)) {
+      if (ShouldStop(map_suffixes_to_ignore, map_info->name())) {
         break;
       }
-      elf = map_info->GetElf(process_memory_, arch);
+      elf = map_info->GetElf(process_memory_, arch_);
       // If this elf is memory backed, and there is a valid file, then set
       // an indicator that we couldn't open the file.
-      if (!elf_from_memory_not_file_ && map_info->memory_backed_elf && !map_info->name.empty() &&
-          map_info->name[0] != '[' && !android::base::StartsWith(map_info->name, "/memfd:")) {
+      const std::string& map_name = map_info->name();
+      if (!elf_from_memory_not_file_ && map_info->memory_backed_elf() && !map_name.empty() &&
+          map_name[0] != '[' && !android::base::StartsWith(map_name, "/memfd:")) {
         elf_from_memory_not_file_ = true;
       }
       step_pc = regs_->pc();
       rel_pc = elf->GetRelPc(step_pc, map_info);
       // Everyone except elf data in gdb jit debug maps uses the relative pc.
-      if (!(map_info->flags & MAPS_FLAGS_JIT_SYMFILE_MAP)) {
+      if (!(map_info->flags() & MAPS_FLAGS_JIT_SYMFILE_MAP)) {
         step_pc = rel_pc;
       }
       if (adjust_pc) {
-        pc_adjustment = regs_->GetPcAdjustment(rel_pc, elf);
+        pc_adjustment = GetPcAdjustment(rel_pc, elf, arch_);
       } else {
         pc_adjustment = 0;
       }
@@ -189,9 +203,9 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
 
       // If the pc is in an invalid elf file, try and get an Elf object
       // using the jit debug information.
-      if (!elf->valid() && jit_debug_ != nullptr) {
+      if (!elf->valid() && jit_debug_ != nullptr && (map_info->flags() & PROT_EXEC)) {
         uint64_t adjusted_jit_pc = regs_->pc() - pc_adjustment;
-        Elf* jit_elf = jit_debug_->GetElf(maps_, adjusted_jit_pc);
+        Elf* jit_elf = jit_debug_->Find(maps_, adjusted_jit_pc);
         if (jit_elf != nullptr) {
           // The jit debug information requires a non relative adjusted pc.
           step_pc = adjusted_jit_pc;
@@ -203,7 +217,7 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
     FrameData* frame = nullptr;
     if (map_info == nullptr || initial_map_names_to_skip == nullptr ||
         std::find(initial_map_names_to_skip->begin(), initial_map_names_to_skip->end(),
-                  basename(map_info->name.c_str())) == initial_map_names_to_skip->end()) {
+                  basename(map_info->name().c_str())) == initial_map_names_to_skip->end()) {
       if (regs_->dex_pc() != 0) {
         // Add a frame to represent the dex file.
         FillInDexFrame();
@@ -228,30 +242,33 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
     bool in_device_map = false;
     bool finished = false;
     if (map_info != nullptr) {
-      if (map_info->flags & MAPS_FLAGS_DEVICE_MAP) {
+      if (map_info->flags() & MAPS_FLAGS_DEVICE_MAP) {
         // Do not stop here, fall through in case we are
         // in the speculative unwind path and need to remove
         // some of the speculative frames.
         in_device_map = true;
       } else {
         MapInfo* sp_info = maps_->Find(regs_->sp());
-        if (sp_info != nullptr && sp_info->flags & MAPS_FLAGS_DEVICE_MAP) {
+        if (sp_info != nullptr && sp_info->flags() & MAPS_FLAGS_DEVICE_MAP) {
           // Do not stop here, fall through in case we are
           // in the speculative unwind path and need to remove
           // some of the speculative frames.
           in_device_map = true;
         } else {
+          bool is_signal_frame = false;
           if (elf->StepIfSignalHandler(rel_pc, regs_, process_memory_.get())) {
             stepped = true;
-            if (frame != nullptr) {
-              // Need to adjust the relative pc because the signal handler
-              // pc should not be adjusted.
-              frame->rel_pc = rel_pc;
-              frame->pc += pc_adjustment;
-              step_pc = rel_pc;
-            }
-          } else if (elf->Step(step_pc, regs_, process_memory_.get(), &finished)) {
+            is_signal_frame = true;
+          } else if (elf->Step(step_pc, regs_, process_memory_.get(), &finished,
+                               &is_signal_frame)) {
             stepped = true;
+          }
+          if (is_signal_frame && frame != nullptr) {
+            // Need to adjust the relative pc because the signal handler
+            // pc should not be adjusted.
+            frame->rel_pc = rel_pc;
+            frame->pc += pc_adjustment;
+            step_pc = rel_pc;
           }
           elf->GetLastError(&last_error_);
         }
@@ -309,7 +326,7 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
 
 std::string Unwinder::FormatFrame(const FrameData& frame) const {
   std::string data;
-  if (regs_->Is32Bit()) {
+  if (ArchIs32Bit(arch_)) {
     data += android::base::StringPrintf("  #%02zu pc %08" PRIx64, frame.num, frame.rel_pc);
   } else {
     data += android::base::StringPrintf("  #%02zu pc %016" PRIx64, frame.num, frame.rel_pc);
@@ -319,7 +336,8 @@ std::string Unwinder::FormatFrame(const FrameData& frame) const {
     // No valid map associated with this frame.
     data += "  <unknown>";
   } else if (!frame.map_name.empty()) {
-    data += "  " + frame.map_name;
+    data += "  ";
+    data += frame.map_name;
   } else {
     data += android::base::StringPrintf("  <anonymous:%" PRIx64 ">", frame.map_start);
   }
@@ -331,7 +349,8 @@ std::string Unwinder::FormatFrame(const FrameData& frame) const {
   if (!frame.function_name.empty()) {
     char* demangled_name = __cxa_demangle(frame.function_name.c_str(), nullptr, nullptr, nullptr);
     if (demangled_name == nullptr) {
-      data += " (" + frame.function_name;
+      data += " (";
+      data += frame.function_name;
     } else {
       data += " (";
       data += demangled_name;
@@ -360,39 +379,120 @@ std::string Unwinder::FormatFrame(size_t frame_num) const {
   return FormatFrame(frames_[frame_num]);
 }
 
-void Unwinder::SetJitDebug(JitDebug* jit_debug, ArchEnum arch) {
-  jit_debug->SetArch(arch);
+void Unwinder::SetJitDebug(JitDebug* jit_debug) {
   jit_debug_ = jit_debug;
 }
 
-void Unwinder::SetDexFiles(DexFiles* dex_files, ArchEnum arch) {
-  dex_files->SetArch(arch);
+void Unwinder::SetDexFiles(DexFiles* dex_files) {
   dex_files_ = dex_files;
 }
 
-bool UnwinderFromPid::Init(ArchEnum arch) {
-  if (pid_ == getpid()) {
-    maps_ptr_.reset(new LocalMaps());
-  } else {
-    maps_ptr_.reset(new RemoteMaps(pid_));
+bool UnwinderFromPid::Init() {
+  CHECK(arch_ != ARCH_UNKNOWN);
+  if (initted_) {
+    return true;
   }
-  if (!maps_ptr_->Parse()) {
-    return false;
+  initted_ = true;
+
+  if (maps_ == nullptr) {
+    if (pid_ == getpid()) {
+      maps_ptr_.reset(new LocalMaps());
+    } else {
+      maps_ptr_.reset(new RemoteMaps(pid_));
+    }
+    if (!maps_ptr_->Parse()) {
+      ClearErrors();
+      last_error_.code = ERROR_INVALID_MAP;
+      return false;
+    }
+    maps_ = maps_ptr_.get();
   }
-  maps_ = maps_ptr_.get();
 
-  process_memory_ = Memory::CreateProcessMemoryCached(pid_);
+  if (process_memory_ == nullptr) {
+    if (pid_ == getpid()) {
+      // Local unwind, so use thread cache to allow multiple threads
+      // to cache data even when multiple threads access the same object.
+      process_memory_ = Memory::CreateProcessMemoryThreadCached(pid_);
+    } else {
+      // Remote unwind should be safe to cache since the unwind will
+      // be occurring on a stopped process.
+      process_memory_ = Memory::CreateProcessMemoryCached(pid_);
+    }
+  }
 
-  jit_debug_ptr_.reset(new JitDebug(process_memory_));
+  jit_debug_ptr_ = CreateJitDebug(arch_, process_memory_);
   jit_debug_ = jit_debug_ptr_.get();
-  SetJitDebug(jit_debug_, arch);
+  SetJitDebug(jit_debug_);
 #if defined(DEXFILE_SUPPORT)
-  dex_files_ptr_.reset(new DexFiles(process_memory_));
+  dex_files_ptr_ = CreateDexFiles(arch_, process_memory_);
   dex_files_ = dex_files_ptr_.get();
-  SetDexFiles(dex_files_, arch);
+  SetDexFiles(dex_files_);
 #endif
 
   return true;
+}
+
+void UnwinderFromPid::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
+                             const std::vector<std::string>* map_suffixes_to_ignore) {
+  if (!Init()) {
+    return;
+  }
+  Unwinder::Unwind(initial_map_names_to_skip, map_suffixes_to_ignore);
+}
+
+FrameData Unwinder::BuildFrameFromPcOnly(uint64_t pc, ArchEnum arch, Maps* maps,
+                                         JitDebug* jit_debug,
+                                         std::shared_ptr<Memory> process_memory,
+                                         bool resolve_names) {
+  FrameData frame;
+
+  MapInfo* map_info = maps->Find(pc);
+  if (map_info == nullptr || arch == ARCH_UNKNOWN) {
+    frame.pc = pc;
+    frame.rel_pc = pc;
+    return frame;
+  }
+
+  Elf* elf = map_info->GetElf(process_memory, arch);
+
+  uint64_t relative_pc = elf->GetRelPc(pc, map_info);
+
+  uint64_t pc_adjustment = GetPcAdjustment(relative_pc, elf, arch);
+  relative_pc -= pc_adjustment;
+  // The debug PC may be different if the PC comes from the JIT.
+  uint64_t debug_pc = relative_pc;
+
+  // If we don't have a valid ELF file, check the JIT.
+  if (!elf->valid() && jit_debug != nullptr) {
+    uint64_t jit_pc = pc - pc_adjustment;
+    Elf* jit_elf = jit_debug->Find(maps, jit_pc);
+    if (jit_elf != nullptr) {
+      debug_pc = jit_pc;
+      elf = jit_elf;
+    }
+  }
+
+  // Copy all the things we need into the frame for symbolization.
+  frame.rel_pc = relative_pc;
+  frame.pc = pc - pc_adjustment;
+  frame.map_name = map_info->name();
+  frame.map_elf_start_offset = map_info->elf_start_offset();
+  frame.map_exact_offset = map_info->offset();
+  frame.map_start = map_info->start();
+  frame.map_end = map_info->end();
+  frame.map_flags = map_info->flags();
+  frame.map_load_bias = elf->GetLoadBias();
+
+  if (!resolve_names ||
+      !elf->GetFunctionName(debug_pc, &frame.function_name, &frame.function_offset)) {
+    frame.function_name = "";
+    frame.function_offset = 0;
+  }
+  return frame;
+}
+
+FrameData Unwinder::BuildFrameFromPcOnly(uint64_t pc) {
+  return BuildFrameFromPcOnly(pc, arch_, maps_, jit_debug_, process_memory_, resolve_names_);
 }
 
 }  // namespace unwindstack

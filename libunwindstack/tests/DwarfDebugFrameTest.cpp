@@ -842,19 +842,19 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc_overlap) {
   EXPECT_EQ(0x0U, fde->pc_start);
   EXPECT_EQ(0x800U, fde->pc_end);
 
-  //   0x50  - 0x100  FDE 1
+  //   0x50  - 0x100  FDE 1 or FDE 2
   fde = this->debug_frame_->GetFdeFromPc(0x60);
   ASSERT_TRUE(fde != nullptr);
-  EXPECT_EQ(0x50U, fde->pc_start);
-  EXPECT_EQ(0x550U, fde->pc_end);
+  EXPECT_EQ(0x00U, fde->pc_start);
+  EXPECT_EQ(0x800U, fde->pc_end);
 
-  //   0x100 - 0x200  FDE 0
+  //   0x100 - 0x200  FDE 0, FDE 1, or FDE 2
   fde = this->debug_frame_->GetFdeFromPc(0x170);
   ASSERT_TRUE(fde != nullptr);
   EXPECT_EQ(0x100U, fde->pc_start);
   EXPECT_EQ(0x200U, fde->pc_end);
 
-  //   0x200 - 0x550  FDE 1
+  //   0x200 - 0x550  FDE 1, or FDE 2
   fde = this->debug_frame_->GetFdeFromPc(0x210);
   ASSERT_TRUE(fde != nullptr);
   EXPECT_EQ(0x50U, fde->pc_start);

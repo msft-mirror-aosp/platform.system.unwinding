@@ -21,6 +21,7 @@
 
 #include <iterator>
 #include <map>
+#include <optional>
 #include <unordered_map>
 
 #include <unwindstack/DwarfError.h>
@@ -31,6 +32,7 @@
 namespace unwindstack {
 
 // Forward declarations.
+enum ArchEnum : uint8_t;
 class Memory;
 class Regs;
 template <typename AddressType>
@@ -88,15 +90,16 @@ class DwarfSection {
 
   virtual bool Init(uint64_t offset, uint64_t size, int64_t section_bias) = 0;
 
-  virtual bool Eval(const DwarfCie*, Memory*, const dwarf_loc_regs_t&, Regs*, bool*) = 0;
+  virtual bool Eval(const DwarfCie*, Memory*, const DwarfLocations&, Regs*, bool*) = 0;
 
-  virtual bool Log(uint8_t indent, uint64_t pc, const DwarfFde* fde) = 0;
+  virtual bool Log(uint8_t indent, uint64_t pc, const DwarfFde* fde, ArchEnum arch) = 0;
 
   virtual void GetFdes(std::vector<const DwarfFde*>* fdes) = 0;
 
   virtual const DwarfFde* GetFdeFromPc(uint64_t pc) = 0;
 
-  virtual bool GetCfaLocationInfo(uint64_t pc, const DwarfFde* fde, dwarf_loc_regs_t* loc_regs) = 0;
+  virtual bool GetCfaLocationInfo(uint64_t pc, const DwarfFde* fde, DwarfLocations* loc_regs,
+                                  ArchEnum arch) = 0;
 
   virtual uint64_t GetCieOffsetFromFde32(uint32_t pointer) = 0;
 
@@ -104,7 +107,7 @@ class DwarfSection {
 
   virtual uint64_t AdjustPcFromFde(uint64_t pc) = 0;
 
-  bool Step(uint64_t pc, Regs* regs, Memory* process_memory, bool* finished);
+  bool Step(uint64_t pc, Regs* regs, Memory* process_memory, bool* finished, bool* is_signal_frame);
 
  protected:
   DwarfMemory memory_;
@@ -115,8 +118,8 @@ class DwarfSection {
 
   std::unordered_map<uint64_t, DwarfFde> fde_entries_;
   std::unordered_map<uint64_t, DwarfCie> cie_entries_;
-  std::unordered_map<uint64_t, dwarf_loc_regs_t> cie_loc_regs_;
-  std::map<uint64_t, dwarf_loc_regs_t> loc_regs_;  // Single row indexed by pc_end.
+  std::unordered_map<uint64_t, DwarfLocations> cie_loc_regs_;
+  std::map<uint64_t, DwarfLocations> loc_regs_;  // Single row indexed by pc_end.
 };
 
 template <typename AddressType>
@@ -137,15 +140,19 @@ class DwarfSectionImpl : public DwarfSection {
 
   bool EvalRegister(const DwarfLocation* loc, uint32_t reg, AddressType* reg_ptr, void* info);
 
-  bool Eval(const DwarfCie* cie, Memory* regular_memory, const dwarf_loc_regs_t& loc_regs,
-            Regs* regs, bool* finished) override;
+  bool Eval(const DwarfCie* cie, Memory* regular_memory, const DwarfLocations& loc_regs, Regs* regs,
+            bool* finished) override;
 
-  bool GetCfaLocationInfo(uint64_t pc, const DwarfFde* fde, dwarf_loc_regs_t* loc_regs) override;
+  bool GetCfaLocationInfo(uint64_t pc, const DwarfFde* fde, DwarfLocations* loc_regs,
+                          ArchEnum arch) override;
 
-  bool Log(uint8_t indent, uint64_t pc, const DwarfFde* fde) override;
+  bool Log(uint8_t indent, uint64_t pc, const DwarfFde* fde, ArchEnum arch) override;
 
  protected:
-  bool GetNextCieOrFde(const DwarfFde** fde_entry);
+  using DwarfFdeMap =
+      std::map</*end*/ uint64_t, std::pair</*start*/ uint64_t, /*offset*/ uint64_t>>;
+
+  bool GetNextCieOrFde(/*inout*/ uint64_t& offset, /*out*/ std::optional<DwarfFde>& fde);
 
   bool FillInCieHeader(DwarfCie* cie);
 
@@ -158,15 +165,17 @@ class DwarfSectionImpl : public DwarfSection {
   bool EvalExpression(const DwarfLocation& loc, Memory* regular_memory, AddressType* value,
                       RegsInfo<AddressType>* regs_info, bool* is_dex_pc);
 
-  void InsertFde(const DwarfFde* fde);
+  static void InsertFde(uint64_t fde_offset, const DwarfFde* fde, /*out*/ DwarfFdeMap& fdes);
+
+  void BuildFdeIndex();
 
   int64_t section_bias_ = 0;
   uint64_t entries_offset_ = 0;
   uint64_t entries_end_ = 0;
-  uint64_t next_entries_offset_ = 0;
   uint64_t pc_offset_ = 0;
 
-  std::map<uint64_t, std::pair<uint64_t, const DwarfFde*>> fdes_;
+  // Binary search table (similar to .eh_frame_hdr). Contains only FDE offsets to save memory.
+  std::vector<std::pair</*function end address*/ uint64_t, /*FDE offset*/ uint64_t>> fde_index_;
 };
 
 }  // namespace unwindstack

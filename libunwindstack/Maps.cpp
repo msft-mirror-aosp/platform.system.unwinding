@@ -48,9 +48,9 @@ MapInfo* Maps::Find(uint64_t pc) {
   while (first < last) {
     size_t index = (first + last) / 2;
     const auto& cur = maps_[index];
-    if (pc >= cur->start && pc < cur->end) {
+    if (pc >= cur->start() && pc < cur->end()) {
       return cur.get();
-    } else if (pc < cur->start) {
+    } else if (pc < cur->start()) {
       last = index;
     } else {
       first = index + 1;
@@ -62,19 +62,21 @@ MapInfo* Maps::Find(uint64_t pc) {
 bool Maps::Parse() {
   MapInfo* prev_map = nullptr;
   MapInfo* prev_real_map = nullptr;
-  return android::procinfo::ReadMapFile(
-      GetMapsFile(),
-      [&](uint64_t start, uint64_t end, uint16_t flags, uint64_t pgoff, ino_t, const char* name) {
-        // Mark a device map in /dev/ and not in /dev/ashmem/ specially.
-        if (strncmp(name, "/dev/", 5) == 0 && strncmp(name + 5, "ashmem/", 7) != 0) {
-          flags |= unwindstack::MAPS_FLAGS_DEVICE_MAP;
-        }
-        maps_.emplace_back(new MapInfo(prev_map, prev_real_map, start, end, pgoff, flags, name));
-        prev_map = maps_.back().get();
-        if (!prev_map->IsBlank()) {
-          prev_real_map = prev_map;
-        }
-      });
+  return android::procinfo::ReadMapFile(GetMapsFile(),
+                      [&](const android::procinfo::MapInfo& mapinfo) {
+    // Mark a device map in /dev/ and not in /dev/ashmem/ specially.
+    auto flags = mapinfo.flags;
+    if (strncmp(mapinfo.name.c_str(), "/dev/", 5) == 0 &&
+        strncmp(mapinfo.name.c_str() + 5, "ashmem/", 7) != 0) {
+      flags |= unwindstack::MAPS_FLAGS_DEVICE_MAP;
+    }
+    maps_.emplace_back(new MapInfo(prev_map, prev_real_map, mapinfo.start, mapinfo.end,
+                                   mapinfo.pgoff, flags, mapinfo.name));
+    prev_map = maps_.back().get();
+    if (!prev_map->IsBlank()) {
+      prev_real_map = prev_map;
+    }
+  });
 }
 
 void Maps::Add(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags,
@@ -82,26 +84,27 @@ void Maps::Add(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags,
   MapInfo* prev_map = maps_.empty() ? nullptr : maps_.back().get();
   MapInfo* prev_real_map = prev_map;
   while (prev_real_map != nullptr && prev_real_map->IsBlank()) {
-    prev_real_map = prev_real_map->prev_map;
+    prev_real_map = prev_real_map->prev_map();
   }
 
   auto map_info =
       std::make_unique<MapInfo>(prev_map, prev_real_map, start, end, offset, flags, name);
-  map_info->load_bias = load_bias;
+  map_info->set_load_bias(load_bias);
   maps_.emplace_back(std::move(map_info));
 }
 
 void Maps::Sort() {
   std::sort(maps_.begin(), maps_.end(),
             [](const std::unique_ptr<MapInfo>& a, const std::unique_ptr<MapInfo>& b) {
-              return a->start < b->start; });
+              return a->start() < b->start();
+            });
 
   // Set the prev_map values on the info objects.
   MapInfo* prev_map = nullptr;
   MapInfo* prev_real_map = nullptr;
   for (const auto& map_info : maps_) {
-    map_info->prev_map = prev_map;
-    map_info->prev_real_map = prev_real_map;
+    map_info->set_prev_map(prev_map);
+    map_info->set_prev_real_map(prev_real_map);
     prev_map = map_info.get();
     if (!prev_map->IsBlank()) {
       prev_real_map = prev_map;
@@ -114,13 +117,15 @@ bool BufferMaps::Parse() {
   MapInfo* prev_map = nullptr;
   MapInfo* prev_real_map = nullptr;
   return android::procinfo::ReadMapFileContent(
-      &content[0],
-      [&](uint64_t start, uint64_t end, uint16_t flags, uint64_t pgoff, ino_t, const char* name) {
+      &content[0], [&](const android::procinfo::MapInfo& mapinfo) {
         // Mark a device map in /dev/ and not in /dev/ashmem/ specially.
-        if (strncmp(name, "/dev/", 5) == 0 && strncmp(name + 5, "ashmem/", 7) != 0) {
+        auto flags = mapinfo.flags;
+        if (strncmp(mapinfo.name.c_str(), "/dev/", 5) == 0 &&
+            strncmp(mapinfo.name.c_str() + 5, "ashmem/", 7) != 0) {
           flags |= unwindstack::MAPS_FLAGS_DEVICE_MAP;
         }
-        maps_.emplace_back(new MapInfo(prev_map, prev_real_map, start, end, pgoff, flags, name));
+        maps_.emplace_back(new MapInfo(prev_map, prev_real_map, mapinfo.start, mapinfo.end,
+                                       mapinfo.pgoff, flags, mapinfo.name));
         prev_map = maps_.back().get();
         if (!prev_map->IsBlank()) {
           prev_real_map = prev_map;
@@ -136,36 +141,67 @@ const std::string LocalUpdatableMaps::GetMapsFile() const {
   return "/proc/self/maps";
 }
 
-bool LocalUpdatableMaps::Reparse() {
+LocalUpdatableMaps::LocalUpdatableMaps() : Maps() {
+  pthread_rwlock_init(&maps_rwlock_, nullptr);
+}
+
+MapInfo* LocalUpdatableMaps::Find(uint64_t pc) {
+  pthread_rwlock_rdlock(&maps_rwlock_);
+  MapInfo* map_info = Maps::Find(pc);
+  pthread_rwlock_unlock(&maps_rwlock_);
+
+  if (map_info == nullptr) {
+    pthread_rwlock_wrlock(&maps_rwlock_);
+    // This is guaranteed not to invalidate any previous MapInfo objects so
+    // we don't need to worry about any MapInfo* values already in use.
+    if (Reparse()) {
+      map_info = Maps::Find(pc);
+    }
+    pthread_rwlock_unlock(&maps_rwlock_);
+  }
+
+  return map_info;
+}
+
+bool LocalUpdatableMaps::Parse() {
+  pthread_rwlock_wrlock(&maps_rwlock_);
+  bool parsed = Maps::Parse();
+  pthread_rwlock_unlock(&maps_rwlock_);
+  return parsed;
+}
+
+bool LocalUpdatableMaps::Reparse(/*out*/ bool* any_changed) {
   // New maps will be added at the end without deleting the old ones.
   size_t last_map_idx = maps_.size();
-  if (!Parse()) {
+  if (!Maps::Parse()) {
     maps_.resize(last_map_idx);
     return false;
   }
 
-  size_t total_entries = maps_.size();
   size_t search_map_idx = 0;
+  size_t num_deleted_old_entries = 0;
+  size_t num_deleted_new_entries = 0;
   for (size_t new_map_idx = last_map_idx; new_map_idx < maps_.size(); new_map_idx++) {
     auto& new_map_info = maps_[new_map_idx];
-    uint64_t start = new_map_info->start;
-    uint64_t end = new_map_info->end;
-    uint64_t flags = new_map_info->flags;
-    std::string* name = &new_map_info->name;
+    uint64_t start = new_map_info->start();
+    uint64_t end = new_map_info->end();
+    uint64_t flags = new_map_info->flags();
+    const std::string& name = new_map_info->name();
     for (size_t old_map_idx = search_map_idx; old_map_idx < last_map_idx; old_map_idx++) {
       auto& info = maps_[old_map_idx];
-      if (start == info->start && end == info->end && flags == info->flags && *name == info->name) {
+      if (start == info->start() && end == info->end() && flags == info->flags() &&
+          name == info->name()) {
         // No need to check
         search_map_idx = old_map_idx + 1;
         if (new_map_idx + 1 < maps_.size()) {
-          maps_[new_map_idx + 1]->prev_map = info.get();
-          maps_[new_map_idx + 1]->prev_real_map =
-              info->IsBlank() ? info->prev_real_map : info.get();
+          maps_[new_map_idx + 1]->set_prev_map(info.get());
+          maps_[new_map_idx + 1]->set_prev_real_map(info->IsBlank() ? info->prev_real_map()
+                                                                    : info.get());
         }
         maps_[new_map_idx] = nullptr;
-        total_entries--;
+        num_deleted_new_entries++;
         break;
-      } else if (info->start > start) {
+      } else if (info->start() > start) {
         // Stop, there isn't going to be a match.
         search_map_idx = old_map_idx;
         break;
@@ -177,7 +213,7 @@ bool LocalUpdatableMaps::Reparse() {
       saved_maps_.emplace_back(std::move(info));
       search_map_idx = old_map_idx + 1;
       maps_[old_map_idx] = nullptr;
-      total_entries--;
+      num_deleted_old_entries++;
     }
     if (search_map_idx >= last_map_idx) {
       break;
@@ -188,7 +224,7 @@ bool LocalUpdatableMaps::Reparse() {
   for (size_t i = search_map_idx; i < last_map_idx; i++) {
     saved_maps_.emplace_back(std::move(maps_[i]));
     maps_[i] = nullptr;
-    total_entries--;
+    num_deleted_old_entries++;
   }
 
   // Sort all of the values such that the nullptrs wind up at the end, then
@@ -199,9 +235,13 @@ bool LocalUpdatableMaps::Reparse() {
     } else if (b == nullptr) {
       return true;
     }
-    return a->start < b->start;
+    return a->start() < b->start();
   });
-  maps_.resize(total_entries);
+  maps_.resize(maps_.size() - num_deleted_old_entries - num_deleted_new_entries);
+
+  if (any_changed != nullptr) {
+    *any_changed = num_deleted_old_entries != 0 || maps_.size() != last_map_idx;
+  }
 
   return true;
 }
