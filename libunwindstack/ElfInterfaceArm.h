@@ -72,11 +72,12 @@ class ElfInterfaceArm : public ElfInterface32 {
 
   void HandleUnknownType(uint32_t type, uint64_t ph_offset, uint64_t ph_filesz) override;
 
-  bool Step(uint64_t pc, Regs* regs, Memory* process_memory, bool* finished) override;
+  bool Step(uint64_t pc, Regs* regs, Memory* process_memory, bool* finished,
+            bool* is_signal_frame) override;
 
   bool StepExidx(uint64_t pc, Regs* regs, Memory* process_memory, bool* finished);
 
-  bool GetFunctionName(uint64_t addr, std::string* name, uint64_t* offset) override;
+  bool GetFunctionName(uint64_t addr, SharedString* name, uint64_t* offset) override;
 
   uint64_t start_offset() { return start_offset_; }
 

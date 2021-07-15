@@ -36,6 +36,14 @@
 #define EM_AARCH64 183
 #endif
 
+#if __has_feature(address_sanitizer)
+// There is a test that tries to allocate a large value, allow it to fail
+// if asan is enabled.
+extern "C" const char* __asan_default_options() {
+  return "allocator_may_return_null=1";
+}
+#endif
+
 namespace unwindstack {
 
 class ElfInterfaceTest : public ::testing::Test {
@@ -819,7 +827,7 @@ void ElfInterfaceTest::InitSectionHeadersMalformedSymData() {
   EXPECT_EQ(0U, elf->gnu_debugdata_offset());
   EXPECT_EQ(0U, elf->gnu_debugdata_size());
 
-  std::string name;
+  SharedString name;
   uint64_t name_offset;
   ASSERT_FALSE(elf->GetFunctionName(0x90010, &name, &name_offset));
 }
@@ -892,7 +900,7 @@ void ElfInterfaceTest::InitSectionHeaders(uint64_t entry_size) {
   EXPECT_EQ(0U, elf->gnu_debugdata_size());
 
   // Look in the first symbol table.
-  std::string name;
+  SharedString name;
   uint64_t name_offset;
   ASSERT_TRUE(elf->GetFunctionName(0x90010, &name, &name_offset));
   EXPECT_EQ("function_one", name);
