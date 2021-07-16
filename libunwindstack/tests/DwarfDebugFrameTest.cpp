@@ -553,16 +553,32 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetCieFromOffset64_version3) {
   VerifyCieVersion(cie, 3, 0, DW_EH_PE_udata8, 0x181, 0x1a, 0x10c);
 }
 
-TYPED_TEST_P(DwarfDebugFrameTest, GetCieFromOffset32_version4) {
-  SetCie32(&this->memory_, 0x5000, 0x100, std::vector<uint8_t>{4, '\0', 0, 10, 4, 8, 0x81, 3});
+TYPED_TEST_P(DwarfDebugFrameTest, GetCieFromOffset32_version4_32bit_address) {
+  SetCie32(&this->memory_, 0x5000, 0x100, std::vector<uint8_t>{4, '\0', 4, 10, 4, 8, 0x81, 3});
   const DwarfCie* cie = this->debug_frame_->GetCieFromOffset(0x5000);
   EXPECT_EQ(DWARF_ERROR_NONE, this->debug_frame_->LastErrorCode());
   ASSERT_TRUE(cie != nullptr);
   VerifyCieVersion(cie, 4, 10, DW_EH_PE_udata4, 0x181, 0x10, 0x104);
 }
 
-TYPED_TEST_P(DwarfDebugFrameTest, GetCieFromOffset64_version4) {
-  SetCie64(&this->memory_, 0x5000, 0x100, std::vector<uint8_t>{4, '\0', 0, 10, 4, 8, 0x81, 3});
+TYPED_TEST_P(DwarfDebugFrameTest, GetCieFromOffset32_version4_64bit_address) {
+  SetCie32(&this->memory_, 0x5000, 0x100, std::vector<uint8_t>{4, '\0', 8, 10, 4, 8, 0x81, 3});
+  const DwarfCie* cie = this->debug_frame_->GetCieFromOffset(0x5000);
+  EXPECT_EQ(DWARF_ERROR_NONE, this->debug_frame_->LastErrorCode());
+  ASSERT_TRUE(cie != nullptr);
+  VerifyCieVersion(cie, 4, 10, DW_EH_PE_udata8, 0x181, 0x10, 0x104);
+}
+
+TYPED_TEST_P(DwarfDebugFrameTest, GetCieFromOffset64_version4_32bit_address) {
+  SetCie64(&this->memory_, 0x5000, 0x100, std::vector<uint8_t>{4, '\0', 4, 10, 4, 8, 0x81, 3});
+  const DwarfCie* cie = this->debug_frame_->GetCieFromOffset(0x5000);
+  EXPECT_EQ(DWARF_ERROR_NONE, this->debug_frame_->LastErrorCode());
+  ASSERT_TRUE(cie != nullptr);
+  VerifyCieVersion(cie, 4, 10, DW_EH_PE_udata4, 0x181, 0x1c, 0x10c);
+}
+
+TYPED_TEST_P(DwarfDebugFrameTest, GetCieFromOffset64_version4_64bit_address) {
+  SetCie64(&this->memory_, 0x5000, 0x100, std::vector<uint8_t>{4, '\0', 8, 10, 4, 8, 0x81, 3});
   const DwarfCie* cie = this->debug_frame_->GetCieFromOffset(0x5000);
   EXPECT_EQ(DWARF_ERROR_NONE, this->debug_frame_->LastErrorCode());
   ASSERT_TRUE(cie != nullptr);
@@ -570,7 +586,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetCieFromOffset64_version4) {
 }
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetCieFromOffset32_version5) {
-  SetCie32(&this->memory_, 0x5000, 0x100, std::vector<uint8_t>{5, '\0', 0, 10, 4, 8, 0x81, 3});
+  SetCie32(&this->memory_, 0x5000, 0x100, std::vector<uint8_t>{5, '\0', 4, 10, 4, 8, 0x81, 3});
   const DwarfCie* cie = this->debug_frame_->GetCieFromOffset(0x5000);
   EXPECT_EQ(DWARF_ERROR_NONE, this->debug_frame_->LastErrorCode());
   ASSERT_TRUE(cie != nullptr);
@@ -578,7 +594,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetCieFromOffset32_version5) {
 }
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetCieFromOffset64_version5) {
-  SetCie64(&this->memory_, 0x5000, 0x100, std::vector<uint8_t>{5, '\0', 0, 10, 4, 8, 0x81, 3});
+  SetCie64(&this->memory_, 0x5000, 0x100, std::vector<uint8_t>{5, '\0', 8, 10, 4, 8, 0x81, 3});
   const DwarfCie* cie = this->debug_frame_->GetCieFromOffset(0x5000);
   EXPECT_EQ(DWARF_ERROR_NONE, this->debug_frame_->LastErrorCode());
   ASSERT_TRUE(cie != nullptr);
@@ -658,7 +674,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromOffset32_augment) {
   SetCie32(&this->memory_, 0x5000, 0xfc,
            std::vector<uint8_t>{/* version */ 4,
                                 /* augment string */ 'z', '\0',
-                                /* address size */ 8,
+                                /* address size */ 4,
                                 /* segment size */ 0x10,
                                 /* code alignment factor */ 16,
                                 /* data alignment factor */ 32,
@@ -896,11 +912,13 @@ REGISTER_TYPED_TEST_SUITE_P(
     GetFdes64_not_in_section, GetFdeFromPc64, GetFdeFromPc64_reverse, GetFdeFromPc64_not_in_section,
     GetCieFde32, GetCieFde64, GetCieFromOffset32_cie_cached, GetCieFromOffset64_cie_cached,
     GetCieFromOffset32_version1, GetCieFromOffset64_version1, GetCieFromOffset32_version3,
-    GetCieFromOffset64_version3, GetCieFromOffset32_version4, GetCieFromOffset64_version4,
-    GetCieFromOffset32_version5, GetCieFromOffset64_version5, GetCieFromOffset_version_invalid,
-    GetCieFromOffset32_augment, GetCieFromOffset64_augment, GetFdeFromOffset32_augment,
-    GetFdeFromOffset64_augment, GetFdeFromOffset32_lsda_address, GetFdeFromOffset64_lsda_address,
-    GetFdeFromPc_interleaved, GetFdeFromPc_overlap);
+    GetCieFromOffset64_version3, GetCieFromOffset32_version4_32bit_address,
+    GetCieFromOffset32_version4_64bit_address, GetCieFromOffset64_version4_32bit_address,
+    GetCieFromOffset64_version4_64bit_address, GetCieFromOffset32_version5,
+    GetCieFromOffset64_version5, GetCieFromOffset_version_invalid, GetCieFromOffset32_augment,
+    GetCieFromOffset64_augment, GetFdeFromOffset32_augment, GetFdeFromOffset64_augment,
+    GetFdeFromOffset32_lsda_address, GetFdeFromOffset64_lsda_address, GetFdeFromPc_interleaved,
+    GetFdeFromPc_overlap);
 
 typedef ::testing::Types<uint32_t, uint64_t> DwarfDebugFrameTestTypes;
 INSTANTIATE_TYPED_TEST_SUITE_P(Libunwindstack, DwarfDebugFrameTest, DwarfDebugFrameTestTypes);
