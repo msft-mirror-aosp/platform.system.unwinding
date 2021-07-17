@@ -102,6 +102,7 @@ bool DwarfSectionImpl<AddressType>::FillInCieHeader(DwarfCie* cie) {
     }
 
     cie->cfa_instructions_end = memory_.cur_offset() + length64;
+    // TODO(b/192012848): This is wrong. We need to propagate pointer size here.
     cie->fde_address_encoding = DW_EH_PE_udata8;
 
     uint64_t cie_id;
@@ -118,6 +119,7 @@ bool DwarfSectionImpl<AddressType>::FillInCieHeader(DwarfCie* cie) {
   } else {
     // 32 bit Cie
     cie->cfa_instructions_end = memory_.cur_offset() + length32;
+    // TODO(b/192012848): This is wrong. We need to propagate pointer size here.
     cie->fde_address_encoding = DW_EH_PE_udata4;
 
     uint32_t cie_id;
@@ -161,8 +163,13 @@ bool DwarfSectionImpl<AddressType>::FillInCie(DwarfCie* cie) {
   } while (aug_value != '\0');
 
   if (cie->version == 4 || cie->version == 5) {
-    // Skip the Address Size field since we only use it for validation.
-    memory_.set_cur_offset(memory_.cur_offset() + 1);
+    char address_size;
+    if (!memory_.ReadBytes(&address_size, 1)) {
+      last_error_.code = DWARF_ERROR_MEMORY_INVALID;
+      last_error_.address = memory_.cur_offset();
+      return false;
+    }
+    cie->fde_address_encoding = address_size == 8 ? DW_EH_PE_udata8 : DW_EH_PE_udata4;
 
     // Segment Size
     if (!memory_.ReadBytes(&cie->segment_size, 1)) {
