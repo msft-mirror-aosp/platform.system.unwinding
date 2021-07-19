@@ -14,20 +14,14 @@
  * limitations under the License.
  */
 
+#include <cstdio>
 #define _GNU_SOURCE 1
-#include <errno.h>
 #include <inttypes.h>
-#include <signal.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/mman.h>
-#include <sys/ptrace.h>
-#include <sys/types.h>
-#include <unistd.h>
 
-#include <algorithm>
+#include <cstdlib>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -36,12 +30,19 @@
 
 #include <unwindstack/Elf.h>
 #include <unwindstack/JitDebug.h>
+#include <unwindstack/MapInfo.h>
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/Unwinder.h>
+#include "utils/ProcessTracer.h"
 
+#include <android-base/parseint.h>
 #include <android-base/stringprintf.h>
+
+namespace {
+constexpr pid_t kMinPid = 1;
+constexpr int kAllCmdOptionsParsed = -1;
 
 struct map_info_t {
   uint64_t start;
@@ -51,26 +52,22 @@ struct map_info_t {
   std::string name;
 };
 
-static bool Attach(pid_t pid) {
-  if (ptrace(PTRACE_SEIZE, pid, 0, 0) == -1) {
+int usage(int exit_code) {
+  fprintf(stderr, "usage: unwind_for_offline [-t] <PID>\n\n");
+  fprintf(stderr, "-t, --threads   dump offline snapshot for all threads of <PID>\n");
+  return exit_code;
+}
+
+bool CreateAndChangeDumpDir(std::filesystem::path thread_dir, pid_t tid, bool is_main_thread) {
+  std::string dir_name = std::to_string(tid);
+  if (is_main_thread) dir_name += "_main-thread";
+  thread_dir /= dir_name;
+  if (!std::filesystem::create_directory(thread_dir)) {
+    fprintf(stderr, "Failed to create directory for tid %d\n", tid);
     return false;
   }
-
-  if (ptrace(PTRACE_INTERRUPT, pid, 0, 0) == -1) {
-    ptrace(PTRACE_DETACH, pid, 0, 0);
-    return false;
-  }
-
-  // Allow at least 1 second to attach properly.
-  for (size_t i = 0; i < 1000; i++) {
-    siginfo_t si;
-    if (ptrace(PTRACE_GETSIGINFO, pid, 0, &si) == 0) {
-      return true;
-    }
-    usleep(1000);
-  }
-  printf("%d: Failed to stop.\n", pid);
-  return false;
+  std::filesystem::current_path(thread_dir);
+  return true;
 }
 
 bool SaveRegs(unwindstack::Regs* regs) {
@@ -233,21 +230,23 @@ void SaveMapInformation(std::shared_ptr<unwindstack::Memory>& process_memory, ma
   }
 }
 
-int SaveData(pid_t pid) {
-  unwindstack::Regs* regs = unwindstack::Regs::RemoteGet(pid);
+bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread) {
+  unwindstack::Regs* regs = unwindstack::Regs::RemoteGet(tid);
   if (regs == nullptr) {
     printf("Unable to get remote reg data.\n");
-    return 1;
+    return false;
   }
+
+  if (!CreateAndChangeDumpDir(cwd, tid, is_main_thread)) return false;
 
   // Save the current state of the registers.
   if (!SaveRegs(regs)) {
-    return 1;
+    return false;
   }
 
   // Do an unwind so we know how much of the stack to save, and what
   // elf files are involved.
-  unwindstack::UnwinderFromPid unwinder(1024, pid);
+  unwindstack::UnwinderFromPid unwinder(1024, tid);
   unwinder.SetRegs(regs);
   uint64_t sp = regs->sp();
   unwinder.Unwind();
@@ -296,8 +295,8 @@ int SaveData(pid_t pid) {
     printf("%s\n", unwinder.FormatFrame(i).c_str());
   }
 
-  if (!SaveStack(pid, stacks)) {
-    return 1;
+  if (!SaveStack(tid, stacks)) {
+    return false;
   }
 
   std::vector<std::pair<uint64_t, map_info_t>> sorted_maps(maps_by_start.begin(),
@@ -331,24 +330,51 @@ int SaveData(pid_t pid) {
     fprintf(fp.get(), "\n");
   }
 
-  return 0;
+  return true;
 }
+}  // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 2) {
-    printf("Usage: unwind_for_offline <PID>\n");
-    return 1;
+  if (argc < 2) return usage(EXIT_FAILURE);
+
+  int opt;
+  bool dump_threads = false;
+  while ((opt = getopt(argc, argv, "t")) != kAllCmdOptionsParsed) {
+    switch (opt) {
+      case 't': {
+        dump_threads = true;
+        break;
+      }
+      case '?': {
+        if (isprint(optopt))
+          fprintf(stderr, "Unknown option `-%c'.\n", optopt);
+        else
+          fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
+        return usage(EXIT_FAILURE);
+      }
+      default: {
+        return usage(EXIT_FAILURE);
+      }
+    }
+  }
+  if (optind != argc - 1) return usage(EXIT_FAILURE);
+
+  pid_t pid;
+  if (!android::base::ParseInt(argv[optind], &pid, kMinPid, std::numeric_limits<pid_t>::max()))
+    return usage(EXIT_FAILURE);
+
+  unwindstack::ProcessTracer proc(pid, dump_threads);
+  if (!proc.Stop()) return EXIT_FAILURE;
+  std::filesystem::path cwd = std::filesystem::current_path();
+
+  if (!proc.Attach(proc.pid())) return EXIT_FAILURE;
+  if (!SaveData(proc.pid(), cwd, /*is_main_thread=*/proc.IsTracingThreads())) return EXIT_FAILURE;
+  if (!proc.Detach(proc.pid())) return EXIT_FAILURE;
+  for (const pid_t& tid : proc.tids()) {
+    if (!proc.Attach(tid)) return EXIT_FAILURE;
+    if (!SaveData(tid, cwd, /*is_main_thread=*/false)) return EXIT_FAILURE;
+    if (!proc.Detach(tid)) return EXIT_FAILURE;
   }
 
-  pid_t pid = atoi(argv[1]);
-  if (!Attach(pid)) {
-    printf("Failed to attach to pid %d: %s\n", pid, strerror(errno));
-    return 1;
-  }
-
-  int return_code = SaveData(pid);
-
-  ptrace(PTRACE_DETACH, pid, 0, 0);
-
-  return return_code;
+  return EXIT_SUCCESS;
 }
