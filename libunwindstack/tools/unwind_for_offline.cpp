@@ -53,16 +53,20 @@ struct map_info_t {
 };
 
 int usage(int exit_code) {
-  fprintf(stderr, "USAGE: unwind_for_offline [-t] [-e FILE] <PID>\n\n");
+  fprintf(stderr, "USAGE: unwind_for_offline [-t] [-e FILE] [-f[FILE]] <PID>\n\n");
   fprintf(stderr, "OPTIONS:\n");
   fprintf(stderr, "-t\n");
-  fprintf(stderr, "       Dump offline snapshot for all threads of <PID>\n");
+  fprintf(stderr, "       Dump offline snapshot for all threads of <PID>.\n");
   fprintf(stderr, "-e FILE\n");
   fprintf(stderr, "       If FILE is a valid ELF file included in /proc/<PID>/maps,\n");
   fprintf(stderr, "       unwind_for_offline will wait until the current frame (PC)\n");
   fprintf(stderr, "       lies within the .so file given by FILE. FILE should be\n");
   fprintf(stderr, "       base name of the path (the component following the final\n");
   fprintf(stderr, "       '/') rather than the fully qualified path.\n");
+  fprintf(stderr, "-f [FILE]\n");
+  fprintf(stderr, "       Write info (e.g. frames and stack range) logs to a file\n");
+  fprintf(stderr, "       rather than to the stdout/stderr. If FILE is not\n");
+  fprintf(stderr, "       specified, the output file will be named 'output.txt'.\n");
   return exit_code;
 }
 
@@ -103,7 +107,8 @@ bool SaveRegs(unwindstack::Regs* regs) {
   return true;
 }
 
-bool SaveStack(pid_t pid, const std::vector<std::pair<uint64_t, uint64_t>>& stacks) {
+bool SaveStack(pid_t pid, const std::vector<std::pair<uint64_t, uint64_t>>& stacks,
+               FILE* output_fp) {
   for (size_t i = 0; i < stacks.size(); i++) {
     std::string file_name;
     if (stacks.size() != 1) {
@@ -118,11 +123,11 @@ bool SaveStack(pid_t pid, const std::vector<std::pair<uint64_t, uint64_t>>& stac
     std::vector<uint8_t> buffer(sp_end - sp_start);
     auto process_memory = unwindstack::Memory::CreateProcessMemory(pid);
     if (!process_memory->Read(sp_start, buffer.data(), buffer.size())) {
-      printf("Unable to read stack data.\n");
+      fprintf(stderr, "Unable to read stack data.\n");
       return false;
     }
 
-    printf("Saving the stack 0x%" PRIx64 "-0x%" PRIx64 "\n", sp_start, sp_end);
+    fprintf(output_fp, "\nSaving the stack 0x%" PRIx64 "-0x%" PRIx64 "\n", sp_start, sp_end);
 
     std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(file_name.c_str(), "w+"), &fclose);
     if (fp == nullptr) {
@@ -132,14 +137,15 @@ bool SaveStack(pid_t pid, const std::vector<std::pair<uint64_t, uint64_t>>& stac
 
     size_t bytes = fwrite(&sp_start, 1, sizeof(sp_start), fp.get());
     if (bytes != sizeof(sp_start)) {
-      printf("Failed to write sp_start data: sizeof(sp_start) %zu, written %zu\n", sizeof(sp_start),
-             bytes);
+      fprintf(stderr, "Failed to write sp_start data: sizeof(sp_start) %zu, written %zu\n",
+              sizeof(sp_start), bytes);
       return false;
     }
 
     bytes = fwrite(buffer.data(), 1, buffer.size(), fp.get());
     if (bytes != buffer.size()) {
-      printf("Failed to write all stack data: stack size %zu, written %zu\n", buffer.size(), bytes);
+      fprintf(stderr, "Failed to write all stack data: stack size %zu, written %zu\n",
+              buffer.size(), bytes);
       return false;
     }
   }
@@ -160,7 +166,8 @@ bool CreateElfFromMemory(std::shared_ptr<unwindstack::Memory>& memory, map_info_
   // map, so read all that is readable.
   size_t bytes = memory->Read(info->start, buffer.data(), buffer.size());
   if (bytes == 0) {
-    printf("Cannot read data from address %" PRIx64 " length %zu\n", info->start, buffer.size());
+    fprintf(stderr, "Cannot read data from address %" PRIx64 " length %zu\n", info->start,
+            buffer.size());
     return false;
   }
 
@@ -172,7 +179,8 @@ bool CreateElfFromMemory(std::shared_ptr<unwindstack::Memory>& memory, map_info_
 
   size_t bytes_written = fwrite(buffer.data(), 1, bytes, output.get());
   if (bytes_written != bytes) {
-    printf("Failed to write all data to file: bytes read %zu, written %zu\n", bytes, bytes_written);
+    fprintf(stderr, "Failed to write all data to file: bytes read %zu, written %zu\n", bytes,
+            bytes_written);
     return false;
   }
 
@@ -205,8 +213,8 @@ bool CopyElfFromFile(map_info_t* info, bool* file_copied) {
   while ((bytes = fread(buffer.data(), 1, buffer.size(), fp.get())) > 0) {
     size_t bytes_written = fwrite(buffer.data(), 1, bytes, output.get());
     if (bytes_written != bytes) {
-      printf("Bytes written doesn't match bytes read: read %zu, written %zu\n", bytes,
-             bytes_written);
+      fprintf(stderr, "Bytes written doesn't match bytes read: read %zu, written %zu\n", bytes,
+              bytes_written);
       return false;
     }
   }
@@ -242,18 +250,20 @@ void SaveMapInformation(std::shared_ptr<unwindstack::Memory>& process_memory, ma
     return;
   }
 
-  printf("Cannot save memory or file for map ");
+  fprintf(stderr, "Cannot save memory or file for map ");
   if (!info->name.empty()) {
-    printf("%s\n", info->name.c_str());
+    fprintf(stderr, "%s\n", info->name.c_str());
   } else {
-    printf("anonymous:%" PRIx64 "\n", info->start);
+    fprintf(stderr, "anonymous:%" PRIx64 "\n", info->start);
   }
 }
 
-bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread) {
+bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread, FILE* output_fp) {
+  fprintf(output_fp, "-------------------- tid = %d %s--------------------\n", tid,
+          is_main_thread ? "(main thread) " : "--------------");
   unwindstack::Regs* regs = unwindstack::Regs::RemoteGet(tid);
   if (regs == nullptr) {
-    printf("Unable to get remote reg data.\n");
+    fprintf(stderr, "Unable to get remote reg data.\n");
     return false;
   }
 
@@ -312,10 +322,10 @@ bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread) 
   }
 
   for (size_t i = 0; i < unwinder.NumFrames(); i++) {
-    printf("%s\n", unwinder.FormatFrame(i).c_str());
+    fprintf(output_fp, "%s\n", unwinder.FormatFrame(i).c_str());
   }
 
-  if (!SaveStack(tid, stacks)) {
+  if (!SaveStack(tid, stacks, output_fp)) {
     return false;
   }
 
@@ -324,8 +334,8 @@ bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread) 
   std::sort(sorted_maps.begin(), sorted_maps.end(),
             [](auto& a, auto& b) { return a.first < b.first; });
 
-  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen("maps.txt", "w+"), &fclose);
-  if (fp == nullptr) {
+  std::unique_ptr<FILE, decltype(&fclose)> map_fp(fopen("maps.txt", "w+"), &fclose);
+  if (map_fp == nullptr) {
     perror("Failed to create maps.txt");
     return false;
   }
@@ -342,14 +352,15 @@ bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread) 
     if (map.flags & PROT_EXEC) {
       perms[2] = 'x';
     }
-    fprintf(fp.get(), "%" PRIx64 "-%" PRIx64 " %s %" PRIx64 " 00:00 0", map.start, map.end, perms,
-            map.offset);
+    fprintf(map_fp.get(), "%" PRIx64 "-%" PRIx64 " %s %" PRIx64 " 00:00 0", map.start, map.end,
+            perms, map.offset);
     if (!map.name.empty()) {
-      fprintf(fp.get(), "   %s", map.name.c_str());
+      fprintf(map_fp.get(), "   %s", map.name.c_str());
     }
-    fprintf(fp.get(), "\n");
+    fprintf(map_fp.get(), "\n");
   }
 
+  fprintf(output_fp, "------------------------------------------------------------------\n");
   return true;
 }
 }  // namespace
@@ -357,10 +368,11 @@ bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread) 
 int main(int argc, char** argv) {
   if (argc < 2) return usage(EXIT_FAILURE);
 
-  std::string elf_name;
-  int opt;
   bool dump_threads = false;
-  while ((opt = getopt(argc, argv, ":te:")) != kAllCmdOptionsParsed) {
+  std::string elf_name;
+  std::unique_ptr<FILE, decltype(&fclose)> output_fp(nullptr, &fclose);
+  int opt;
+  while ((opt = getopt(argc, argv, ":te:f::")) != kAllCmdOptionsParsed) {
     switch (opt) {
       case 't': {
         dump_threads = true;
@@ -368,6 +380,19 @@ int main(int argc, char** argv) {
       }
       case 'e': {
         elf_name = optarg;
+        if (elf_name == "-f") {
+          fprintf(stderr, "Missing argument for option e.\n");
+          return usage(EXIT_FAILURE);
+        }
+        break;
+      }
+      case 'f': {
+        const std::string& output_filename = optarg != nullptr ? optarg : "output.txt";
+        if (optind == argc - 2) {
+          fprintf(stderr, "Ensure there is no space between '-f' and the filename provided.\n");
+          return usage(EXIT_FAILURE);
+        }
+        output_fp.reset(fopen(output_filename.c_str(), "a"));
         break;
       }
       case '?': {
@@ -397,16 +422,19 @@ int main(int argc, char** argv) {
   if (!elf_name.empty()) {
     if (!EnsureProcInDesiredElf(elf_name, proc)) return EXIT_FAILURE;
   }
+  if (!output_fp) output_fp.reset(stdout);
   std::filesystem::path cwd = std::filesystem::current_path();
 
   if (!proc.Attach(proc.pid())) return EXIT_FAILURE;
-  if (!SaveData(proc.pid(), cwd, /*is_main_thread=*/proc.IsTracingThreads())) return EXIT_FAILURE;
+  if (!SaveData(proc.pid(), cwd, /*is_main_thread=*/proc.IsTracingThreads(), output_fp.get()))
+    return EXIT_FAILURE;
   if (!proc.Detach(proc.pid())) return EXIT_FAILURE;
   for (const pid_t& tid : proc.tids()) {
     if (!proc.Attach(tid)) return EXIT_FAILURE;
-    if (!SaveData(tid, cwd, /*is_main_thread=*/false)) return EXIT_FAILURE;
+    if (!SaveData(tid, cwd, /*is_main_thread=*/false, output_fp.get())) return EXIT_FAILURE;
     if (!proc.Detach(tid)) return EXIT_FAILURE;
   }
 
+  printf("\nSuccess!\n");
   return EXIT_SUCCESS;
 }
