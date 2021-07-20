@@ -17,22 +17,21 @@
 #ifndef _LIBUNWINDSTACK_UTILS_OFFLINE_UNWIND_UTILS_H
 #define _LIBUNWINDSTACK_UTILS_OFFLINE_UNWIND_UTILS_H
 
+#include <filesystem>
+#include <memory>
 #include <string>
 
-#include <unwindstack/MachineArm.h>
-#include <unwindstack/MachineArm64.h>
-#include <unwindstack/MachineX86.h>
-#include <unwindstack/MachineX86_64.h>
-#include <unwindstack/Maps.h>
-#include <unwindstack/RegsArm.h>
-#include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsX86.h>
-#include <unwindstack/RegsX86_64.h>
 #include <unwindstack/Unwinder.h>
 
 #include "MemoryOffline.h"
 
 namespace unwindstack {
+
+// These utils facilitate performing offline unwinds. Offline unwinds are similar to local
+// unwinds, however, instead of pausing the process to gather the current execution state
+// (stack, registers, Elf / maps), a snapshot of the process is taken. This snapshot data
+// is used at a later time (when the process is no longer running) to unwind the process
+// at the point the snapshot was taken.
 
 std::string GetOfflineFilesDirectory();
 
@@ -41,7 +40,15 @@ std::string DumpFrames(const Unwinder& unwinder);
 bool AddMemory(std::string file_name, MemoryOfflineParts* parts, std::string& error_msg);
 
 class OfflineUnwindUtils {
- protected:
+ public:
+  Regs* GetRegs() { return regs_.get(); }
+
+  Maps* GetMaps() { return maps_.get(); }
+
+  std::shared_ptr<Memory> GetProcessMemory() { return process_memory_; }
+
+  std::string GetOfflineDirectory() { return offline_dir_; }
+
   bool Init(const std::string& offline_files_dir, ArchEnum arch, std::string& error_msg,
             bool add_stack = true, bool set_maps = true);
 
@@ -51,6 +58,9 @@ class OfflineUnwindUtils {
 
   bool SetJitProcessMemory(std::string& error_msg);
 
+  void ReturnToCurrentWorkingDirectory() { std::filesystem::current_path(cwd_); }
+
+ private:
   bool SetRegs(ArchEnum arch, std::string& error_msg);
 
   template <typename AddressType>
@@ -65,7 +75,7 @@ class OfflineUnwindUtils {
 
   std::string cwd_;
   std::string offline_dir_;
-  std::string map_buffer;
+  std::string map_buffer_;
   std::unique_ptr<Regs> regs_;
   std::unique_ptr<Maps> maps_;
   std::shared_ptr<Memory> process_memory_;
