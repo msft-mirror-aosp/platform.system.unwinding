@@ -20,6 +20,7 @@
 #include <string.h>
 
 #include <filesystem>
+#include <memory>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -27,6 +28,16 @@
 
 #include <android-base/file.h>
 
+#include <unwindstack/Arch.h>
+#include <unwindstack/MachineArm.h>
+#include <unwindstack/MachineArm64.h>
+#include <unwindstack/MachineX86.h>
+#include <unwindstack/MachineX86_64.h>
+#include <unwindstack/Maps.h>
+#include <unwindstack/RegsArm.h>
+#include <unwindstack/RegsArm64.h>
+#include <unwindstack/RegsX86.h>
+#include <unwindstack/RegsX86_64.h>
 #include <unwindstack/Unwinder.h>
 
 #include "MemoryOffline.h"
@@ -68,7 +79,7 @@ bool OfflineUnwindUtils::Init(const std::string& offline_files_dir, ArchEnum arc
   offline_dir_ = GetOfflineFilesDirectory() + offline_files_dir;
   std::filesystem::current_path(std::filesystem::path(offline_dir_));
 
-  if (!android::base::ReadFileToString((offline_dir_ + "maps.txt"), &map_buffer)) {
+  if (!android::base::ReadFileToString((offline_dir_ + "maps.txt"), &map_buffer_)) {
     std::stringstream err_stream;
     err_stream << "Failed to read from '" << offline_dir_ << "maps.txt' into memory.";
     error_msg = err_stream.str();
@@ -90,7 +101,7 @@ bool OfflineUnwindUtils::Init(const std::string& offline_files_dir, ArchEnum arc
 }
 
 bool OfflineUnwindUtils::ResetMaps(std::string& error_msg) {
-  maps_.reset(new BufferMaps(map_buffer.c_str()));
+  maps_.reset(new BufferMaps(map_buffer_.c_str()));
   if (!maps_->Parse()) {
     error_msg = "Failed to parse offline maps.";
     return false;
