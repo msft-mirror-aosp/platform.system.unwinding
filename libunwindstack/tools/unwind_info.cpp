@@ -50,7 +50,7 @@ void DumpArm(Elf* elf, ElfInterfaceArm* interface) {
     printf(" PC Range 0x%" PRIx64 " - 0x%" PRIx64 "\n", entry.second.offset + load_bias,
            entry.second.offset + entry.second.table_size + load_bias);
     for (auto pc : *interface) {
-      std::string name;
+      SharedString name;
       printf("  PC 0x%" PRIx64, pc + load_bias);
       uint64_t func_offset;
       if (elf->GetFunctionName(pc + load_bias, &name, &func_offset) && !name.empty()) {
@@ -90,13 +90,13 @@ void DumpDwarfSection(Elf* elf, DwarfSection* section, uint64_t) {
       continue;
     }
     printf("\n  PC 0x%" PRIx64 "-0x%" PRIx64, fde->pc_start, fde->pc_end);
-    std::string name;
+    SharedString name;
     uint64_t func_offset;
     if (elf->GetFunctionName(fde->pc_start, &name, &func_offset) && !name.empty()) {
       printf(" <%s>", name.c_str());
     }
     printf("\n");
-    if (!section->Log(2, UINT64_MAX, fde)) {
+    if (!section->Log(2, UINT64_MAX, fde, elf->arch())) {
       printf("Failed to process cfa information for entry at 0x%" PRIx64 "\n", fde->pc_start);
     }
   }

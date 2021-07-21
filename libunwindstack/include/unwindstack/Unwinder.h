@@ -24,18 +24,20 @@
 #include <string>
 #include <vector>
 
+#include <unwindstack/Arch.h>
 #include <unwindstack/DexFiles.h>
 #include <unwindstack/Error.h>
 #include <unwindstack/JitDebug.h>
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
+#include <unwindstack/SharedString.h>
 
 namespace unwindstack {
 
 // Forward declarations.
 class Elf;
-enum ArchEnum : uint8_t;
+class ThreadEntry;
 
 struct FrameData {
   size_t num;
@@ -44,10 +46,10 @@ struct FrameData {
   uint64_t pc;
   uint64_t sp;
 
-  std::string function_name;
+  SharedString function_name;
   uint64_t function_offset = 0;
 
-  std::string map_name;
+  SharedString map_name;
   // The offset from the first map representing the frame. When there are
   // two maps (read-only and read-execute) this will be the offset from
   // the read-only map. When there is only one map, this will be the
@@ -64,22 +66,24 @@ struct FrameData {
 class Unwinder {
  public:
   Unwinder(size_t max_frames, Maps* maps, Regs* regs, std::shared_ptr<Memory> process_memory)
-      : max_frames_(max_frames), maps_(maps), regs_(regs), process_memory_(process_memory) {
-    frames_.reserve(max_frames);
-  }
+      : max_frames_(max_frames),
+        maps_(maps),
+        regs_(regs),
+        process_memory_(process_memory),
+        arch_(regs->Arch()) {}
   Unwinder(size_t max_frames, Maps* maps, std::shared_ptr<Memory> process_memory)
-      : max_frames_(max_frames), maps_(maps), process_memory_(process_memory) {
-    frames_.reserve(max_frames);
-  }
+      : max_frames_(max_frames), maps_(maps), process_memory_(process_memory) {}
 
   virtual ~Unwinder() = default;
 
-  void Unwind(const std::vector<std::string>* initial_map_names_to_skip = nullptr,
-              const std::vector<std::string>* map_suffixes_to_ignore = nullptr);
+  virtual void Unwind(const std::vector<std::string>* initial_map_names_to_skip = nullptr,
+                      const std::vector<std::string>* map_suffixes_to_ignore = nullptr);
 
   size_t NumFrames() const { return frames_.size(); }
 
-  const std::vector<FrameData>& frames() { return frames_; }
+  // Returns frames after unwinding.
+  // Intentionally mutable (which can be used to swap in reserved memory before unwinding).
+  std::vector<FrameData>& frames() { return frames_; }
 
   std::vector<FrameData> ConsumeFrames() {
     std::vector<FrameData> frames = std::move(frames_);
@@ -90,9 +94,14 @@ class Unwinder {
   std::string FormatFrame(size_t frame_num) const;
   std::string FormatFrame(const FrameData& frame) const;
 
-  void SetJitDebug(JitDebug* jit_debug, ArchEnum arch);
+  void SetArch(ArchEnum arch) { arch_ = arch; };
 
-  void SetRegs(Regs* regs) { regs_ = regs; }
+  void SetJitDebug(JitDebug* jit_debug);
+
+  void SetRegs(Regs* regs) {
+    regs_ = regs;
+    arch_ = regs_ != nullptr ? regs->Arch() : ARCH_UNKNOWN;
+  }
   Maps* GetMaps() { return maps_; }
   std::shared_ptr<Memory>& GetProcessMemory() { return process_memory_; }
 
@@ -107,15 +116,34 @@ class Unwinder {
 
   void SetDisplayBuildID(bool display_build_id) { display_build_id_ = display_build_id; }
 
-  void SetDexFiles(DexFiles* dex_files, ArchEnum arch);
+  void SetDexFiles(DexFiles* dex_files);
 
   bool elf_from_memory_not_file() { return elf_from_memory_not_file_; }
 
   ErrorCode LastErrorCode() { return last_error_.code; }
+  const char* LastErrorCodeString() { return GetErrorCodeString(last_error_.code); }
   uint64_t LastErrorAddress() { return last_error_.address; }
+  uint64_t warnings() { return warnings_; }
+
+  // Builds a frame for symbolization using the maps from this unwinder. The
+  // constructed frame contains just enough information to be used to symbolize
+  // frames collected by frame-pointer unwinding that's done outside of
+  // libunwindstack. This is used by tombstoned to symbolize frame pointer-based
+  // stack traces that are collected by tools such as GWP-ASan and MTE.
+  static FrameData BuildFrameFromPcOnly(uint64_t pc, ArchEnum arch, Maps* maps, JitDebug* jit_debug,
+                                        std::shared_ptr<Memory> process_memory, bool resolve_names);
+  FrameData BuildFrameFromPcOnly(uint64_t pc);
 
  protected:
-  Unwinder(size_t max_frames) : max_frames_(max_frames) { frames_.reserve(max_frames); }
+  Unwinder(size_t max_frames, Maps* maps = nullptr) : max_frames_(max_frames), maps_(maps) {}
+  Unwinder(size_t max_frames, ArchEnum arch, Maps* maps = nullptr)
+      : max_frames_(max_frames), maps_(maps), arch_(arch) {}
+
+  void ClearErrors() {
+    warnings_ = WARNING_NONE;
+    last_error_.code = ERROR_NONE;
+    last_error_.address = 0;
+  }
 
   void FillInDexFrame();
   FrameData* FillInFrame(MapInfo* map_info, Elf* elf, uint64_t rel_pc, uint64_t pc_adjustment);
@@ -134,20 +162,51 @@ class Unwinder {
   // file. This is only true if there is an actual file backing up the elf.
   bool elf_from_memory_not_file_ = false;
   ErrorData last_error_;
+  uint64_t warnings_;
+  ArchEnum arch_ = ARCH_UNKNOWN;
 };
 
 class UnwinderFromPid : public Unwinder {
  public:
-  UnwinderFromPid(size_t max_frames, pid_t pid) : Unwinder(max_frames), pid_(pid) {}
+  UnwinderFromPid(size_t max_frames, pid_t pid, Maps* maps = nullptr)
+      : Unwinder(max_frames, maps), pid_(pid) {}
+  UnwinderFromPid(size_t max_frames, pid_t pid, ArchEnum arch, Maps* maps = nullptr)
+      : Unwinder(max_frames, arch, maps), pid_(pid) {}
   virtual ~UnwinderFromPid() = default;
 
-  bool Init(ArchEnum arch);
+  void SetProcessMemory(std::shared_ptr<Memory>& process_memory) {
+    process_memory_ = process_memory;
+  }
 
- private:
+  bool Init();
+
+  void Unwind(const std::vector<std::string>* initial_map_names_to_skip = nullptr,
+              const std::vector<std::string>* map_suffixes_to_ignore = nullptr) override;
+
+ protected:
   pid_t pid_;
   std::unique_ptr<Maps> maps_ptr_;
   std::unique_ptr<JitDebug> jit_debug_ptr_;
   std::unique_ptr<DexFiles> dex_files_ptr_;
+  bool initted_ = false;
+};
+
+class ThreadUnwinder : public UnwinderFromPid {
+ public:
+  ThreadUnwinder(size_t max_frames, Maps* maps = nullptr);
+  ThreadUnwinder(size_t max_frames, const ThreadUnwinder* unwinder);
+  virtual ~ThreadUnwinder() = default;
+
+  void SetObjects(ThreadUnwinder* unwinder);
+
+  void Unwind(const std::vector<std::string>*, const std::vector<std::string>*) override {}
+
+  void UnwindWithSignal(int signal, pid_t tid,
+                        const std::vector<std::string>* initial_map_names_to_skip = nullptr,
+                        const std::vector<std::string>* map_suffixes_to_ignore = nullptr);
+
+ protected:
+  ThreadEntry* SendSignalToThread(int signal, pid_t tid);
 };
 
 }  // namespace unwindstack
