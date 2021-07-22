@@ -18,9 +18,10 @@
 
 #include <gtest/gtest.h>
 
-#include <filesystem>
+#include <memory>
 #include <string>
 
+#include <unwindstack/RegsArm64.h>
 #include <unwindstack/Unwinder.h>
 
 #include "TestUtils.h"
@@ -28,18 +29,22 @@
 #include "utils/OfflineUnwindUtils.h"
 
 namespace unwindstack {
+namespace {
 
-class UnwindOfflineTest : public OfflineUnwindUtils, public ::testing::Test {
+class UnwindOfflineTest : public ::testing::Test {
  protected:
-  void TearDown() override { std::filesystem::current_path(cwd_); }
+  void TearDown() override { offline_utils_.ReturnToCurrentWorkingDirectory(); }
+
+  OfflineUnwindUtils offline_utils_;
 };
 
 TEST_F(UnwindOfflineTest, pc_straddle_arm) {
   std::string error_msg;
-  if (!Init("straddle_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("straddle_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  std::unique_ptr<Regs> regs_copy(regs_->Clone());
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Regs* regs = offline_utils_.GetRegs();
+  std::unique_ptr<Regs> regs_copy(regs->Clone());
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -78,9 +83,10 @@ TEST_F(UnwindOfflineTest, pc_straddle_arm) {
 
 TEST_F(UnwindOfflineTest, pc_in_gnu_debugdata_arm) {
   std::string error_msg;
-  if (!Init("gnu_debugdata_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("gnu_debugdata_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -100,9 +106,10 @@ TEST_F(UnwindOfflineTest, pc_in_gnu_debugdata_arm) {
 
 TEST_F(UnwindOfflineTest, pc_straddle_arm64) {
   std::string error_msg;
-  if (!Init("straddle_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("straddle_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -133,12 +140,14 @@ TEST_F(UnwindOfflineTest, pc_straddle_arm64) {
 
 TEST_F(UnwindOfflineTest, jit_debug_x86) {
   std::string error_msg;
-  if (!Init("jit_debug_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("jit_debug_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
 
-  if (!SetJitProcessMemory(error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.SetJitProcessMemory(error_msg)) FAIL() << error_msg;
 
-  std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs_->Arch(), process_memory_);
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Regs* regs = offline_utils_.GetRegs();
+  std::shared_ptr<Memory> process_memory = offline_utils_.GetProcessMemory();
+  std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs->Arch(), process_memory);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, process_memory);
   unwinder.SetJitDebug(jit_debug.get());
   unwinder.Unwind();
 
@@ -428,12 +437,14 @@ TEST_F(UnwindOfflineTest, jit_debug_x86) {
 
 TEST_F(UnwindOfflineTest, jit_debug_arm) {
   std::string error_msg;
-  if (!Init("jit_debug_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("jit_debug_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  if (!SetJitProcessMemory(error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.SetJitProcessMemory(error_msg)) FAIL() << error_msg;
 
-  std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs_->Arch(), process_memory_);
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Regs* regs = offline_utils_.GetRegs();
+  std::shared_ptr<Memory> process_memory = offline_utils_.GetProcessMemory();
+  std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs->Arch(), process_memory);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, process_memory);
   unwinder.SetJitDebug(jit_debug.get());
   unwinder.Unwind();
 
@@ -765,11 +776,12 @@ static void OfflineUnwind(void* data) {
 
 TEST_F(UnwindOfflineTest, unwind_offline_check_for_leaks) {
   std::string error_msg;
-  if (!Init("jit_debug_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("jit_debug_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  if (!SetJitProcessMemory(error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.SetJitProcessMemory(error_msg)) FAIL() << error_msg;
 
-  LeakType data(maps_.get(), regs_.get(), process_memory_);
+  std::shared_ptr<Memory> process_memory = offline_utils_.GetProcessMemory();
+  LeakType data(offline_utils_.GetMaps(), offline_utils_.GetRegs(), process_memory);
   TestCheckForLeaks(OfflineUnwind, &data);
 }
 
@@ -778,9 +790,10 @@ TEST_F(UnwindOfflineTest, unwind_offline_check_for_leaks) {
 // No .gnu_debugdata section in the elf file, so no symbols.
 TEST_F(UnwindOfflineTest, bad_eh_frame_hdr_arm64) {
   std::string error_msg;
-  if (!Init("bad_eh_frame_hdr_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("bad_eh_frame_hdr_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -808,9 +821,10 @@ TEST_F(UnwindOfflineTest, bad_eh_frame_hdr_arm64) {
 // is used first, the unwind will not match the expected output.
 TEST_F(UnwindOfflineTest, debug_frame_first_x86) {
   std::string error_msg;
-  if (!Init("debug_frame_first_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("debug_frame_first_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -837,9 +851,11 @@ TEST_F(UnwindOfflineTest, debug_frame_first_x86) {
 // Make sure that a pc that is at the beginning of an fde unwinds correctly.
 TEST_F(UnwindOfflineTest, eh_frame_hdr_begin_x86_64) {
   std::string error_msg;
-  if (!Init("eh_frame_hdr_begin_x86_64/", ARCH_X86_64, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("eh_frame_hdr_begin_x86_64/", ARCH_X86_64, error_msg))
+    FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -865,12 +881,14 @@ TEST_F(UnwindOfflineTest, eh_frame_hdr_begin_x86_64) {
 
 TEST_F(UnwindOfflineTest, art_quick_osr_stub_arm) {
   std::string error_msg;
-  if (!Init("art_quick_osr_stub_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("art_quick_osr_stub_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  if (!SetJitProcessMemory(error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.SetJitProcessMemory(error_msg)) FAIL() << error_msg;
 
-  std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs_->Arch(), process_memory_);
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Regs* regs = offline_utils_.GetRegs();
+  std::shared_ptr<Memory> process_memory = offline_utils_.GetProcessMemory();
+  std::unique_ptr<JitDebug> jit_debug = CreateJitDebug(regs->Arch(), process_memory);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, process_memory);
   unwinder.SetJitDebug(jit_debug.get());
   unwinder.Unwind();
 
@@ -977,15 +995,16 @@ TEST_F(UnwindOfflineTest, art_quick_osr_stub_arm) {
 
 TEST_F(UnwindOfflineTest, jit_map_arm) {
   std::string error_msg;
-  if (!Init("jit_map_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("jit_map_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  maps_->Add(0xd025c788, 0xd025c9f0, 0, PROT_READ | PROT_EXEC | MAPS_FLAGS_JIT_SYMFILE_MAP,
-             "jit_map0.so", 0);
-  maps_->Add(0xd025cd98, 0xd025cff4, 0, PROT_READ | PROT_EXEC | MAPS_FLAGS_JIT_SYMFILE_MAP,
-             "jit_map1.so", 0);
-  maps_->Sort();
+  Maps* maps = offline_utils_.GetMaps();
+  maps->Add(0xd025c788, 0xd025c9f0, 0, PROT_READ | PROT_EXEC | MAPS_FLAGS_JIT_SYMFILE_MAP,
+            "jit_map0.so", 0);
+  maps->Add(0xd025cd98, 0xd025cff4, 0, PROT_READ | PROT_EXEC | MAPS_FLAGS_JIT_SYMFILE_MAP,
+            "jit_map1.so", 0);
+  maps->Sort();
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, maps, offline_utils_.GetRegs(), offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1018,9 +1037,10 @@ TEST_F(UnwindOfflineTest, jit_map_arm) {
 
 TEST_F(UnwindOfflineTest, offset_arm) {
   std::string error_msg;
-  if (!Init("offset_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("offset_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1095,9 +1115,10 @@ TEST_F(UnwindOfflineTest, offset_arm) {
 // encoded as 0xb, which is not set as pc relative.
 TEST_F(UnwindOfflineTest, debug_frame_load_bias_arm) {
   std::string error_msg;
-  if (!Init("debug_frame_load_bias_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("debug_frame_load_bias_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1133,9 +1154,10 @@ TEST_F(UnwindOfflineTest, debug_frame_load_bias_arm) {
 
 TEST_F(UnwindOfflineTest, shared_lib_in_apk_arm64) {
   std::string error_msg;
-  if (!Init("shared_lib_in_apk_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("shared_lib_in_apk_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1171,12 +1193,16 @@ TEST_F(UnwindOfflineTest, shared_lib_in_apk_arm64) {
 
 TEST_F(UnwindOfflineTest, shared_lib_in_apk_memory_only_arm64) {
   std::string error_msg;
-  if (!Init("shared_lib_in_apk_memory_only_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("shared_lib_in_apk_memory_only_arm64/", ARCH_ARM64, error_msg))
+    FAIL() << error_msg;
   // Add the memory that represents the shared library.
-  MemoryOfflineParts* memory = reinterpret_cast<MemoryOfflineParts*>(process_memory_.get());
-  if (!AddMemory(offline_dir_ + "lib_mem.data", memory, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  std::shared_ptr<Memory> process_memory = offline_utils_.GetProcessMemory();
+  MemoryOfflineParts* memory = reinterpret_cast<MemoryOfflineParts*>(process_memory.get());
+  if (!AddMemory(offline_utils_.GetOfflineDirectory() + "lib_mem.data", memory, error_msg))
+    FAIL() << error_msg;
+
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(), process_memory);
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1211,9 +1237,11 @@ TEST_F(UnwindOfflineTest, shared_lib_in_apk_memory_only_arm64) {
 
 TEST_F(UnwindOfflineTest, shared_lib_in_apk_single_map_arm64) {
   std::string error_msg;
-  if (!Init("shared_lib_in_apk_single_map_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("shared_lib_in_apk_single_map_arm64/", ARCH_ARM64, error_msg))
+    FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1264,11 +1292,12 @@ TEST_F(UnwindOfflineTest, shared_lib_in_apk_single_map_arm64) {
 
 TEST_F(UnwindOfflineTest, invalid_elf_offset_arm) {
   std::string error_msg;
-  if (!Init("invalid_elf_offset_arm/", ARCH_ARM, error_msg,
-            /*add_stack=*/false))
+  if (!offline_utils_.Init("invalid_elf_offset_arm/", ARCH_ARM, error_msg,
+                           /*add_stack=*/false))
     FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1280,9 +1309,10 @@ TEST_F(UnwindOfflineTest, invalid_elf_offset_arm) {
 
 TEST_F(UnwindOfflineTest, load_bias_ro_rx_x86_64) {
   std::string error_msg;
-  if (!Init("load_bias_ro_rx_x86_64/", ARCH_X86_64, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("load_bias_ro_rx_x86_64/", ARCH_X86_64, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1358,9 +1388,11 @@ TEST_F(UnwindOfflineTest, load_bias_ro_rx_x86_64) {
 
 TEST_F(UnwindOfflineTest, load_bias_different_section_bias_arm64) {
   std::string error_msg;
-  if (!Init("load_bias_different_section_bias_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("load_bias_different_section_bias_arm64/", ARCH_ARM64, error_msg))
+    FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1408,9 +1440,10 @@ TEST_F(UnwindOfflineTest, load_bias_different_section_bias_arm64) {
 
 TEST_F(UnwindOfflineTest, eh_frame_bias_x86) {
   std::string error_msg;
-  if (!Init("eh_frame_bias_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("eh_frame_bias_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1455,9 +1488,10 @@ TEST_F(UnwindOfflineTest, eh_frame_bias_x86) {
 
 TEST_F(UnwindOfflineTest, signal_load_bias_arm) {
   std::string error_msg;
-  if (!Init("signal_load_bias_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("signal_load_bias_arm/", ARCH_ARM, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1524,9 +1558,10 @@ TEST_F(UnwindOfflineTest, signal_load_bias_arm) {
 
 TEST_F(UnwindOfflineTest, empty_arm64) {
   std::string error_msg;
-  if (!Init("empty_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("empty_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1564,9 +1599,10 @@ TEST_F(UnwindOfflineTest, empty_arm64) {
 // fde to do the unwind.
 TEST_F(UnwindOfflineTest, signal_fde_x86) {
   std::string error_msg;
-  if (!Init("signal_fde_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("signal_fde_x86/", ARCH_X86, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1645,9 +1681,10 @@ TEST_F(UnwindOfflineTest, signal_fde_x86) {
 // fde to do the unwind.
 TEST_F(UnwindOfflineTest, signal_fde_x86_64) {
   std::string error_msg;
-  if (!Init("signal_fde_x86_64/", ARCH_X86_64, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("signal_fde_x86_64/", ARCH_X86_64, error_msg)) FAIL() << error_msg;
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1717,11 +1754,12 @@ TEST_F(UnwindOfflineTest, signal_fde_x86_64) {
 
 TEST_F(UnwindOfflineTest, pauth_pc_arm64) {
   std::string error_msg;
-  if (!Init("pauth_pc_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
+  if (!offline_utils_.Init("pauth_pc_arm64/", ARCH_ARM64, error_msg)) FAIL() << error_msg;
 
-  static_cast<RegsArm64*>(regs_.get())->SetPACMask(0x007fff8000000000ULL);
+  static_cast<RegsArm64*>(offline_utils_.GetRegs())->SetPACMask(0x007fff8000000000ULL);
 
-  Unwinder unwinder(128, maps_.get(), regs_.get(), process_memory_);
+  Unwinder unwinder(128, offline_utils_.GetMaps(), offline_utils_.GetRegs(),
+                    offline_utils_.GetProcessMemory());
   unwinder.Unwind();
 
   std::string frame_info(DumpFrames(unwinder));
@@ -1810,4 +1848,5 @@ TEST_F(UnwindOfflineTest, pauth_pc_arm64) {
   EXPECT_EQ(0x7ff3511e70U, unwinder.frames()[25].sp);
 }
 
+}  // namespace
 }  // namespace unwindstack
