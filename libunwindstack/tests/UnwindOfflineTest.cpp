@@ -1477,5 +1477,17 @@ TEST_F(UnwindOfflineTest, pauth_pc_arm64) {
   EXPECT_EQ(0x7ff3511e70U, unwinder.frames()[25].sp);
 }
 
+TEST_F(UnwindOfflineTest, profiler_like_multi_process) {
+  ConsecutiveUnwindTest(std::vector<UnwindSampleInfo>{
+      {.offline_files_dir = "bluetooth_arm64/pc_1/", .arch = ARCH_ARM64},
+      {.offline_files_dir = "jit_debug_arm/",
+       .arch = ARCH_ARM,
+       .memory_flag = ProcessMemoryFlag::kIncludeJitMemory},
+      {.offline_files_dir = "photos_reset_arm64/", .arch = ARCH_ARM64},
+      {.offline_files_dir = "youtube_compiled_arm64/", .arch = ARCH_ARM64},
+      {.offline_files_dir = "yt_music_arm64/", .arch = ARCH_ARM64},
+      {.offline_files_dir = "maps_compiled_arm64/28656_oat_odex_jar/", .arch = ARCH_ARM64}});
+}
+
 }  // namespace
 }  // namespace unwindstack
