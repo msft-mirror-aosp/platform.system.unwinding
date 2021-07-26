@@ -170,30 +170,22 @@ const std::string* OfflineUnwindUtils::GetFrameInfoFilepath(
   return &samples_.at(sample_name).frame_info_filepath;
 }
 
-bool OfflineUnwindUtils::Init(std::vector<std::string> offline_files_dirs,
-                              const std::vector<ArchEnum>& archs, std::string* error_msg,
-                              const std::vector<ProcessMemoryFlag>& memory_flags,
-                              const std::vector<bool>& set_maps,
-                              const std::vector<std::string>& frame_info_filenames) {
-  if (!(offline_files_dirs.size() == archs.size() && archs.size() == memory_flags.size() &&
-        memory_flags.size() == set_maps.size())) {
-    *error_msg = "Sizes of vector inputs are not the same.";
-    return false;
-  }
-
+bool OfflineUnwindUtils::Init(const std::vector<UnwindSampleInfo>& sample_infos,
+                              std::string* error_msg) {
   // Save the current path so the caller can switch back to it later.
   cwd_ = std::filesystem::current_path();
 
   // Fill in the unwind samples.
   std::stringstream err_stream;
-  for (size_t i = 0; i < offline_files_dirs.size(); ++i) {
-    std::string offline_files_full_path = GetOfflineFilesDirectory() + offline_files_dirs[i];
+  for (const auto& sample_info : sample_infos) {
+    std::string offline_files_full_path =
+        GetOfflineFilesDirectory() + sample_info.offline_files_dir;
     if (!std::filesystem::exists(offline_files_full_path)) {
       err_stream << "Offline files directory '" << offline_files_full_path << "' does not exist.";
       *error_msg = err_stream.str();
       return false;
     }
-    std::string frame_info_filepath = offline_files_full_path + frame_info_filenames[i];
+    std::string frame_info_filepath = offline_files_full_path + sample_info.frame_info_filename;
 
     std::string map_buffer;
     if (!android::base::ReadFileToString((offline_files_full_path + "maps.txt"), &map_buffer)) {
@@ -204,10 +196,10 @@ bool OfflineUnwindUtils::Init(std::vector<std::string> offline_files_dirs,
 
     // CreateMaps, CreatRegs, and Create*Memory may need to be called later by the client. So we
     // need to create the sample now in case the flags are set to call these methods in Init.
-    const std::string& sample_name = offline_files_dirs[i];
+    const std::string& sample_name = sample_info.offline_files_dir;
     samples_.emplace(sample_name, (UnwindSample){
-                                      std::move(offline_files_full_path), std::move(map_buffer),
-                                      std::move(frame_info_filepath),
+                                      std::move(offline_files_full_path),
+                                      std::move(frame_info_filepath), std::move(map_buffer),
                                       nullptr,                         // regs
                                       nullptr,                         // maps
                                       std::make_shared<MemoryFake>(),  // process_memory
@@ -215,12 +207,12 @@ bool OfflineUnwindUtils::Init(std::vector<std::string> offline_files_dirs,
                                   });
     UnwindSample& sample = samples_.at(sample_name);
 
-    if (set_maps[i]) {
+    if (sample_info.create_maps) {
       if (!CreateMaps(error_msg, sample_name)) return false;
     }
-    if (!CreateRegs(archs[i], error_msg, sample_name)) return false;
+    if (!CreateRegs(sample_info.arch, error_msg, sample_name)) return false;
 
-    switch (memory_flags[i]) {
+    switch (sample_info.memory_flag) {
       case ProcessMemoryFlag::kNone: {
         if (!CreateProcessMemory(error_msg, sample_name)) return false;
         break;
@@ -245,12 +237,8 @@ bool OfflineUnwindUtils::Init(std::vector<std::string> offline_files_dirs,
   return true;
 }
 
-bool OfflineUnwindUtils::Init(std::string offline_files_dir, ArchEnum arch, std::string* error_msg,
-                              ProcessMemoryFlag memory_flag, bool set_maps,
-                              const std::string& frame_info_filename) {
-  if (Init(std::vector<std::string>{std::move(offline_files_dir)}, std::vector<ArchEnum>{arch},
-           error_msg, std::vector<ProcessMemoryFlag>{memory_flag}, std::vector<bool>{set_maps},
-           std::vector<std::string>{frame_info_filename})) {
+bool OfflineUnwindUtils::Init(const UnwindSampleInfo& sample_info, std::string* error_msg) {
+  if (Init(std::vector<UnwindSampleInfo>{sample_info}, error_msg)) {
     if (!ChangeToSampleDirectory(error_msg)) return false;
     return true;
   }
