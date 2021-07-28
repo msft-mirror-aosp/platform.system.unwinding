@@ -78,9 +78,7 @@ TEST(MapInfoTest, multiple_thread_get_elf_fields) {
   MapInfo map_info(nullptr, nullptr, 0, 0, 0, 0, "");
 
   static constexpr size_t kNumConcurrentThreads = 100;
-  MapInfo::ElfFields* fields[kNumConcurrentThreads];
-  Elf* elfs[kNumConcurrentThreads];
-  uint64_t offsets[kNumConcurrentThreads];
+  MapInfo::ElfFields* elf_fields[kNumConcurrentThreads];
 
   std::atomic_bool wait;
   wait = true;
@@ -88,12 +86,10 @@ TEST(MapInfoTest, multiple_thread_get_elf_fields) {
   // to make it likely that a race will occur.
   std::vector<std::thread*> threads;
   for (size_t i = 0; i < kNumConcurrentThreads; i++) {
-    std::thread* thread = new std::thread([&]() {
+    std::thread* thread = new std::thread([i, &wait, &map_info, &elf_fields]() {
       while (wait)
         ;
-      fields[i] = &map_info.GetElfFields();
-      elfs[i] = fields[i]->elf_.get();
-      offsets[i] = fields[i]->elf_offset_;
+      elf_fields[i] = &map_info.GetElfFields();
     });
     threads.push_back(thread);
   }
@@ -105,13 +101,11 @@ TEST(MapInfoTest, multiple_thread_get_elf_fields) {
     delete thread;
   }
 
-  // Now verify that all of them are exactly the same and valid.
+  // Now verify that all of elf fields are exactly the same and valid.
+  MapInfo::ElfFields* expected_elf_fields = &map_info.GetElfFields();
+  ASSERT_TRUE(expected_elf_fields != nullptr);
   for (size_t i = 0; i < kNumConcurrentThreads; i++) {
-    EXPECT_EQ(fields[0], fields[i]) << "Thread " << i << " mismatched.";
-    EXPECT_EQ(elfs[0], elfs[i]) << "Thread " << i << " mismatched.";
-    EXPECT_EQ(offsets[0], offsets[i]) << "Thread " << i << " mismatched.";
-    EXPECT_EQ(nullptr, elfs[i]);
-    EXPECT_EQ(0u, offsets[i]);
+    EXPECT_EQ(expected_elf_fields, elf_fields[i]) << "Thread " << i << " mismatched.";
   }
 }
 

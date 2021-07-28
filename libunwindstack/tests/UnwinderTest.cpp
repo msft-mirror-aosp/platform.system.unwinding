@@ -39,8 +39,8 @@
 
 #include "ElfFake.h"
 #include "ElfTestUtils.h"
-#include "MemoryFake.h"
-#include "RegsFake.h"
+#include "utils/MemoryFake.h"
+#include "utils/RegsFake.h"
 
 namespace unwindstack {
 
@@ -1746,6 +1746,15 @@ TEST_F(UnwinderTest, build_frame_pc_in_jit) {
   EXPECT_EQ(0U, frame.map_load_bias);
   EXPECT_EQ("FakeJitFunction", frame.function_name);
   EXPECT_EQ(0xeU, frame.function_offset);
+}
+
+TEST_F(UnwinderTest, unwinder_from_pid_set_process_memory) {
+  auto process_memory = Memory::CreateProcessMemoryCached(getpid());
+  UnwinderFromPid unwinder(10, getpid());
+  unwinder.SetProcessMemory(process_memory);
+  unwinder.SetArch(unwindstack::Regs::CurrentArch());
+  ASSERT_TRUE(unwinder.Init());
+  ASSERT_EQ(process_memory.get(), unwinder.GetProcessMemory().get());
 }
 
 using UnwinderDeathTest = SilentDeathTest;

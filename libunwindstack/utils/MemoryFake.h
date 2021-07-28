@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef _LIBUNWINDSTACK_TESTS_MEMORY_FAKE_H
-#define _LIBUNWINDSTACK_TESTS_MEMORY_FAKE_H
+#ifndef _LIBUNWINDSTACK_UTILS_MEMORY_FAKE_H
+#define _LIBUNWINDSTACK_UTILS_MEMORY_FAKE_H
 
 #include <stdint.h>
 
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include <unwindstack/Memory.h>
 
@@ -38,21 +38,13 @@ class MemoryFake : public Memory {
 
   void SetMemoryBlock(uint64_t addr, size_t length, uint8_t value);
 
-  void SetData8(uint64_t addr, uint8_t value) {
-    SetMemory(addr, &value, sizeof(value));
-  }
+  void SetData8(uint64_t addr, uint8_t value) { SetMemory(addr, &value, sizeof(value)); }
 
-  void SetData16(uint64_t addr, uint16_t value) {
-    SetMemory(addr, &value, sizeof(value));
-  }
+  void SetData16(uint64_t addr, uint16_t value) { SetMemory(addr, &value, sizeof(value)); }
 
-  void SetData32(uint64_t addr, uint32_t value) {
-    SetMemory(addr, &value, sizeof(value));
-  }
+  void SetData32(uint64_t addr, uint32_t value) { SetMemory(addr, &value, sizeof(value)); }
 
-  void SetData64(uint64_t addr, uint64_t value) {
-    SetMemory(addr, &value, sizeof(value));
-  }
+  void SetData64(uint64_t addr, uint64_t value) { SetMemory(addr, &value, sizeof(value)); }
 
   void SetMemory(uint64_t addr, std::vector<uint8_t> values) {
     SetMemory(addr, values.data(), values.size());
@@ -81,4 +73,4 @@ class MemoryFakeAlwaysReadZero : public Memory {
 
 }  // namespace unwindstack
 
-#endif  // _LIBUNWINDSTACK_TESTS_MEMORY_FAKE_H
+#endif  // _LIBUNWINDSTACK_UTILS_MEMORY_FAKE_H
