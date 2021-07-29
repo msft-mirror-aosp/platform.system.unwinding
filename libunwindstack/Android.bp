@@ -230,13 +230,15 @@ cc_library {
     shared_libs: [
         "libbase",
         "libunwindstack",
+        "libprocinfo",
     ],
     whole_static_libs: [
         "libc++fs",
     ],
     srcs: [
-        "utils/OfflineUnwindUtils.cpp",
         "utils/MemoryFake.cpp",
+        "utils/OfflineUnwindUtils.cpp",
+        "utils/ProcessTracer.cpp",
     ],
 }
 
@@ -479,6 +481,10 @@ cc_binary {
 cc_binary {
     name: "unwind_for_offline",
     defaults: ["libunwindstack_tools"],
+    static_libs: [
+        "libunwindstack_utils",
+        "libc++fs",
+    ],
 
     srcs: [
         "tools/unwind_for_offline.cpp",
