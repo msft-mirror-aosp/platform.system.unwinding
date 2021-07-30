@@ -202,10 +202,13 @@ bool ProcessTracer::ProcIsInDesiredElf(pid_t pid, const std::string& desired_elf
   if (map_info == nullptr) {
     regs->fallback_pc();
     map_info = maps->Find(regs->pc());
+    if (map_info == nullptr) {
+      return false;
+    }
   }
-  const std::string& current_elf_name = basename(map_info->name().c_str());
 
-  bool in_desired_elf = map_info != nullptr && current_elf_name == desired_elf_name;
+  const std::string& current_elf_name = basename(map_info->name().c_str());
+  bool in_desired_elf = current_elf_name == desired_elf_name;
   if (in_desired_elf) printf("pid %d is in %s! Unwinding...\n\n", pid, desired_elf_name.c_str());
   return in_desired_elf;
 }
