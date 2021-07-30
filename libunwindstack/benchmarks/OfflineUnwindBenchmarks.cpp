@@ -178,5 +178,30 @@ BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_profiler_like_multi_proc
     ->Arg(true)
     ->Arg(false);
 
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_process_multi_thread)
+(benchmark::State& state) {
+  ConsecutiveUnwindBenchmark(
+      state,
+      std::vector<UnwindSampleInfo>{{.offline_files_dir = "maps_compiled_arm64/28656_oat_odex_jar/",
+                                     .arch = ARCH_ARM64,
+                                     .create_maps = false},
+                                    {.offline_files_dir = "maps_compiled_arm64/28613_main-thread/",
+                                     .arch = ARCH_ARM64,
+                                     .create_maps = false},
+                                    {.offline_files_dir = "maps_compiled_arm64/28644/",
+                                     .arch = ARCH_ARM64,
+                                     .create_maps = false},
+                                    {.offline_files_dir = "maps_compiled_arm64/28648/",
+                                     .arch = ARCH_ARM64,
+                                     .create_maps = false},
+                                    {.offline_files_dir = "maps_compiled_arm64/28667/",
+                                     .arch = ARCH_ARM64,
+                                     .create_maps = false}},
+      /*resolve_name=*/state.range(0));
+}
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_process_multi_thread)
+    ->Arg(true)
+    ->Arg(false);
+
 }  // namespace
 }  // namespace unwindstack
