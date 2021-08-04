@@ -40,9 +40,12 @@ std::string GetSymbolSortedElfFile() {
   return android::base::GetExecutableDirectory() + "/benchmarks/files/boot_arm.oat";
 }
 
-std::string GetCompressedElfFile() {
-  // Both are the same right now.
-  return GetSymbolSortedElfFile();
+std::string GetLargeCompressedFrameElfFile() {
+  return android::base::GetExecutableDirectory() + "/benchmarks/files/libpac.so";
+}
+
+std::string GetLargeEhFrameElfFile() {
+  return android::base::GetExecutableDirectory() + "/benchmarks/files/libLLVM_android.so";
 }
 
 #if defined(__BIONIC__)
