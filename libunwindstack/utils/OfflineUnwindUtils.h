@@ -55,8 +55,8 @@
 //      landmark in Google Maps.
 // 5. Grab the desired snapshot directories with `adb pull ...`
 // 6. (Optional) Reduce the size of copied ELFs:
-//   a. Move repeated ELFs to a common folder and replace those files in the individual snapshot
-//      directories with symbolic links.
+//   a. Use tools/share_common_elfs.sh to eliminate copies of the same ELF files that are already
+//      used by other 'libunwindstack/offline_files/' subdirectories.
 //   b. Strip ELFs of all sections that are not needed for unwinding and/or symbolization.
 //   c. Compress/Zip the entire snapshot directory.
 // 7. Use the path to the snapshot directory(ies) for the `offline_files_dirs` parameter to
