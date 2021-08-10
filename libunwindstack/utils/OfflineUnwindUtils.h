@@ -17,10 +17,17 @@
 #ifndef _LIBUNWINDSTACK_UTILS_OFFLINE_UNWIND_UTILS_H
 #define _LIBUNWINDSTACK_UTILS_OFFLINE_UNWIND_UTILS_H
 
+#include <cstddef>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
+#include <unwindstack/Arch.h>
+#include <unwindstack/JitDebug.h>
+#include <unwindstack/Memory.h>
+#include <unwindstack/Regs.h>
 #include <unwindstack/Unwinder.h>
 
 #include "MemoryOffline.h"
@@ -64,40 +71,97 @@
 //
 // See b/192012600 for additional information regarding Offline Unwind Benchmarks.
 namespace unwindstack {
+
 std::string GetOfflineFilesDirectory();
 
 std::string DumpFrames(const Unwinder& unwinder);
 
-bool AddMemory(std::string file_name, MemoryOfflineParts* parts, std::string& error_msg);
+bool AddMemory(std::string file_name, MemoryOfflineParts* parts, std::string* error_msg);
 
+// An `UnwindSample` encapsulates the information necessary to perform an offline unwind for a
+// single offline sample/snapshot.
+struct UnwindSample {
+  std::string offline_files_path;
+  std::string map_buffer;
+  std::unique_ptr<Regs> regs;
+  std::unique_ptr<Maps> maps;
+  std::shared_ptr<Memory> process_memory;
+  std::unique_ptr<JitDebug> jit_debug;
+};
+
+// Enum that indicates how `UnwindSample::process_memory` of `OfflineUnwindUtils::samples_`
+// should be initialized.
+enum class ProcessMemoryFlag {
+  kNone = 0,
+  kIncludeJitMemory,
+  kNoMemory,
+};
+
+// The `OfflineUnwindUtils` class helps perform offline unwinds by handling the creation of the
+// `Regs`, `Maps`, and `Memory` objects needed for unwinding.
+//
+// `OfflineUnwindUtils` assists in two unwind use cases:
+// 1. Single unwinds: unwind from a single sample/snapshot (one set of offline unwind files).
+// 2. Consecutive/Multiple unwinds: unwind from a multiple samples/snapshots.
+//
+// `Init` contains two overloads for these two unwind cases. Other than `Init` and
+// `ReturnToCurrentWorkingDirectory`, the remainder of the public API includes a `sample_name`
+// parameter to indicate which sample/snapshot we are referencing. Specifying this value is
+// REQUIRED for the multiple unwind use case. However, in the single use case, the caller has
+// the choice of either providing the sample name or using the default value.
 class OfflineUnwindUtils {
  public:
-  Regs* GetRegs() { return regs_.get(); }
+  // If the sample name passed to Get* is an invalid sample, nullptr is returned.
+  Regs* GetRegs(const std::string& sample_name = kSingleSample) const;
 
-  Maps* GetMaps() { return maps_.get(); }
+  Maps* GetMaps(const std::string& sample_name = kSingleSample) const;
 
-  std::shared_ptr<Memory> GetProcessMemory() { return process_memory_; }
+  std::shared_ptr<Memory> GetProcessMemory(const std::string& sample_name = kSingleSample) const;
 
-  std::string GetOfflineDirectory() { return offline_dir_; }
+  JitDebug* GetJitDebug(const std::string& sample_name = kSingleSample) const;
 
-  bool Init(const std::string& offline_files_dir, ArchEnum arch, std::string& error_msg,
-            bool add_stack = true, bool set_maps = true);
+  const std::string* GetOfflineFilesPath(const std::string& sample_name = kSingleSample) const;
 
-  bool ResetMaps(std::string& error_msg);
+  // Notes:
+  // * If the caller sets elements of `set_maps` to false or `memory_types` to
+  //   kNoMemory, they are responsible for calling `CreateMaps` or `CreateProcessMemory` before
+  //   expecting `GetMaps` or `GetProcessMemory` to return anything but nullptr.
+  // * Pass offline_files_dirs by value because we move each string to create the samples_ elements.
+  bool Init(std::vector<std::string> offline_files_dirs, const std::vector<ArchEnum>& archs,
+            std::string* error_msg, const std::vector<ProcessMemoryFlag>& memory_flags,
+            const std::vector<bool>& set_maps);
 
-  bool SetProcessMemory(std::string& error_msg);
+  bool Init(std::string offline_files_dir, ArchEnum arch, std::string* error_msg,
+            ProcessMemoryFlag memory_flag = ProcessMemoryFlag::kNone, bool set_maps = true);
 
-  bool SetJitProcessMemory(std::string& error_msg);
+  // This must be called explicitly for the multiple unwind use case sometime before
+  // Unwinder::Unwind is called. This is required because the Unwinder must init each
+  // ELF object with a MemoryFileAtOffset memory object. Because the maps.txt provides a relative
+  // path to the ELF files, we must be in the directory of the maps.txt when unwinding.
+  //
+  // Note: Init performs the check that this sample directory exists. If Init fails,
+  // `initted_` is not set to true and this function will return false.
+  bool ChangeToSampleDirectory(std::string* error_msg,
+                               const std::string& initial_sample_name = kSingleSample) const;
 
-  void ReturnToCurrentWorkingDirectory() { std::filesystem::current_path(cwd_); }
+  void ReturnToCurrentWorkingDirectory() {
+    if (!cwd_.empty()) std::filesystem::current_path(cwd_);
+  }
+
+  bool CreateMaps(std::string* error_msg, const std::string& sample_name = kSingleSample);
+
+  bool CreateProcessMemory(std::string* error_msg, const std::string& sample_name = kSingleSample);
 
  private:
-  bool SetRegs(ArchEnum arch, std::string& error_msg);
+  static constexpr char kSingleSample[] = "";
 
-  template <typename AddressType>
-  bool ReadRegs(RegsImpl<AddressType>* regs,
-                const std::unordered_map<std::string, uint32_t>& name_to_reg,
-                std::string& error_msg);
+  bool CreateRegs(ArchEnum arch, std::string* error_msg,
+                  const std::string& sample_name = kSingleSample);
+
+  // Needed to support using the default value `kSingleSample` for the single unwind use case.
+  const std::string& GetAdjustedSampleName(const std::string& sample_name) const;
+
+  bool IsValidUnwindSample(const std::string& sample_name, std::string* error_msg) const;
 
   static std::unordered_map<std::string, uint32_t> arm_regs_;
   static std::unordered_map<std::string, uint32_t> arm64_regs_;
@@ -105,11 +169,8 @@ class OfflineUnwindUtils {
   static std::unordered_map<std::string, uint32_t> x86_64_regs_;
 
   std::string cwd_;
-  std::string offline_dir_;
-  std::string map_buffer_;
-  std::unique_ptr<Regs> regs_;
-  std::unique_ptr<Maps> maps_;
-  std::shared_ptr<Memory> process_memory_;
+  std::unordered_map<std::string, UnwindSample> samples_;
+  bool initted_ = false;
 };
 
 }  // namespace unwindstack
