@@ -36,44 +36,51 @@
 namespace unwindstack {
 namespace {
 
+static constexpr char kStartup[] = "startup_case";
+static constexpr char kSteadyState[] = "steady_state_case";
+
 class OfflineUnwindBenchmark : public benchmark::Fixture {
  public:
+  void SetUp(benchmark::State& state) override {
+    // Ensure each benchmarks has a fresh ELF cache at the start.
+    unwind_case_ = state.range(0) ? kSteadyState : kStartup;
+    resolve_names_ = state.range(1);
+    Elf::SetCachingEnabled(false);
+  }
+
   void TearDown(benchmark::State& state) override {
     offline_utils_.ReturnToCurrentWorkingDirectory();
     mem_tracker_.SetBenchmarkCounters(state);
   }
 
-  void SingleUnwindBenchmark(benchmark::State& state, const UnwindSampleInfo& sample_info,
-                             bool resolve_names = true) {
+  void SingleUnwindBenchmark(benchmark::State& state, const UnwindSampleInfo& sample_info) {
     std::string error_msg;
     if (!offline_utils_.Init(sample_info, &error_msg)) {
       state.SkipWithError(error_msg.c_str());
       return;
     }
-    BenchmarkOfflineUnwindMultipleSamples(state, std::vector<UnwindSampleInfo>{sample_info},
-                                          resolve_names);
+    BenchmarkOfflineUnwindMultipleSamples(state, std::vector<UnwindSampleInfo>{sample_info});
   }
 
   void ConsecutiveUnwindBenchmark(benchmark::State& state,
-                                  const std::vector<UnwindSampleInfo>& sample_infos,
-                                  bool resolve_names = true) {
+                                  const std::vector<UnwindSampleInfo>& sample_infos) {
     std::string error_msg;
     if (!offline_utils_.Init(sample_infos, &error_msg)) {
       state.SkipWithError(error_msg.c_str());
       return;
     }
-    BenchmarkOfflineUnwindMultipleSamples(state, sample_infos, resolve_names);
+    BenchmarkOfflineUnwindMultipleSamples(state, sample_infos);
   }
 
- protected:
+ private:
   void BenchmarkOfflineUnwindMultipleSamples(benchmark::State& state,
-                                             const std::vector<UnwindSampleInfo>& sample_infos,
-                                             bool resolve_names) {
+                                             const std::vector<UnwindSampleInfo>& sample_infos) {
     std::string error_msg;
-    for (auto _ : state) {
+    auto offline_unwind_multiple_samples = [&](bool benchmarking_unwind) {
       // The benchmark should only measure the time / memory usage for the creation of
       // each Unwinder object and the corresponding unwind as close as possible.
-      state.PauseTiming();
+      if (benchmarking_unwind) state.PauseTiming();
+
       std::unordered_map<std::string_view, std::unique_ptr<Regs>> regs_copies;
       for (const auto& sample_info : sample_infos) {
         const std::string& sample_name = sample_info.offline_files_dir;
@@ -93,7 +100,7 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
         }
       }
 
-      mem_tracker_.StartTrackingAllocations();
+      if (benchmarking_unwind) mem_tracker_.StartTrackingAllocations();
       for (const auto& sample_info : sample_infos) {
         const std::string& sample_name = sample_info.offline_files_dir;
         // Need to change to sample directory for Unwinder to properly init ELF objects.
@@ -102,7 +109,7 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
           state.SkipWithError(error_msg.c_str());
           return;
         }
-        state.ResumeTiming();
+        if (benchmarking_unwind) state.ResumeTiming();
 
         Unwinder unwinder(128, offline_utils_.GetMaps(sample_name),
                           regs_copies.at(sample_name).get(),
@@ -110,10 +117,10 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
         if (sample_info.memory_flag == ProcessMemoryFlag::kIncludeJitMemory) {
           unwinder.SetJitDebug(offline_utils_.GetJitDebug(sample_name));
         }
-        unwinder.SetResolveNames(resolve_names);
+        unwinder.SetResolveNames(resolve_names_);
         unwinder.Unwind();
 
-        state.PauseTiming();
+        if (benchmarking_unwind) state.PauseTiming();
         size_t expected_num_frames;
         if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg, sample_name)) {
           state.SkipWithError(error_msg.c_str());
@@ -129,30 +136,61 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
           return;
         }
       }
-      mem_tracker_.StopTrackingAllocations();
+      if (benchmarking_unwind) mem_tracker_.StopTrackingAllocations();
+    };
+
+    if (unwind_case_ == kSteadyState) {
+      WarmUpUnwindCaches(offline_unwind_multiple_samples);
+    }
+
+    for (auto _ : state) {
+      offline_unwind_multiple_samples(/*benchmarking_unwind=*/true);
     }
   }
 
+  // This functions main purpose is to enable ELF caching for the steady state unwind case
+  // and then perform one unwind to warm up the cache for subsequent unwinds.
+  //
+  // Another reason for pulling this functionality out of the main benchmarking function is
+  // to add an additional call stack frame in between the cache warm-up unwinds and
+  // BenchmarkOfflineUnwindMultipleSamples so that it is easy to filter this set of unwinds out
+  // when profiling.
+  void WarmUpUnwindCaches(const std::function<void(bool)>& offline_unwind_multiple_samples) {
+    Elf::SetCachingEnabled(true);
+    offline_unwind_multiple_samples(/*benchmarking_unwind=*/false);
+  }
+
+  std::string unwind_case_;
+  bool resolve_names_;
   MemoryTracker mem_tracker_;
   OfflineUnwindUtils offline_utils_;
 };
 
-BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)(benchmark::State& state) {
   SingleUnwindBenchmark(
       state, {.offline_files_dir = "straddle_arm64/", .arch = ARCH_ARM64, .create_maps = false});
 }
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
 
-BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64_cached_maps)
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64_cached_maps)
 (benchmark::State& state) {
   SingleUnwindBenchmark(state, {.offline_files_dir = "straddle_arm64/", .arch = ARCH_ARM64});
 }
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64_cached_maps)
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
 
-BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_jit_debug_arm)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_jit_debug_arm)(benchmark::State& state) {
   SingleUnwindBenchmark(state, {.offline_files_dir = "jit_debug_arm/",
                                 .arch = ARCH_ARM,
                                 .memory_flag = ProcessMemoryFlag::kIncludeJitMemory,
                                 .create_maps = false});
 }
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_jit_debug_arm)
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
 
 BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_multi_process)
 (benchmark::State& state) {
@@ -171,12 +209,11 @@ BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_multi_proces
           {.offline_files_dir = "yt_music_arm64/", .arch = ARCH_ARM64, .create_maps = false},
           {.offline_files_dir = "maps_compiled_arm64/28656_oat_odex_jar/",
            .arch = ARCH_ARM64,
-           .create_maps = false}},
-      /*resolve_name=*/state.range(0));
+           .create_maps = false}});
 }
 BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_profiler_like_multi_process)
-    ->Arg(true)
-    ->Arg(false);
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
 
 BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_process_multi_thread)
 (benchmark::State& state) {
@@ -196,12 +233,11 @@ BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_proce
                                      .create_maps = false},
                                     {.offline_files_dir = "maps_compiled_arm64/28667/",
                                      .arch = ARCH_ARM64,
-                                     .create_maps = false}},
-      /*resolve_name=*/state.range(0));
+                                     .create_maps = false}});
 }
 BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_process_multi_thread)
-    ->Arg(true)
-    ->Arg(false);
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
 
 BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_thread_diverse_pcs)
 (benchmark::State& state) {
@@ -211,12 +247,13 @@ BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_threa
           {.offline_files_dir = "bluetooth_arm64/pc_1/", .arch = ARCH_ARM64, .create_maps = false},
           {.offline_files_dir = "bluetooth_arm64/pc_2/", .arch = ARCH_ARM64, .create_maps = false},
           {.offline_files_dir = "bluetooth_arm64/pc_3/", .arch = ARCH_ARM64, .create_maps = false},
-          {.offline_files_dir = "bluetooth_arm64/pc_4/", .arch = ARCH_ARM64, .create_maps = false}},
-      /*resolve_name=*/state.range(0));
+          {.offline_files_dir = "bluetooth_arm64/pc_4/",
+           .arch = ARCH_ARM64,
+           .create_maps = false}});
 }
 BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_thread_diverse_pcs)
-    ->Arg(true)
-    ->Arg(false);
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
 
 }  // namespace
 }  // namespace unwindstack
