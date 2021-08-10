@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <sstream>
+#include <unordered_map>
 #include <vector>
 
 #include <benchmark/benchmark.h>
@@ -152,6 +153,30 @@ BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_jit_debug_arm)(benchmark::State& 
                                 .memory_flag = ProcessMemoryFlag::kIncludeJitMemory,
                                 .create_maps = false});
 }
+
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_multi_process)
+(benchmark::State& state) {
+  ConsecutiveUnwindBenchmark(
+      state,
+      std::vector<UnwindSampleInfo>{
+          {.offline_files_dir = "bluetooth_arm64/pc_1/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "jit_debug_arm/",
+           .arch = ARCH_ARM,
+           .memory_flag = ProcessMemoryFlag::kIncludeJitMemory,
+           .create_maps = false},
+          {.offline_files_dir = "photos_reset_arm64/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "youtube_compiled_arm64/",
+           .arch = ARCH_ARM64,
+           .create_maps = false},
+          {.offline_files_dir = "yt_music_arm64/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "maps_compiled_arm64/28656_oat_odex_jar/",
+           .arch = ARCH_ARM64,
+           .create_maps = false}},
+      /*resolve_name=*/state.range(0));
+}
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_profiler_like_multi_process)
+    ->Arg(true)
+    ->Arg(false);
 
 }  // namespace
 }  // namespace unwindstack
