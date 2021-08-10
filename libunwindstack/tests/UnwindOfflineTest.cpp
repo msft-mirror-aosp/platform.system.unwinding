@@ -24,6 +24,7 @@
 #include <sstream>
 #include <string>
 
+#include <unwindstack/Arch.h>
 #include <unwindstack/RegsArm64.h>
 #include <unwindstack/Unwinder.h>
 
@@ -57,6 +58,37 @@ class UnwindOfflineTest : public ::testing::Test {
     buffer << in.rdbuf();
     *expected_frame_info = buffer.str();
     return true;
+  }
+
+  void ConsecutiveUnwindTest(const std::vector<UnwindSampleInfo>& sample_infos) {
+    std::string error_msg;
+    if (!offline_utils_.Init(sample_infos, &error_msg)) FAIL() << error_msg;
+
+    for (const auto& sample_info : sample_infos) {
+      const std::string& sample_name = sample_info.offline_files_dir;
+      // Need to change to sample directory for Unwinder to properly init ELF objects.
+      // See more info at OfflineUnwindUtils::ChangeToSampleDirectory.
+      if (!offline_utils_.ChangeToSampleDirectory(&error_msg, sample_name)) FAIL() << error_msg;
+
+      Unwinder unwinder =
+          Unwinder(128, offline_utils_.GetMaps(sample_name), offline_utils_.GetRegs(sample_name),
+                   offline_utils_.GetProcessMemory(sample_name));
+      if (sample_info.memory_flag == ProcessMemoryFlag::kIncludeJitMemory) {
+        unwinder.SetJitDebug(offline_utils_.GetJitDebug(sample_name));
+      }
+      unwinder.Unwind();
+
+      size_t expected_num_frames;
+      if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg, sample_name))
+        FAIL() << error_msg;
+      std::string expected_frame_info;
+      if (!GetExpectedSamplesFrameInfo(&expected_frame_info, &error_msg, sample_name))
+        FAIL() << error_msg;
+
+      std::string actual_frame_info = DumpFrames(unwinder);
+      ASSERT_EQ(expected_num_frames, unwinder.NumFrames()) << "Unwind:\n" << actual_frame_info;
+      EXPECT_EQ(expected_frame_info, actual_frame_info);
+    }
   }
 
  protected:
