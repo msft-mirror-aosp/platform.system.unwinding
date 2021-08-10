@@ -1498,5 +1498,13 @@ TEST_F(UnwindOfflineTest, profiler_like_single_process_multi_thread) {
       {.offline_files_dir = "maps_compiled_arm64/28667/", .arch = ARCH_ARM64}});
 }
 
+TEST_F(UnwindOfflineTest, profiler_like_single_thread_diverse_pcs) {
+  ConsecutiveUnwindTest(std::vector<UnwindSampleInfo>{
+      {.offline_files_dir = "bluetooth_arm64/pc_1/", .arch = ARCH_ARM64},
+      {.offline_files_dir = "bluetooth_arm64/pc_2/", .arch = ARCH_ARM64},
+      {.offline_files_dir = "bluetooth_arm64/pc_3/", .arch = ARCH_ARM64},
+      {.offline_files_dir = "bluetooth_arm64/pc_4/", .arch = ARCH_ARM64}});
+}
+
 }  // namespace
 }  // namespace unwindstack
