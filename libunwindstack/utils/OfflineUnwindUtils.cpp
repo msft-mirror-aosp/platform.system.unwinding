@@ -159,10 +159,22 @@ const std::string* OfflineUnwindUtils::GetOfflineFilesPath(
   return &samples_.at(sample_name).offline_files_path;
 }
 
+const std::string* OfflineUnwindUtils::GetFrameInfoFilepath(
+    const std::string& initial_sample_name) const {
+  const std::string& sample_name = GetAdjustedSampleName(initial_sample_name);
+  std::string error_msg;
+  if (!IsValidUnwindSample(sample_name, &error_msg)) {
+    std::cerr << error_msg;
+    return nullptr;
+  }
+  return &samples_.at(sample_name).frame_info_filepath;
+}
+
 bool OfflineUnwindUtils::Init(std::vector<std::string> offline_files_dirs,
                               const std::vector<ArchEnum>& archs, std::string* error_msg,
                               const std::vector<ProcessMemoryFlag>& memory_flags,
-                              const std::vector<bool>& set_maps) {
+                              const std::vector<bool>& set_maps,
+                              const std::vector<std::string>& frame_info_filenames) {
   if (!(offline_files_dirs.size() == archs.size() && archs.size() == memory_flags.size() &&
         memory_flags.size() == set_maps.size())) {
     *error_msg = "Sizes of vector inputs are not the same.";
@@ -181,6 +193,8 @@ bool OfflineUnwindUtils::Init(std::vector<std::string> offline_files_dirs,
       *error_msg = err_stream.str();
       return false;
     }
+    std::string frame_info_filepath = offline_files_full_path + frame_info_filenames[i];
+
     std::string map_buffer;
     if (!android::base::ReadFileToString((offline_files_full_path + "maps.txt"), &map_buffer)) {
       err_stream << "Failed to read from '" << offline_files_full_path << "maps.txt' into memory.";
@@ -193,6 +207,7 @@ bool OfflineUnwindUtils::Init(std::vector<std::string> offline_files_dirs,
     const std::string& sample_name = offline_files_dirs[i];
     samples_.emplace(sample_name, (UnwindSample){
                                       std::move(offline_files_full_path), std::move(map_buffer),
+                                      std::move(frame_info_filepath),
                                       nullptr,                         // regs
                                       nullptr,                         // maps
                                       std::make_shared<MemoryFake>(),  // process_memory
@@ -231,9 +246,11 @@ bool OfflineUnwindUtils::Init(std::vector<std::string> offline_files_dirs,
 }
 
 bool OfflineUnwindUtils::Init(std::string offline_files_dir, ArchEnum arch, std::string* error_msg,
-                              ProcessMemoryFlag memory_flag, bool set_maps) {
+                              ProcessMemoryFlag memory_flag, bool set_maps,
+                              const std::string& frame_info_filename) {
   if (Init(std::vector<std::string>{std::move(offline_files_dir)}, std::vector<ArchEnum>{arch},
-           error_msg, std::vector<ProcessMemoryFlag>{memory_flag}, std::vector<bool>{set_maps})) {
+           error_msg, std::vector<ProcessMemoryFlag>{memory_flag}, std::vector<bool>{set_maps},
+           std::vector<std::string>{frame_info_filename})) {
     if (!ChangeToSampleDirectory(error_msg)) return false;
     return true;
   }
@@ -251,6 +268,33 @@ bool OfflineUnwindUtils::ChangeToSampleDirectory(std::string* error_msg,
   if (!IsValidUnwindSample(sample_name, error_msg)) return false;
 
   std::filesystem::current_path(std::filesystem::path(samples_.at(sample_name).offline_files_path));
+  return true;
+}
+
+bool OfflineUnwindUtils::GetExpectedNumFrames(size_t* expected_num_frames, std::string* error_msg,
+                                              const std::string& initial_sample_name) const {
+  if (!initted_) {
+    *error_msg =
+        "Cannot get expected number of frames of a sample because OfflineUnwindUtils::Init has not "
+        "been called.";
+    return false;
+  }
+  const std::string& sample_name = GetAdjustedSampleName(initial_sample_name);
+  if (!IsValidUnwindSample(sample_name, error_msg)) return false;
+
+  const std::string& sample_frames_path = samples_.at(sample_name).frame_info_filepath;
+  if (!std::filesystem::exists(sample_frames_path)) {
+    std::stringstream err_stream;
+    err_stream << "Offline files directory '" << sample_frames_path << "' does not exist.";
+    *error_msg = err_stream.str();
+    return false;
+  }
+
+  std::ifstream in(sample_frames_path);
+  in.unsetf(std::ios_base::skipws);  // Ensure that we do not skip newlines.
+  *expected_num_frames =
+      std::count(std::istream_iterator<char>(in), std::istream_iterator<char>(), '\n');
+
   return true;
 }
 
