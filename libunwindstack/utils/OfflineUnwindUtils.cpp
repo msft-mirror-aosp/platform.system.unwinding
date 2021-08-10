@@ -20,6 +20,8 @@
 #include <string.h>
 
 #include <filesystem>
+#include <fstream>
+#include <iostream>
 #include <memory>
 #include <regex>
 #include <sstream>
@@ -27,6 +29,7 @@
 #include <tuple>
 
 #include <android-base/file.h>
+#include <zlib.h>
 
 #include <unwindstack/Arch.h>
 #include <unwindstack/MachineArm.h>
@@ -40,6 +43,7 @@
 #include <unwindstack/RegsX86_64.h>
 #include <unwindstack/Unwinder.h>
 
+#include "Check.h"
 #include "MemoryOffline.h"
 #include "utils/MemoryFake.h"
 
@@ -47,8 +51,34 @@
 
 namespace unwindstack {
 
+void DecompressFiles(const std::string& directory) {
+  namespace fs = std::filesystem;
+  for (const auto& file : fs::recursive_directory_iterator(directory)) {
+    fs::path src_path = file.path();
+    if (src_path.extension() == ".gz") {
+      fs::path dst_path = fs::path(src_path).replace_extension();  // Remove .gz extension.
+      if (!fs::exists(dst_path) || fs::last_write_time(src_path) > fs::last_write_time(dst_path)) {
+        gzFile src = gzopen(src_path.c_str(), "rb");
+        CHECK(src != nullptr);
+        fs::path tmp_path = fs::path(src_path).replace_extension("." + std::to_string(getpid()));
+        std::ofstream tmp(tmp_path);  // Temporary file to avoid races between unit tests.
+        char buffer[1024];
+        int size;
+        while ((size = gzread(src, buffer, sizeof(buffer))) > 0) {
+          tmp.write(buffer, size);
+        }
+        tmp.close();
+        gzclose(src);
+        fs::rename(tmp_path, dst_path);
+      }
+    }
+  }
+}
+
 std::string GetOfflineFilesDirectory() {
-  return android::base::GetExecutableDirectory() + "/offline_files/";
+  std::string path = android::base::GetExecutableDirectory() + "/offline_files/";
+  DecompressFiles(path);
+  return path;
 }
 
 std::string DumpFrames(const Unwinder& unwinder) {
