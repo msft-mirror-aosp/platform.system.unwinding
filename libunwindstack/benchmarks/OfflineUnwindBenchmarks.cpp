@@ -27,11 +27,12 @@
 #include "Utils.h"
 #include "utils/OfflineUnwindUtils.h"
 
+// This collection of benchmarks exercises Unwinder::Unwind for offline unwinds.
+//
+// See `libunwindstack/utils/OfflineUnwindUtils.h` for more info on offline unwinds
+// and b/192012600 for additional information regarding these benchmarks.
 namespace unwindstack {
 namespace {
-
-// This collection of benchmarks exercises Unwinder::Unwind for offline unwinds. For more info
-// on offline unwinds, see `libunwindstack/utils/OfflineUnwindUtils.h`.
 
 class OfflineUnwindBenchmark : public benchmark::Fixture {
  public:
