@@ -28,6 +28,10 @@
 #include "utils/MemoryFake.h"
 #include "utils/OfflineUnwindUtils.h"
 
+// This collection of tests exercises Unwinder::Unwind for offline unwinds.
+//
+// See `libunwindstack/utils/OfflineUnwindUtils.h` for more info on offline unwinds
+// and b/192012600 for additional information regarding offline unwind benchmarks.
 namespace unwindstack {
 namespace {
 
