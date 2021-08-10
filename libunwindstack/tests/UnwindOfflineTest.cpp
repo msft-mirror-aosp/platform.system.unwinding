@@ -1489,5 +1489,14 @@ TEST_F(UnwindOfflineTest, profiler_like_multi_process) {
       {.offline_files_dir = "maps_compiled_arm64/28656_oat_odex_jar/", .arch = ARCH_ARM64}});
 }
 
+TEST_F(UnwindOfflineTest, profiler_like_single_process_multi_thread) {
+  ConsecutiveUnwindTest(std::vector<UnwindSampleInfo>{
+      {.offline_files_dir = "maps_compiled_arm64/28656_oat_odex_jar/", .arch = ARCH_ARM64},
+      {.offline_files_dir = "maps_compiled_arm64/28613_main-thread/", .arch = ARCH_ARM64},
+      {.offline_files_dir = "maps_compiled_arm64/28644/", .arch = ARCH_ARM64},
+      {.offline_files_dir = "maps_compiled_arm64/28648/", .arch = ARCH_ARM64},
+      {.offline_files_dir = "maps_compiled_arm64/28667/", .arch = ARCH_ARM64}});
+}
+
 }  // namespace
 }  // namespace unwindstack
