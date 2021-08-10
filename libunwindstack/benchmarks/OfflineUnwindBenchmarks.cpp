@@ -203,5 +203,20 @@ BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_pro
     ->Arg(true)
     ->Arg(false);
 
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_thread_diverse_pcs)
+(benchmark::State& state) {
+  ConsecutiveUnwindBenchmark(
+      state,
+      std::vector<UnwindSampleInfo>{
+          {.offline_files_dir = "bluetooth_arm64/pc_1/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "bluetooth_arm64/pc_2/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "bluetooth_arm64/pc_3/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "bluetooth_arm64/pc_4/", .arch = ARCH_ARM64, .create_maps = false}},
+      /*resolve_name=*/state.range(0));
+}
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_thread_diverse_pcs)
+    ->Arg(true)
+    ->Arg(false);
+
 }  // namespace
 }  // namespace unwindstack
