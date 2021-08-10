@@ -42,72 +42,115 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
     mem_tracker_.SetBenchmarkCounters(state);
   }
 
-  void RunBenchmark(benchmark::State& state, const std::string& offline_files_dir, ArchEnum arch,
-                    ProcessMemoryFlag memory_flag, bool cache_maps = false) {
+  void SingleUnwindBenchmark(benchmark::State& state, const UnwindSampleInfo& sample_info,
+                             bool resolve_names = true) {
     std::string error_msg;
-    if (!offline_utils_.Init(offline_files_dir, arch, &error_msg, memory_flag, cache_maps)) {
+    if (!offline_utils_.Init(sample_info, &error_msg)) {
       state.SkipWithError(error_msg.c_str());
       return;
     }
+    BenchmarkOfflineUnwindMultipleSamples(state, std::vector<UnwindSampleInfo>{sample_info},
+                                          resolve_names);
+  }
 
-    for (auto _ : state) {
-      state.PauseTiming();
-      size_t expected_num_frames;
-      if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg)) {
-        state.SkipWithError(error_msg.c_str());
-        return;
-      }
-      // Need to init unwinder with new copy of regs each iteration because unwinding changes
-      // the attributes of the regs object.
-      std::unique_ptr<Regs> regs_copy(offline_utils_.GetRegs()->Clone());
-      // The Maps object will still hold the parsed maps from the previous unwinds. So reset them
-      // unless we want to assume all Maps are cached.
-      if (!cache_maps) {
-        if (!offline_utils_.CreateMaps(&error_msg)) {
-          state.SkipWithError(error_msg.c_str());
-          return;
-        }
-      }
-      mem_tracker_.StartTrackingAllocations();
-      state.ResumeTiming();
-
-      Unwinder unwinder = Unwinder(128, offline_utils_.GetMaps(), regs_copy.get(),
-                                   offline_utils_.GetProcessMemory());
-      if (memory_flag == ProcessMemoryFlag::kIncludeJitMemory) {
-        unwinder.SetJitDebug(offline_utils_.GetJitDebug());
-      }
-      unwinder.Unwind();
-
-      state.PauseTiming();
-      mem_tracker_.StopTrackingAllocations();
-      if (unwinder.NumFrames() != expected_num_frames) {
-        std::stringstream err_stream;
-        err_stream << "Failed to unwind properly.Expected " << expected_num_frames
-                   << " frames, but unwinder contained " << unwinder.NumFrames() << " frames.\n";
-        state.SkipWithError(err_stream.str().c_str());
-        return;
-      }
-      state.ResumeTiming();
+  void ConsecutiveUnwindBenchmark(benchmark::State& state,
+                                  const std::vector<UnwindSampleInfo>& sample_infos,
+                                  bool resolve_names = true) {
+    std::string error_msg;
+    if (!offline_utils_.Init(sample_infos, &error_msg)) {
+      state.SkipWithError(error_msg.c_str());
+      return;
     }
+    BenchmarkOfflineUnwindMultipleSamples(state, sample_infos, resolve_names);
   }
 
  protected:
+  void BenchmarkOfflineUnwindMultipleSamples(benchmark::State& state,
+                                             const std::vector<UnwindSampleInfo>& sample_infos,
+                                             bool resolve_names) {
+    std::string error_msg;
+    for (auto _ : state) {
+      // The benchmark should only measure the time / memory usage for the creation of
+      // each Unwinder object and the corresponding unwind as close as possible.
+      state.PauseTiming();
+      std::unordered_map<std::string_view, std::unique_ptr<Regs>> regs_copies;
+      for (const auto& sample_info : sample_infos) {
+        const std::string& sample_name = sample_info.offline_files_dir;
+
+        // Need to init unwinder with new copy of regs each iteration because unwinding changes
+        // the attributes of the regs object.
+        regs_copies.emplace(sample_name,
+                            std::unique_ptr<Regs>(offline_utils_.GetRegs(sample_name)->Clone()));
+
+        // The Maps object will still hold the parsed maps from the previous unwinds. So reset them
+        // unless we want to assume all Maps are cached.
+        if (!sample_info.create_maps) {
+          if (!offline_utils_.CreateMaps(&error_msg, sample_name)) {
+            state.SkipWithError(error_msg.c_str());
+            return;
+          }
+        }
+      }
+
+      mem_tracker_.StartTrackingAllocations();
+      for (const auto& sample_info : sample_infos) {
+        const std::string& sample_name = sample_info.offline_files_dir;
+        // Need to change to sample directory for Unwinder to properly init ELF objects.
+        // See more info at OfflineUnwindUtils::ChangeToSampleDirectory.
+        if (!offline_utils_.ChangeToSampleDirectory(&error_msg, sample_name)) {
+          state.SkipWithError(error_msg.c_str());
+          return;
+        }
+        state.ResumeTiming();
+
+        Unwinder unwinder(128, offline_utils_.GetMaps(sample_name),
+                          regs_copies.at(sample_name).get(),
+                          offline_utils_.GetProcessMemory(sample_name));
+        if (sample_info.memory_flag == ProcessMemoryFlag::kIncludeJitMemory) {
+          unwinder.SetJitDebug(offline_utils_.GetJitDebug(sample_name));
+        }
+        unwinder.SetResolveNames(resolve_names);
+        unwinder.Unwind();
+
+        state.PauseTiming();
+        size_t expected_num_frames;
+        if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg, sample_name)) {
+          state.SkipWithError(error_msg.c_str());
+          return;
+        }
+        if (unwinder.NumFrames() != expected_num_frames) {
+          std::stringstream err_stream;
+          err_stream << "Failed to unwind sample " << sample_name << " properly.Expected "
+                     << expected_num_frames << " frames, but unwinder contained "
+                     << unwinder.NumFrames() << " frames. Unwind:\n"
+                     << DumpFrames(unwinder);
+          state.SkipWithError(err_stream.str().c_str());
+          return;
+        }
+      }
+      mem_tracker_.StopTrackingAllocations();
+    }
+  }
+
   MemoryTracker mem_tracker_;
   OfflineUnwindUtils offline_utils_;
 };
 
 BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)(benchmark::State& state) {
-  RunBenchmark(state, "straddle_arm64/", ARCH_ARM64, ProcessMemoryFlag::kNone);
+  SingleUnwindBenchmark(
+      state, {.offline_files_dir = "straddle_arm64/", .arch = ARCH_ARM64, .create_maps = false});
 }
 
 BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64_cached_maps)
 (benchmark::State& state) {
-  RunBenchmark(state, "straddle_arm64/", ARCH_ARM64, ProcessMemoryFlag::kNone,
-               /*cached_maps=*/true);
+  SingleUnwindBenchmark(state, {.offline_files_dir = "straddle_arm64/", .arch = ARCH_ARM64});
 }
 
 BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_jit_debug_arm)(benchmark::State& state) {
-  RunBenchmark(state, "jit_debug_arm/", ARCH_ARM, ProcessMemoryFlag::kIncludeJitMemory);
+  SingleUnwindBenchmark(state, {.offline_files_dir = "jit_debug_arm/",
+                                .arch = ARCH_ARM,
+                                .memory_flag = ProcessMemoryFlag::kIncludeJitMemory,
+                                .create_maps = false});
 }
 
 }  // namespace
