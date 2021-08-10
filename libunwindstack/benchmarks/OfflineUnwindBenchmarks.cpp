@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <sstream>
+#include <vector>
 
 #include <benchmark/benchmark.h>
 
@@ -41,9 +42,8 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
     mem_tracker_.SetBenchmarkCounters(state);
   }
 
-  void RunBenchmark(benchmark::State& state, const std::string& offline_files_dir,
-                    size_t expected_num_frames, ArchEnum arch, ProcessMemoryFlag memory_flag,
-                    bool cache_maps = false) {
+  void RunBenchmark(benchmark::State& state, const std::string& offline_files_dir, ArchEnum arch,
+                    ProcessMemoryFlag memory_flag, bool cache_maps = false) {
     std::string error_msg;
     if (!offline_utils_.Init(offline_files_dir, arch, &error_msg, memory_flag, cache_maps)) {
       state.SkipWithError(error_msg.c_str());
@@ -52,6 +52,11 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
 
     for (auto _ : state) {
       state.PauseTiming();
+      size_t expected_num_frames;
+      if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg)) {
+        state.SkipWithError(error_msg.c_str());
+        return;
+      }
       // Need to init unwinder with new copy of regs each iteration because unwinding changes
       // the attributes of the regs object.
       std::unique_ptr<Regs> regs_copy(offline_utils_.GetRegs()->Clone());
@@ -92,19 +97,17 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
 };
 
 BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)(benchmark::State& state) {
-  RunBenchmark(state, "straddle_arm64/", /*expected_num_frames=*/6, ARCH_ARM64,
-               ProcessMemoryFlag::kNone);
+  RunBenchmark(state, "straddle_arm64/", ARCH_ARM64, ProcessMemoryFlag::kNone);
 }
 
 BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64_cached_maps)
 (benchmark::State& state) {
-  RunBenchmark(state, "straddle_arm64/", /*expected_num_frames=*/6, ARCH_ARM64,
-               ProcessMemoryFlag::kNone, /*cached_maps=*/true);
+  RunBenchmark(state, "straddle_arm64/", ARCH_ARM64, ProcessMemoryFlag::kNone,
+               /*cached_maps=*/true);
 }
 
 BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_jit_debug_arm)(benchmark::State& state) {
-  RunBenchmark(state, "jit_debug_arm/", /*expected_num_frames=*/76, ARCH_ARM,
-               ProcessMemoryFlag::kIncludeJitMemory);
+  RunBenchmark(state, "jit_debug_arm/", ARCH_ARM, ProcessMemoryFlag::kIncludeJitMemory);
 }
 
 }  // namespace
