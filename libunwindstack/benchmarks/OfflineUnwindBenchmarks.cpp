@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <memory>
 #include <sstream>
+#include <unordered_map>
+#include <vector>
 
 #include <benchmark/benchmark.h>
 
@@ -27,86 +29,231 @@
 #include "Utils.h"
 #include "utils/OfflineUnwindUtils.h"
 
+// This collection of benchmarks exercises Unwinder::Unwind for offline unwinds.
+//
+// See `libunwindstack/utils/OfflineUnwindUtils.h` for more info on offline unwinds
+// and b/192012600 for additional information regarding these benchmarks.
 namespace unwindstack {
 namespace {
 
-// This collection of benchmarks exercises Unwinder::Unwind for offline unwinds. For more info
-// on offline unwinds, see `libunwindstack/utils/OfflineUnwindUtils.h`.
+static constexpr char kStartup[] = "startup_case";
+static constexpr char kSteadyState[] = "steady_state_case";
 
 class OfflineUnwindBenchmark : public benchmark::Fixture {
  public:
+  void SetUp(benchmark::State& state) override {
+    // Ensure each benchmarks has a fresh ELF cache at the start.
+    unwind_case_ = state.range(0) ? kSteadyState : kStartup;
+    resolve_names_ = state.range(1);
+    Elf::SetCachingEnabled(false);
+  }
+
   void TearDown(benchmark::State& state) override {
     offline_utils_.ReturnToCurrentWorkingDirectory();
     mem_tracker_.SetBenchmarkCounters(state);
   }
 
-  void RunBenchmark(benchmark::State& state, const std::string& offline_files_dir,
-                    size_t expected_num_frames, ArchEnum arch, bool cache_maps, bool is_jit_debug) {
+  void SingleUnwindBenchmark(benchmark::State& state, const UnwindSampleInfo& sample_info) {
     std::string error_msg;
-    if (!offline_utils_.Init(offline_files_dir, arch, error_msg, /*add_stack=*/true, cache_maps)) {
+    if (!offline_utils_.Init(sample_info, &error_msg)) {
       state.SkipWithError(error_msg.c_str());
       return;
     }
-    if (is_jit_debug && !offline_utils_.SetJitProcessMemory(error_msg)) {
+    BenchmarkOfflineUnwindMultipleSamples(state, std::vector<UnwindSampleInfo>{sample_info});
+  }
+
+  void ConsecutiveUnwindBenchmark(benchmark::State& state,
+                                  const std::vector<UnwindSampleInfo>& sample_infos) {
+    std::string error_msg;
+    if (!offline_utils_.Init(sample_infos, &error_msg)) {
       state.SkipWithError(error_msg.c_str());
       return;
+    }
+    BenchmarkOfflineUnwindMultipleSamples(state, sample_infos);
+  }
+
+ private:
+  void BenchmarkOfflineUnwindMultipleSamples(benchmark::State& state,
+                                             const std::vector<UnwindSampleInfo>& sample_infos) {
+    std::string error_msg;
+    auto offline_unwind_multiple_samples = [&](bool benchmarking_unwind) {
+      // The benchmark should only measure the time / memory usage for the creation of
+      // each Unwinder object and the corresponding unwind as close as possible.
+      if (benchmarking_unwind) state.PauseTiming();
+
+      std::unordered_map<std::string_view, std::unique_ptr<Regs>> regs_copies;
+      for (const auto& sample_info : sample_infos) {
+        const std::string& sample_name = sample_info.offline_files_dir;
+
+        // Need to init unwinder with new copy of regs each iteration because unwinding changes
+        // the attributes of the regs object.
+        regs_copies.emplace(sample_name,
+                            std::unique_ptr<Regs>(offline_utils_.GetRegs(sample_name)->Clone()));
+
+        // The Maps object will still hold the parsed maps from the previous unwinds. So reset them
+        // unless we want to assume all Maps are cached.
+        if (!sample_info.create_maps) {
+          if (!offline_utils_.CreateMaps(&error_msg, sample_name)) {
+            state.SkipWithError(error_msg.c_str());
+            return;
+          }
+        }
+      }
+
+      if (benchmarking_unwind) mem_tracker_.StartTrackingAllocations();
+      for (const auto& sample_info : sample_infos) {
+        const std::string& sample_name = sample_info.offline_files_dir;
+        // Need to change to sample directory for Unwinder to properly init ELF objects.
+        // See more info at OfflineUnwindUtils::ChangeToSampleDirectory.
+        if (!offline_utils_.ChangeToSampleDirectory(&error_msg, sample_name)) {
+          state.SkipWithError(error_msg.c_str());
+          return;
+        }
+        if (benchmarking_unwind) state.ResumeTiming();
+
+        Unwinder unwinder(128, offline_utils_.GetMaps(sample_name),
+                          regs_copies.at(sample_name).get(),
+                          offline_utils_.GetProcessMemory(sample_name));
+        if (sample_info.memory_flag == ProcessMemoryFlag::kIncludeJitMemory) {
+          unwinder.SetJitDebug(offline_utils_.GetJitDebug(sample_name));
+        }
+        unwinder.SetResolveNames(resolve_names_);
+        unwinder.Unwind();
+
+        if (benchmarking_unwind) state.PauseTiming();
+        size_t expected_num_frames;
+        if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg, sample_name)) {
+          state.SkipWithError(error_msg.c_str());
+          return;
+        }
+        if (unwinder.NumFrames() != expected_num_frames) {
+          std::stringstream err_stream;
+          err_stream << "Failed to unwind sample " << sample_name << " properly.Expected "
+                     << expected_num_frames << " frames, but unwinder contained "
+                     << unwinder.NumFrames() << " frames. Unwind:\n"
+                     << DumpFrames(unwinder);
+          state.SkipWithError(err_stream.str().c_str());
+          return;
+        }
+      }
+      if (benchmarking_unwind) mem_tracker_.StopTrackingAllocations();
+    };
+
+    if (unwind_case_ == kSteadyState) {
+      WarmUpUnwindCaches(offline_unwind_multiple_samples);
     }
 
-    std::unique_ptr<JitDebug> jit_debug;
-    std::stringstream err_stream;
-    Unwinder unwinder(0, nullptr, nullptr);
     for (auto _ : state) {
-      state.PauseTiming();
-      // Need to init unwinder with new copy of regs each iteration because unwinding changes
-      // the attributes of the regs object.
-      std::unique_ptr<Regs> regs_copy(offline_utils_.GetRegs()->Clone());
-      // If we don't want to use cached maps, make sure to reset them.
-      if (!cache_maps && !offline_utils_.ResetMaps(error_msg)) {
-        state.SkipWithError(error_msg.c_str());
-        return;
-      }
-      mem_tracker_.StartTrackingAllocations();
-      state.ResumeTiming();
-
-      std::shared_ptr<Memory> process_memory = offline_utils_.GetProcessMemory();
-      unwinder = Unwinder(128, offline_utils_.GetMaps(), regs_copy.get(), process_memory);
-      if (is_jit_debug) {
-        jit_debug = CreateJitDebug(regs_copy->Arch(), process_memory);
-        unwinder.SetJitDebug(jit_debug.get());
-      }
-      unwinder.Unwind();
-
-      state.PauseTiming();
-      mem_tracker_.StopTrackingAllocations();
-      if (unwinder.NumFrames() != expected_num_frames) {
-        err_stream << "Failed to unwind properly.Expected " << expected_num_frames
-                   << " frames, but unwinder contained " << unwinder.NumFrames() << " frames.\n";
-        break;
-      }
-      state.ResumeTiming();
+      offline_unwind_multiple_samples(/*benchmarking_unwind=*/true);
     }
   }
 
- protected:
+  // This functions main purpose is to enable ELF caching for the steady state unwind case
+  // and then perform one unwind to warm up the cache for subsequent unwinds.
+  //
+  // Another reason for pulling this functionality out of the main benchmarking function is
+  // to add an additional call stack frame in between the cache warm-up unwinds and
+  // BenchmarkOfflineUnwindMultipleSamples so that it is easy to filter this set of unwinds out
+  // when profiling.
+  void WarmUpUnwindCaches(const std::function<void(bool)>& offline_unwind_multiple_samples) {
+    Elf::SetCachingEnabled(true);
+    offline_unwind_multiple_samples(/*benchmarking_unwind=*/false);
+  }
+
+  std::string unwind_case_;
+  bool resolve_names_;
   MemoryTracker mem_tracker_;
   OfflineUnwindUtils offline_utils_;
 };
 
-BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)(benchmark::State& state) {
-  RunBenchmark(state, "straddle_arm64/", /*expected_num_frames=*/6, ARCH_ARM64,
-               /*cached_maps=*/false, /*is_jit_debug=*/false);
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)(benchmark::State& state) {
+  SingleUnwindBenchmark(
+      state, {.offline_files_dir = "straddle_arm64/", .arch = ARCH_ARM64, .create_maps = false});
 }
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64)
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
 
-BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64_cached_maps)
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64_cached_maps)
 (benchmark::State& state) {
-  RunBenchmark(state, "straddle_arm64/", /*expected_num_frames=*/6, ARCH_ARM64,
-               /*cached_maps=*/true, /*is_jit_debug=*/false);
+  SingleUnwindBenchmark(state, {.offline_files_dir = "straddle_arm64/", .arch = ARCH_ARM64});
 }
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_straddle_arm64_cached_maps)
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
 
-BENCHMARK_F(OfflineUnwindBenchmark, BM_offline_jit_debug_x86)(benchmark::State& state) {
-  RunBenchmark(state, "jit_debug_x86/", /*expected_num_frames=*/69, ARCH_X86,
-               /*cached_maps=*/false, /*is_jit_debug=*/true);
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_jit_debug_arm)(benchmark::State& state) {
+  SingleUnwindBenchmark(state, {.offline_files_dir = "jit_debug_arm/",
+                                .arch = ARCH_ARM,
+                                .memory_flag = ProcessMemoryFlag::kIncludeJitMemory,
+                                .create_maps = false});
 }
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_jit_debug_arm)
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
+
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_multi_process)
+(benchmark::State& state) {
+  ConsecutiveUnwindBenchmark(
+      state,
+      std::vector<UnwindSampleInfo>{
+          {.offline_files_dir = "bluetooth_arm64/pc_1/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "jit_debug_arm/",
+           .arch = ARCH_ARM,
+           .memory_flag = ProcessMemoryFlag::kIncludeJitMemory,
+           .create_maps = false},
+          {.offline_files_dir = "photos_reset_arm64/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "youtube_compiled_arm64/",
+           .arch = ARCH_ARM64,
+           .create_maps = false},
+          {.offline_files_dir = "yt_music_arm64/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "maps_compiled_arm64/28656_oat_odex_jar/",
+           .arch = ARCH_ARM64,
+           .create_maps = false}});
+}
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_profiler_like_multi_process)
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
+
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_process_multi_thread)
+(benchmark::State& state) {
+  ConsecutiveUnwindBenchmark(
+      state,
+      std::vector<UnwindSampleInfo>{{.offline_files_dir = "maps_compiled_arm64/28656_oat_odex_jar/",
+                                     .arch = ARCH_ARM64,
+                                     .create_maps = false},
+                                    {.offline_files_dir = "maps_compiled_arm64/28613_main-thread/",
+                                     .arch = ARCH_ARM64,
+                                     .create_maps = false},
+                                    {.offline_files_dir = "maps_compiled_arm64/28644/",
+                                     .arch = ARCH_ARM64,
+                                     .create_maps = false},
+                                    {.offline_files_dir = "maps_compiled_arm64/28648/",
+                                     .arch = ARCH_ARM64,
+                                     .create_maps = false},
+                                    {.offline_files_dir = "maps_compiled_arm64/28667/",
+                                     .arch = ARCH_ARM64,
+                                     .create_maps = false}});
+}
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_process_multi_thread)
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
+
+BENCHMARK_DEFINE_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_thread_diverse_pcs)
+(benchmark::State& state) {
+  ConsecutiveUnwindBenchmark(
+      state,
+      std::vector<UnwindSampleInfo>{
+          {.offline_files_dir = "bluetooth_arm64/pc_1/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "bluetooth_arm64/pc_2/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "bluetooth_arm64/pc_3/", .arch = ARCH_ARM64, .create_maps = false},
+          {.offline_files_dir = "bluetooth_arm64/pc_4/",
+           .arch = ARCH_ARM64,
+           .create_maps = false}});
+}
+BENCHMARK_REGISTER_F(OfflineUnwindBenchmark, BM_offline_profiler_like_single_thread_diverse_pcs)
+    ->ArgNames({"is_steady_state_case", "resolve_names"})
+    ->Ranges({{false, true}, {false, true}});
 
 }  // namespace
 }  // namespace unwindstack
