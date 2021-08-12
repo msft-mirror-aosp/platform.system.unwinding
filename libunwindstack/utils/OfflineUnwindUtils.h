@@ -78,23 +78,22 @@ std::string DumpFrames(const Unwinder& unwinder);
 
 bool AddMemory(std::string file_name, MemoryOfflineParts* parts, std::string* error_msg);
 
-// An `UnwindSample` encapsulates the information necessary to perform an offline unwind for a
-// single offline sample/snapshot.
-struct UnwindSample {
-  std::string offline_files_path;
-  std::string map_buffer;
-  std::unique_ptr<Regs> regs;
-  std::unique_ptr<Maps> maps;
-  std::shared_ptr<Memory> process_memory;
-  std::unique_ptr<JitDebug> jit_debug;
-};
-
 // Enum that indicates how `UnwindSample::process_memory` of `OfflineUnwindUtils::samples_`
 // should be initialized.
 enum class ProcessMemoryFlag {
   kNone = 0,
   kIncludeJitMemory,
   kNoMemory,
+};
+
+// A `UnwindSampleInfo` object contains the information necessary for OfflineUnwindUtils
+// to initialize a single offline unwind sample.
+struct UnwindSampleInfo {
+  std::string offline_files_dir;
+  ArchEnum arch;
+  std::string frame_info_filename = "output.txt";
+  ProcessMemoryFlag memory_flag = ProcessMemoryFlag::kNone;
+  bool create_maps = true;
 };
 
 // The `OfflineUnwindUtils` class helps perform offline unwinds by handling the creation of the
@@ -122,17 +121,14 @@ class OfflineUnwindUtils {
 
   const std::string* GetOfflineFilesPath(const std::string& sample_name = kSingleSample) const;
 
-  // Notes:
-  // * If the caller sets elements of `set_maps` to false or `memory_types` to
-  //   kNoMemory, they are responsible for calling `CreateMaps` or `CreateProcessMemory` before
-  //   expecting `GetMaps` or `GetProcessMemory` to return anything but nullptr.
-  // * Pass offline_files_dirs by value because we move each string to create the samples_ elements.
-  bool Init(std::vector<std::string> offline_files_dirs, const std::vector<ArchEnum>& archs,
-            std::string* error_msg, const std::vector<ProcessMemoryFlag>& memory_flags,
-            const std::vector<bool>& set_maps);
+  const std::string* GetFrameInfoFilepath(const std::string& sample_name = kSingleSample) const;
 
-  bool Init(std::string offline_files_dir, ArchEnum arch, std::string* error_msg,
-            ProcessMemoryFlag memory_flag = ProcessMemoryFlag::kNone, bool set_maps = true);
+  // Note: If the caller sets elements of `set_maps` to false or `memory_types` to
+  //  kNoMemory, they are responsible for calling `CreateMaps` or `CreateProcessMemory` before
+  //  expecting `GetMaps` or `GetProcessMemory` to return anything but nullptr.
+  bool Init(const std::vector<UnwindSampleInfo>& sample_infos, std::string* error_msg);
+
+  bool Init(const UnwindSampleInfo& sample_info, std::string* error_msg);
 
   // This must be called explicitly for the multiple unwind use case sometime before
   // Unwinder::Unwind is called. This is required because the Unwinder must init each
@@ -148,12 +144,27 @@ class OfflineUnwindUtils {
     if (!cwd_.empty()) std::filesystem::current_path(cwd_);
   }
 
+  bool GetExpectedNumFrames(size_t* expected_num_frames, std::string* error_msg,
+                            const std::string& sample_name = kSingleSample) const;
+
   bool CreateMaps(std::string* error_msg, const std::string& sample_name = kSingleSample);
 
   bool CreateProcessMemory(std::string* error_msg, const std::string& sample_name = kSingleSample);
 
- private:
   static constexpr char kSingleSample[] = "";
+
+ private:
+  // An `UnwindSample` encapsulates the information necessary to perform an offline unwind for a
+  // single offline sample/snapshot.
+  struct UnwindSample {
+    std::string offline_files_path;
+    std::string frame_info_filepath;
+    std::string map_buffer;
+    std::unique_ptr<Regs> regs;
+    std::unique_ptr<Maps> maps;
+    std::shared_ptr<Memory> process_memory;
+    std::unique_ptr<JitDebug> jit_debug;
+  };
 
   bool CreateRegs(ArchEnum arch, std::string* error_msg,
                   const std::string& sample_name = kSingleSample);
