@@ -19,6 +19,7 @@
 #include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <array>
@@ -79,6 +80,8 @@ bool ProcessTracer::Stop() {
     fprintf(stderr, "Failed to send stop signal to pid %d: %s\n", pid_, strerror(errno));
     return false;
   }
+  usleep(1000);  // 1 ms. Without this sleep, any attempt to resume right away may fail.
+
   is_running_ = false;
   return true;
 }
@@ -88,6 +91,7 @@ bool ProcessTracer::Resume() {
     fprintf(stderr, "Failed to send continue signal to pid %d: %s\n", pid_, strerror(errno));
     return false;
   }
+  usleep(1000);  // 1 ms. Without this sleep, any attempt to stop right away may fail.
 
   is_running_ = true;
   return true;
@@ -124,7 +128,7 @@ bool ProcessTracer::Attach(pid_t tid) {
   if (cur_attached_tid_ != kNoThreadAttached) {
     fprintf(stderr, "Cannot attatch to tid %d. Already attached to tid %d.\n", tid,
             cur_attached_tid_);
-    return true;
+    return false;
   }
 
   if (ptrace(PTRACE_ATTACH, tid, nullptr, nullptr) == kPtraceFailed) {
