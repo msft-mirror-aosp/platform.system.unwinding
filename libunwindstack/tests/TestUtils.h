@@ -65,6 +65,15 @@ inline bool TestDetach(pid_t pid) {
 
 void TestCheckForLeaks(void (*unwind_func)(void*), void* data);
 
+void* GetTestLibHandle();
+
+// TODO(b/148307629): Once we incorporate google benchmark library into
+// GoogleTest, we can call benchmark::DoNotOptimize here instead.
+template <class Tp>
+static inline void DoNotOptimize(Tp const& value) {
+  asm volatile("" : : "r,m"(value) : "memory");
+}
+
 }  // namespace unwindstack
 
 #endif  // _LIBUNWINDSTACK_TESTS_TEST_UTILS_H
