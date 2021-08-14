@@ -68,9 +68,9 @@ class ProcessTracer final {
   // '/') corresponding to the shared library as indicated in /proc/pid/maps.
   static bool UsesSharedLibrary(pid_t pid, const std::string& desired_elf_name);
 
+ private:
   static bool ProcIsInDesiredElf(pid_t tid, const std::string& desired_elf_name);
 
- private:
   // Initialize tids_ such that the main thread is the first element and
   // the remaining tids are in order from least to greatest.
   bool InitProcessTids();
