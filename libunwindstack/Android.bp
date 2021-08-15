@@ -321,6 +321,7 @@ cc_defaults {
         "tests/UnwindTest.cpp",
         "tests/UnwinderTest.cpp",
         "tests/VerifyBionicTerminationTest.cpp",
+        "utils/tests/ProcessTracerTest.cpp",
     ],
 
     cflags: [
