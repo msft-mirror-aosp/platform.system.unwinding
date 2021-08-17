@@ -29,6 +29,8 @@
 
 #include <unwindstack/LocalUnwinder.h>
 
+#include "TestUtils.h"
+
 namespace unwindstack {
 
 static std::vector<LocalFrameData>* g_frame_info;
@@ -169,16 +171,7 @@ TEST_F(LocalUnwinderTest, unwind_after_dlopen) {
   // Prime the maps data.
   ASSERT_NO_FATAL_FAILURE(LocalOuterFunction(unwinder_.get(), false));
 
-  std::string testlib(testing::internal::GetArgvs()[0]);
-  auto const value = testlib.find_last_of('/');
-  if (value != std::string::npos) {
-    testlib = testlib.substr(0, value + 1);
-  } else {
-    testlib = "";
-  }
-  testlib += "libunwindstack_local.so";
-
-  void* handle = dlopen(testlib.c_str(), RTLD_NOW);
+  void* handle = GetTestLibHandle();
   ASSERT_TRUE(handle != nullptr);
 
   void (*unwind_function)(void*, void*) =
