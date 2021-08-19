@@ -37,3 +37,16 @@ extern "C" void TestlibLevel2(void* unwinder_data, void* frame_data) {
 extern "C" void TestlibLevel1(void* unwinder_data, void* frame_data) {
   TestlibLevel2(unwinder_data, frame_data);
 }
+
+// The loop in this function is only guaranteed to not be optimized away by the compiler
+// if optimizations are turned off. This is partially because the compiler doesn't have
+// any idea about the function since it is retrieved using dlsym.
+//
+// In an effort to defend against the compiler:
+//  1. The loop iteration variable is volatile.
+//  2. A call to this function should be wrapped in TestUtils::DoNotOptimize().
+extern "C" int BusyWait() {
+  for (volatile size_t i = 0; i < 1000000; ++i)
+    ;
+  return 0;
+}
