@@ -22,12 +22,10 @@
 
 #include <memory>
 
-#define LOG_TAG "unwind"
-#include <log/log.h>
-
 #include <android-base/unique_fd.h>
 #include <art_api/dex_file_support.h>
 
+#include <unwindstack/Log.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/Memory.h>
 
@@ -41,7 +39,7 @@ std::mutex DexFile::g_lock;
 
 static bool CheckDexSupport() {
   if (std::string err_msg; !art_api::dex::TryLoadLibdexfile(&err_msg)) {
-    ALOGW("Failed to initialize DEX file support: %s", err_msg.c_str());
+    Log::Error("Failed to initialize DEX file support: %s", err_msg.c_str());
     return false;
   }
   return true;
@@ -89,6 +87,21 @@ std::shared_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size,
   if (!has_dex_support || file_size == 0) {
     return nullptr;
   }
+
+  // Do not try to open the DEX file if the file name ends with "(deleted)". It does not exist.
+  // This happens when an app is background-optimized by ART and all of its files are replaced.
+  // Furthermore, do NOT try to fallback to in-memory copy. It would work, but all apps tend to
+  // be background-optimized at the same time, so it would lead to excessive memory use during
+  // system-wide profiling (essentially copying all dex files for all apps: hundreds of MBs).
+  // This will cause missing symbols in the backtrace, however, that outcome is inevitable
+  // anyway, since we can not obtain mini-debug-info for the deleted .oat files.
+  const std::string_view filename(info != nullptr ? info->name() : "");
+  const std::string_view kDeleted("(deleted)");
+  if (filename.size() >= kDeleted.size() &&
+      filename.substr(filename.size() - kDeleted.size()) == kDeleted) {
+    return nullptr;
+  }
+
   std::shared_ptr<DexFile> dex_file = CreateFromDisk(base_addr, file_size, info);
   if (dex_file != nullptr) {
     return dex_file;
