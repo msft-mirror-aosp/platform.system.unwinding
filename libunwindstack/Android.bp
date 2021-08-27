@@ -183,7 +183,6 @@ cc_library {
 // Static library without DEX support to avoid dependencies on the ART APEX.
 cc_library_static {
     name: "libunwindstack_no_dex",
-    ramdisk_available: true,
     recovery_available: true,
     vendor_ramdisk_available: true,
     defaults: ["libunwindstack_defaults"],
