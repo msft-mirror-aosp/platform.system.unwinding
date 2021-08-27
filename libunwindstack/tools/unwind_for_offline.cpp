@@ -202,12 +202,12 @@ bool CopyElfFromFile(map_info_t* info, bool* file_copied) {
 
 map_info_t* FillInAndGetMapInfo(std::unordered_map<uint64_t, map_info_t>& maps_by_start,
                                 unwindstack::MapInfo* map_info) {
-  auto info = &maps_by_start[map_info->start];
-  info->start = map_info->start;
-  info->end = map_info->end;
-  info->offset = map_info->offset;
-  info->name = map_info->name;
-  info->flags = map_info->flags;
+  auto info = &maps_by_start[map_info->start()];
+  info->start = map_info->start();
+  info->end = map_info->end();
+  info->offset = map_info->offset();
+  info->name = map_info->name();
+  info->flags = map_info->flags();
 
   return info;
 }
@@ -248,10 +248,6 @@ int SaveData(pid_t pid) {
   // Do an unwind so we know how much of the stack to save, and what
   // elf files are involved.
   unwindstack::UnwinderFromPid unwinder(1024, pid);
-  if (!unwinder.Init(regs->Arch())) {
-    printf("Unable to init unwinder object.\n");
-    return 1;
-  }
   unwinder.SetRegs(regs);
   uint64_t sp = regs->sp();
   unwinder.Unwind();
@@ -262,15 +258,15 @@ int SaveData(pid_t pid) {
   uint64_t sp_map_start = 0;
   unwindstack::MapInfo* map_info = maps->Find(sp);
   if (map_info != nullptr) {
-    stacks.emplace_back(std::make_pair(sp, map_info->end));
-    sp_map_start = map_info->start;
+    stacks.emplace_back(std::make_pair(sp, map_info->end()));
+    sp_map_start = map_info->start();
   }
 
   for (const auto& frame : unwinder.frames()) {
     map_info = maps->Find(frame.sp);
-    if (map_info != nullptr && sp_map_start != map_info->start) {
-      stacks.emplace_back(std::make_pair(frame.sp, map_info->end));
-      sp_map_start = map_info->start;
+    if (map_info != nullptr && sp_map_start != map_info->start()) {
+      stacks.emplace_back(std::make_pair(frame.sp, map_info->end()));
+      sp_map_start = map_info->start();
     }
 
     if (maps_by_start.count(frame.map_start) == 0) {
@@ -286,10 +282,10 @@ int SaveData(pid_t pid) {
       // If you are using a a linker that creates two maps (one read-only, one
       // read-executable), it's necessary to capture the previous map
       // information if needed.
-      unwindstack::MapInfo* prev_map = map_info->prev_map;
-      if (prev_map != nullptr && map_info->offset != 0 && prev_map->offset == 0 &&
-          prev_map->flags == PROT_READ && map_info->name == prev_map->name &&
-          maps_by_start.count(prev_map->start) == 0) {
+      unwindstack::MapInfo* prev_map = map_info->prev_map();
+      if (prev_map != nullptr && map_info->offset() != 0 && prev_map->offset() == 0 &&
+          prev_map->flags() == PROT_READ && map_info->name() == prev_map->name() &&
+          maps_by_start.count(prev_map->start()) == 0) {
         info = FillInAndGetMapInfo(maps_by_start, prev_map);
         SaveMapInformation(unwinder.GetProcessMemory(), info, &file_copied);
       }

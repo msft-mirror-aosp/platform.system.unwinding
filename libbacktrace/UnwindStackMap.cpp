@@ -43,12 +43,26 @@ bool UnwindStackMap::Build() {
   // Create the process memory object.
   process_memory_ = unwindstack::Memory::CreateProcessMemory(pid_);
 
+  if (arch_ == unwindstack::ARCH_UNKNOWN) {
+    if (pid_ == getpid()) {
+      arch_ = unwindstack::Regs::CurrentArch();
+    } else {
+      // Create a remote regs, to figure out the architecture.
+      std::unique_ptr<unwindstack::Regs> regs(unwindstack::Regs::RemoteGet(pid_));
+      if (regs.get() != nullptr) {
+        arch_ = regs->Arch();
+      }
+    }
+  }
+
   // Create a JitDebug object for getting jit unwind information.
-  std::vector<std::string> search_libs_{"libart.so", "libartd.so"};
-  jit_debug_.reset(new unwindstack::JitDebug(process_memory_, search_libs_));
+  if (arch_ != unwindstack::ARCH_UNKNOWN) {
+    std::vector<std::string> search_libs_{"libart.so", "libartd.so"};
+    jit_debug_ = CreateJitDebug(arch_, process_memory_, search_libs_);
 #if !defined(NO_LIBDEXFILE_SUPPORT)
-  dex_files_.reset(new unwindstack::DexFiles(process_memory_, search_libs_));
+    dex_files_ = CreateDexFiles(arch_, process_memory_, search_libs_);
 #endif
+  }
 
   if (!stack_maps_->Parse()) {
     return false;
@@ -57,13 +71,13 @@ bool UnwindStackMap::Build() {
   // Iterate through the maps and fill in the backtrace_map_t structure.
   for (const auto& map_info : *stack_maps_) {
     backtrace_map_t map;
-    map.start = map_info->start;
-    map.end = map_info->end;
-    map.offset = map_info->offset;
+    map.start = map_info->start();
+    map.end = map_info->end();
+    map.offset = map_info->offset();
     // Set to -1 so that it is demand loaded.
     map.load_bias = static_cast<uint64_t>(-1);
-    map.flags = map_info->flags;
-    map.name = map_info->name;
+    map.flags = map_info->flags();
+    map.name = map_info->name();
 
     maps_.push_back(map);
   }
@@ -103,7 +117,7 @@ std::string UnwindStackMap::GetFunctionName(uint64_t pc, uint64_t* offset) {
 
   // Get the map for this
   unwindstack::MapInfo* map_info = maps->Find(pc);
-  if (map_info == nullptr || map_info->flags & PROT_DEVICE_MAP) {
+  if (map_info == nullptr || map_info->flags() & PROT_DEVICE_MAP) {
     return "";
   }
 
@@ -119,7 +133,7 @@ std::string UnwindStackMap::GetFunctionName(uint64_t pc, uint64_t* offset) {
 
   unwindstack::Elf* elf = map_info->GetElf(process_memory(), arch_);
 
-  std::string name;
+  unwindstack::SharedString name;
   uint64_t func_offset;
   if (!elf->GetFunctionName(elf->GetRelPc(pc, map_info), &name, &func_offset)) {
     return "";
