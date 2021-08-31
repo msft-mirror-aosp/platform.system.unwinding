@@ -221,8 +221,6 @@ cc_test {
         "libunwindstack",
     ],
 
-    group_static_libs: true,
-
     target: {
         android: {
             // So that the dlopen can find the libbacktrace_test.so.
