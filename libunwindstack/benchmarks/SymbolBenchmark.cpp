@@ -47,7 +47,7 @@ static void BenchmarkSymbolLookup(benchmark::State& state, std::vector<uint64_t>
 
     unwindstack::Elf elf(unwindstack::Memory::CreateFileMemory(elf_file, 0).release());
     if (!elf.Init() || !elf.valid()) {
-      errx(1, "Internal Error: Cannot open elf.");
+      errx(1, "Internal Error: Cannot open elf: %s", elf_file.c_str());
     }
 
     unwindstack::SharedString name;
