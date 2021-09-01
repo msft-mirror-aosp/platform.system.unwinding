@@ -47,7 +47,7 @@ static void BenchmarkElfCreate(benchmark::State& state, const std::string& elf_f
 
     unwindstack::Elf elf(file_memory.release());
     if (!elf.Init() || !elf.valid()) {
-      errx(1, "Internal Error: Cannot open elf.");
+      errx(1, "Internal Error: Cannot open elf: %s", elf_file.c_str());
     }
 
     state.PauseTiming();
