@@ -72,6 +72,8 @@
 // See b/192012600 for additional information regarding Offline Unwind Benchmarks.
 namespace unwindstack {
 
+void DecompressFiles(const std::string& directory);
+
 std::string GetOfflineFilesDirectory();
 
 std::string DumpFrames(const Unwinder& unwinder);
