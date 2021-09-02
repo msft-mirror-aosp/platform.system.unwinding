@@ -172,8 +172,7 @@ TEST_F(ElfTest, elf32_invalid_machine) {
   ASSERT_FALSE(elf.Init());
 
   ASSERT_EQ("", GetFakeLogBuf());
-  ASSERT_EQ("6 unwind 32 bit elf that is neither arm nor x86 nor mips: e_machine = 20\n\n",
-            GetFakeLogPrint());
+  ASSERT_EQ("", GetFakeLogPrint());
 }
 
 TEST_F(ElfTest, elf64_invalid_machine) {
@@ -185,8 +184,7 @@ TEST_F(ElfTest, elf64_invalid_machine) {
   ASSERT_FALSE(elf.Init());
 
   ASSERT_EQ("", GetFakeLogBuf());
-  ASSERT_EQ("6 unwind 64 bit elf that is neither aarch64 nor x86_64 nor mips64: e_machine = 21\n\n",
-            GetFakeLogPrint());
+  ASSERT_EQ("", GetFakeLogPrint());
 }
 
 TEST_F(ElfTest, elf_arm) {
