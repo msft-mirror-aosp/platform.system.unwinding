@@ -184,7 +184,7 @@ bool ProcessTracer::UsesSharedLibrary(pid_t pid, const std::string& desired_elf_
     return false;
   }
   for (const auto& map : *maps) {
-    if (basename(map->name().c_str()) == desired_elf_name) return true;
+    if (android::base::Basename(map->name()).c_str() == desired_elf_name) return true;
   }
   return false;
 }
@@ -211,7 +211,7 @@ bool ProcessTracer::ProcIsInDesiredElf(pid_t pid, const std::string& desired_elf
     }
   }
 
-  const std::string& current_elf_name = basename(map_info->name().c_str());
+  const std::string& current_elf_name = android::base::Basename(map_info->name()).c_str();
   bool in_desired_elf = current_elf_name == desired_elf_name;
   if (in_desired_elf) printf("pid %d is in %s! Unwinding...\n\n", pid, desired_elf_name.c_str());
   return in_desired_elf;
