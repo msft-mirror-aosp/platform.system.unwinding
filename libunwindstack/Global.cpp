@@ -79,8 +79,7 @@ void Global::FindAndReadVariable(Maps* maps, const char* var_str) {
   //   f3000-f4000 2000 rw- /system/lib/libc.so
   MapInfo* map_zero = nullptr;
   for (const auto& info : *maps) {
-    if (info->offset() != 0 &&
-        (info->flags() & (PROT_READ | PROT_WRITE)) == (PROT_READ | PROT_WRITE) &&
+    if ((info->flags() & (PROT_READ | PROT_WRITE)) == (PROT_READ | PROT_WRITE) &&
         map_zero != nullptr && Searchable(info->name()) && info->name() == map_zero->name()) {
       Elf* elf = map_zero->GetElf(memory_, arch());
       uint64_t ptr;
