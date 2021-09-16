@@ -341,6 +341,7 @@ cc_defaults {
     static_libs: [
         "libdexfile_support",
         "libgmock",
+        "libprocinfo",
         "libunwindstack_utils",
     ],
 
