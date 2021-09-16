@@ -18,7 +18,6 @@
 #include <gtest/gtest.h>
 #include <sys/ptrace.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -36,7 +35,8 @@
 #include <system_error>
 #include <thread>
 
-#include "android-base/file.h"
+#include <android-base/file.h>
+#include <procinfo/process.h>
 
 #include "OfflineUnwindUtils.h"
 #include "ProcessTracer.h"
@@ -150,47 +150,42 @@ class ProcessTracerTest : public ::testing::TestWithParam<bool> {
   pid_t child_pid_;
 };
 
-TEST_P(ProcessTracerTest, stop) {
-  ProcessTracer proc(child_pid_, /*is_tracing_threads*/ GetParam());
-  int status;
-
-  ASSERT_TRUE(proc.Stop());
-  // TODO(b/196383955): Investigated why WNOHANG cannot be used in conjunction with WUNTRACED
-  //     when all unit tests are run. This works for the resume unit tests but not the stop test.
-  //
-  //     It also may make sense to add these waitpid checks after the calls to kill
-  //     in ProcessTracer::Stop and ::Resume in the future.
-  ASSERT_EQ(child_pid_, waitpid(child_pid_, &status, WUNTRACED));
-  ASSERT_TRUE(WIFSTOPPED(status));
-  ASSERT_TRUE(proc.Resume());
-  for (const pid_t& tid : proc.tids()) {
-    ASSERT_TRUE(proc.Stop());
-    ptrace(PTRACE_SEIZE, tid, nullptr, nullptr);
-    ASSERT_EQ(tid, waitpid(tid, &status, WUNTRACED));
-    ASSERT_TRUE(WIFSTOPPED(status));
-    ptrace(PTRACE_DETACH, tid, nullptr, nullptr);
-    ASSERT_TRUE(proc.Resume());
+static void VerifyState(pid_t tid, bool running) {
+  while (true) {
+    android::procinfo::ProcessInfo proc_info;
+    ASSERT_TRUE(GetProcessInfo(tid, &proc_info));
+    if (running) {
+      if (proc_info.state == android::procinfo::kProcessStateRunning ||
+          proc_info.state == android::procinfo::kProcessStateSleeping) {
+        break;
+      }
+    } else if (proc_info.state == android::procinfo::kProcessStateStopped) {
+      break;
+    }
+    usleep(1000);
   }
 }
 
-TEST_P(ProcessTracerTest, resume) {
+static void VerifyState(ProcessTracer& proc, bool running) {
+  // Verify that the main thread and all threads are in the expected state.
+  VerifyState(proc.pid(), running);
+  if (::testing::Test::HasFatalFailure()) return;
+  for (const pid_t& tid : proc.tids()) {
+    VerifyState(tid, running);
+    if (::testing::Test::HasFatalFailure()) return;
+  }
+}
+
+TEST_P(ProcessTracerTest, stop_and_resume) {
   ProcessTracer proc(child_pid_, /*is_tracing_threads*/ GetParam());
-  int status;
 
   ASSERT_TRUE(proc.Stop());
+  VerifyState(proc, /*running*/ false);
+  if (::testing::Test::HasFatalFailure()) return;
+
   ASSERT_TRUE(proc.Resume());
-
-  ASSERT_EQ(child_pid_, waitpid(child_pid_, &status, WCONTINUED | WNOHANG));
-  ASSERT_TRUE(WIFCONTINUED(status));
-  for (const pid_t& tid : proc.tids()) {
-    ASSERT_TRUE(proc.Stop());
-    ASSERT_TRUE(proc.Resume());
-
-    ptrace(PTRACE_SEIZE, tid, nullptr, nullptr);
-    ASSERT_EQ(tid, waitpid(tid, &status, WCONTINUED | WNOHANG));
-    ASSERT_TRUE(WIFCONTINUED(status));
-    ptrace(PTRACE_DETACH, tid, nullptr, nullptr);
-  }
+  VerifyState(proc, /*running*/ true);
+  if (::testing::Test::HasFatalFailure()) return;
 }
 
 TEST_P(ProcessTracerTest, attach_and_detach) {
