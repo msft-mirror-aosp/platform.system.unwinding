@@ -22,6 +22,8 @@
 
 #include <string>
 
+std::string GetBenchmarkFilesDirectory();
+
 std::string GetElfFile();
 
 std::string GetSymbolSortedElfFile();
