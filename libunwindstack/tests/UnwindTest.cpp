@@ -55,7 +55,11 @@ enum TestTypeEnum : uint8_t {
 static std::atomic_bool g_ready;
 static volatile bool g_ready_for_remote;
 static volatile bool g_signal_ready_for_remote;
-static std::atomic_bool g_finish;
+// In order to avoid the compiler not emitting the unwind entries for
+// the InnerFunction code that loops waiting for g_finish, always make
+// g_finish a volatile instead of an atomic. This issue was only ever
+// observerd on the arm architecture.
+static volatile bool g_finish;
 static std::atomic_uintptr_t g_ucontext;
 static std::atomic_int g_waiters;
 
@@ -76,7 +80,7 @@ static std::vector<const char*> kFunctionSignalOrder{"OuterFunction",        "Mi
 
 static void SignalHandler(int, siginfo_t*, void* sigcontext) {
   g_ucontext = reinterpret_cast<uintptr_t>(sigcontext);
-  while (!g_finish.load()) {
+  while (!g_finish) {
   }
 }
 
@@ -150,7 +154,7 @@ extern "C" void InnerFunction(TestTypeEnum test_type) {
   switch (test_type) {
     case TEST_TYPE_LOCAL_WAIT_FOR_FINISH: {
       g_waiters++;
-      while (!g_finish.load()) {
+      while (!g_finish) {
       }
       break;
     }
@@ -552,19 +556,6 @@ static std::thread* CreateUnwindThread(std::atomic_int& tid, ThreadUnwinder& unw
 
     ThreadUnwinder thread_unwinder(512, &unwinder);
     thread_unwinder.UnwindWithSignal(SIGRTMIN, tid);
-#if defined(__arm__)
-    // On arm, there is a chance of winding up in case that doesn't unwind.
-    // Identify that case and allow unwinding in that case.
-    for (size_t i = 0; i < 10; i++) {
-      auto frames = thread_unwinder.frames();
-      if (frames.size() > 1 && frames[frames.size() - 1].pc < 1000 &&
-          frames[frames.size() - 2].function_name == "InnerFunction") {
-        thread_unwinder.UnwindWithSignal(SIGRTMIN, tid);
-      } else {
-        break;
-      }
-    }
-#endif
     VerifyUnwindFrames(&thread_unwinder, kFunctionOrder);
     ++unwinders;
   });
