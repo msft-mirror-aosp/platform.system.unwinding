@@ -410,6 +410,16 @@ bool MemoryOffline::Init(const std::string& file, uint64_t offset) {
   return true;
 }
 
+bool MemoryOffline::Init(const std::string& file, uint64_t offset, uint64_t start, uint64_t size) {
+  auto memory_file = std::make_shared<MemoryFileAtOffset>();
+  if (!memory_file->Init(file, offset)) {
+    return false;
+  }
+
+  memory_ = std::make_unique<MemoryRange>(memory_file, 0, size, start);
+  return true;
+}
+
 size_t MemoryOffline::Read(uint64_t addr, void* dst, size_t size) {
   if (!memory_) {
     return 0;
