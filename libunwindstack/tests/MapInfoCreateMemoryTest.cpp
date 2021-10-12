@@ -114,7 +114,7 @@ TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_full_file) {
   ASSERT_TRUE(memory.get() != nullptr);
   EXPECT_FALSE(info->memory_backed_elf());
   ASSERT_EQ(0x100U, info->elf_offset());
-  EXPECT_EQ(0x100U, info->elf_start_offset());
+  EXPECT_EQ(0U, info->elf_start_offset());
 
   // Read the entire file.
   std::vector<uint8_t> buffer(1024);
@@ -131,7 +131,6 @@ TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_full_file) {
   // info.
   auto prev_info = MapInfo::Create(0, 0x100, 0x10, 0, "");
   info->set_prev_map(prev_info);
-  info->set_prev_real_map(prev_info);
 
   // No preconditions met, change each one until it should set the elf start
   // offset to zero.
@@ -142,7 +141,7 @@ TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_full_file) {
   ASSERT_TRUE(memory.get() != nullptr);
   EXPECT_FALSE(info->memory_backed_elf());
   ASSERT_EQ(0x100U, info->elf_offset());
-  EXPECT_EQ(0x100U, info->elf_start_offset());
+  EXPECT_EQ(0U, info->elf_start_offset());
 
   prev_info->set_offset(0);
   info->set_elf_offset(0);
@@ -152,7 +151,7 @@ TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_full_file) {
   ASSERT_TRUE(memory.get() != nullptr);
   EXPECT_FALSE(info->memory_backed_elf());
   ASSERT_EQ(0x100U, info->elf_offset());
-  EXPECT_EQ(0x100U, info->elf_start_offset());
+  EXPECT_EQ(0U, info->elf_start_offset());
 
   prev_info->set_flags(PROT_READ);
   info->set_elf_offset(0);
@@ -162,7 +161,7 @@ TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_full_file) {
   ASSERT_TRUE(memory.get() != nullptr);
   EXPECT_FALSE(info->memory_backed_elf());
   ASSERT_EQ(0x100U, info->elf_offset());
-  EXPECT_EQ(0x100U, info->elf_start_offset());
+  EXPECT_EQ(0U, info->elf_start_offset());
 
   prev_info->set_name(info->name());
   info->set_elf_offset(0);
