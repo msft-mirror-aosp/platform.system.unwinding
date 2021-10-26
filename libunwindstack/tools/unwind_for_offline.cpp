@@ -37,6 +37,7 @@
 #include <unwindstack/Unwinder.h>
 #include "utils/ProcessTracer.h"
 
+#include <android-base/file.h>
 #include <android-base/parseint.h>
 #include <android-base/stringprintf.h>
 
@@ -158,7 +159,8 @@ bool CreateElfFromMemory(std::shared_ptr<unwindstack::Memory>& memory, map_info_
   if (info->name.empty()) {
     cur_name = android::base::StringPrintf("anonymous_%" PRIx64, info->start);
   } else {
-    cur_name = android::base::StringPrintf("%s_%" PRIx64, basename(info->name.c_str()), info->start);
+    cur_name = android::base::StringPrintf(
+        "%s_%" PRIx64, android::base::Basename(info->name).c_str(), info->start);
   }
 
   std::vector<uint8_t> buffer(info->end - info->start);
@@ -191,7 +193,7 @@ bool CreateElfFromMemory(std::shared_ptr<unwindstack::Memory>& memory, map_info_
 }
 
 bool CopyElfFromFile(map_info_t* info, bool* file_copied) {
-  std::string cur_name = basename(info->name.c_str());
+  std::string cur_name = android::base::Basename(info->name);
   if (*file_copied) {
     info->name = cur_name;
     return true;

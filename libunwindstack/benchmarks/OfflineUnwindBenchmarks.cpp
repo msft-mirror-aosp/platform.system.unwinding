@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <sstream>
 #include <unordered_map>
@@ -96,6 +97,28 @@ class OfflineUnwindBenchmark : public benchmark::Fixture {
           if (!offline_utils_.CreateMaps(&error_msg, sample_name)) {
             state.SkipWithError(error_msg.c_str());
             return;
+          }
+
+          // Since this maps object will be cached, need to make sure that
+          // all of the names are fully qualified paths. This allows the
+          // caching mechanism to properly cache elf files that are
+          // actually the same.
+          if (!offline_utils_.ChangeToSampleDirectory(&error_msg, sample_name)) {
+            state.SkipWithError(error_msg.c_str());
+            return;
+          }
+          for (auto& map_info : *offline_utils_.GetMaps(sample_name)) {
+            auto& name = map_info->name();
+            if (!name.empty()) {
+              std::filesystem::path path;
+              if (std::filesystem::is_symlink(name.c_str())) {
+                path = std::filesystem::read_symlink(name.c_str());
+              } else {
+                path = std::filesystem::current_path();
+                path /= name.c_str();
+              }
+              name = path.lexically_normal().c_str();
+            }
           }
         }
       }

@@ -1,4 +1,4 @@
-  #00 pc 00000000003f5b24  ../../common/libbluetooth.so_41de80f38623dac3c221b849566fb858 (semaphore_post(semaphore_t*))
-  #01 pc 000000000005c3b8  ../../common/libc.so_f3791c53da47e6e72151dcc8088b9048 (__timer_thread_start(void*)+136)
-  #02 pc 00000000000b1920  ../../common/libc.so_f3791c53da47e6e72151dcc8088b9048 (__pthread_start(void*)+264)
-  #03 pc 00000000000513f0  ../../common/libc.so_f3791c53da47e6e72151dcc8088b9048 (__start_thread+64)
+  #00 pc 00000000003f5b24  libbluetooth.so (semaphore_post(semaphore_t*))
+  #01 pc 000000000005c3b8  libc.so (__timer_thread_start(void*)+136)
+  #02 pc 00000000000b1920  libc.so (__pthread_start(void*)+264)
+  #03 pc 00000000000513f0  libc.so (__start_thread+64)

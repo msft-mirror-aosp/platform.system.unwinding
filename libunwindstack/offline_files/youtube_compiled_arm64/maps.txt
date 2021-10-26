@@ -1,5 +1,5 @@
-7e6f820000-7e6f82d000 r--p 0 00:00 0   ../common/libutils.so_b8aa8db7e6895d0ba92398ca5d3ed2d4
-7e6f82d000-7e6f839000 r-xp d000 00:00 0   ../common/libutils.so_b8aa8db7e6895d0ba92398ca5d3ed2d4
+7e6f820000-7e6f82d000 r--p 0 00:00 0   libutils.so
+7e6f82d000-7e6f839000 r-xp d000 00:00 0   libutils.so
 7e6f881000-7e6f895000 r--p 0 00:00 0   libstagefright_foundation.so
 7e6f895000-7e6f8b4000 r-xp 14000 00:00 0   libstagefright_foundation.so
 7e71cab000-7e71d2f000 r--p 0 00:00 0   libgui.so
@@ -10,9 +10,9 @@
 7e77b86000-7e77bf6000 r-xp 28000 00:00 0   libsfplugin_ccodec.so
 7e7a40c000-7e7a48a000 r--p 0 00:00 0   libstagefright.so
 7e7a48a000-7e7a5b8000 r-xp 7e000 00:00 0   libstagefright.so
-7e7c400000-7e7c4af000 r--p 0 00:00 0   ../common/libandroid_runtime.so_7d88088666db374aecde2fbe51bff2f4
-7e7c4af000-7e7c5df000 r-xp af000 00:00 0   ../common/libandroid_runtime.so_7d88088666db374aecde2fbe51bff2f4
+7e7c400000-7e7c4af000 r--p 0 00:00 0   libandroid_runtime.so
+7e7c4af000-7e7c5df000 r-xp af000 00:00 0   libandroid_runtime.so
 7e84114000-7e84121000 r--p 0 00:00 0   libcodec2_client.so
 7e84121000-7e8413c000 r-xp d000 00:00 0   libcodec2_client.so
-7e86814000-7e86850000 r--p 0 00:00 0   ../common/libc.so_f3791c53da47e6e72151dcc8088b9048
-7e86850000-7e868d1000 r-xp 3c000 00:00 0   ../common/libc.so_f3791c53da47e6e72151dcc8088b9048
+7e86814000-7e86850000 r--p 0 00:00 0   libc.so
+7e86850000-7e868d1000 r-xp 3c000 00:00 0   libc.so

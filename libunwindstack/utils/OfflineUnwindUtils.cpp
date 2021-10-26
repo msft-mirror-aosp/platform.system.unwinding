@@ -32,6 +32,7 @@
 #include <vector>
 
 #include <android-base/file.h>
+#include <android-base/strings.h>
 #include <zlib.h>
 
 #include <unwindstack/Arch.h>
@@ -80,9 +81,48 @@ void DecompressFiles(const std::string& directory) {
   }
 }
 
+void CreateLinks(const std::string& directory) {
+  namespace fs = std::filesystem;
+  for (const auto& file : fs::recursive_directory_iterator(directory)) {
+    fs::path src_path = file.path();
+    if (fs::is_regular_file(src_path) && src_path.filename() == "links.txt") {
+      std::string contents;
+      if (!android::base::ReadFileToString(src_path.c_str(), &contents)) {
+        errx(1, "Unable to read file: %s", src_path.c_str());
+      }
+      fs::path parent_path = src_path.parent_path();
+      std::vector<std::string> lines(android::base::Split(contents, "\n"));
+      for (auto line : lines) {
+        std::string trimmed_line(android::base::Trim(line));
+        if (trimmed_line.empty()) {
+          continue;
+        }
+
+        std::vector<std::string> values(android::base::Split(trimmed_line, " "));
+        if (values.size() != 2) {
+          errx(1, "Invalid line in %s: line %s", src_path.c_str(), line.c_str());
+        }
+
+        // Create the symlink if it doesn't already exist.
+        fs::path target(parent_path);
+        target /= fs::path(values[0]);
+        fs::path source(parent_path);
+        source /= fs::path(values[1]);
+        if (!fs::exists(source)) {
+          // Ignore any errors, if this is running at the same time
+          // in multiple processes, then this might fail.
+          std::error_code ec;
+          fs::create_symlink(target, source, ec);
+        }
+      }
+    }
+  }
+}
+
 std::string GetOfflineFilesDirectory() {
   std::string path = android::base::GetExecutableDirectory() + "/offline_files/";
   DecompressFiles(path);
+  CreateLinks(path);
   return path;
 }
 
