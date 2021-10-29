@@ -99,11 +99,6 @@ void UnwindStackMap::FillIn(uint64_t addr, backtrace_map_t* map) {
   map->load_bias = map_info->GetLoadBias(process_memory_);
 }
 
-std::string UnwindStackMap::GetBuildId(uint64_t addr) {
-  unwindstack::MapInfo* map_info = stack_maps_->Find(addr);
-  return map_info == nullptr ? std::string() : map_info->GetPrintableBuildID();
-}
-
 uint64_t UnwindStackMap::GetLoadBias(size_t index) {
   if (index >= stack_maps_->Total()) {
     return 0;
