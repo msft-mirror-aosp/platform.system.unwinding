@@ -38,8 +38,8 @@ class MemoryFileAtOffset;
 // (for example, 400 process * 400 maps * 128 bytes = 20 MB + string data).
 class MapInfo {
  public:
-  MapInfo(MapInfo* prev_map, MapInfo* prev_real_map, uint64_t start, uint64_t end, uint64_t offset,
-          uint64_t flags, SharedString name)
+  MapInfo(std::shared_ptr<MapInfo>& prev_map, std::shared_ptr<MapInfo>& prev_real_map,
+          uint64_t start, uint64_t end, uint64_t offset, uint64_t flags, SharedString name)
       : start_(start),
         end_(end),
         offset_(offset),
@@ -47,9 +47,31 @@ class MapInfo {
         name_(name),
         elf_fields_(nullptr),
         prev_map_(prev_map),
-        prev_real_map_(prev_real_map) {
-    if (prev_real_map != nullptr) prev_real_map->next_real_map_ = this;
+        prev_real_map_(prev_real_map) {}
+  MapInfo(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags, SharedString name)
+      : start_(start),
+        end_(end),
+        offset_(offset),
+        flags_(flags),
+        name_(name),
+        elf_fields_(nullptr) {}
+
+  static inline std::shared_ptr<MapInfo> Create(std::shared_ptr<MapInfo>& prev_map,
+                                                std::shared_ptr<MapInfo>& prev_real_map,
+                                                uint64_t start, uint64_t end, uint64_t offset,
+                                                uint64_t flags, SharedString name) {
+    auto map_info =
+        std::make_shared<MapInfo>(prev_map, prev_real_map, start, end, offset, flags, name);
+    if (prev_real_map != nullptr) {
+      prev_real_map->next_real_map_ = map_info;
+    }
+    return map_info;
   }
+  static inline std::shared_ptr<MapInfo> Create(uint64_t start, uint64_t end, uint64_t offset,
+                                                uint64_t flags, SharedString name) {
+    return std::make_shared<MapInfo>(start, end, offset, flags, name);
+  }
+
   ~MapInfo();
 
   // Cached data for mapped ELF files.
@@ -118,14 +140,14 @@ class MapInfo {
   inline bool memory_backed_elf() { return GetElfFields().memory_backed_elf_; }
   inline void set_memory_backed_elf(bool value) { GetElfFields().memory_backed_elf_ = value; }
 
-  inline MapInfo* prev_map() const { return prev_map_; }
-  inline void set_prev_map(MapInfo* value) { prev_map_ = value; }
+  inline std::shared_ptr<MapInfo> prev_map() const { return prev_map_.lock(); }
+  inline void set_prev_map(std::shared_ptr<MapInfo>& value) { prev_map_ = value; }
 
-  inline MapInfo* prev_real_map() const { return prev_real_map_; }
-  inline void set_prev_real_map(MapInfo* value) { prev_real_map_ = value; }
+  inline std::shared_ptr<MapInfo> prev_real_map() const { return prev_real_map_.lock(); }
+  inline void set_prev_real_map(std::shared_ptr<MapInfo>& value) { prev_real_map_ = value; }
 
-  inline MapInfo* next_real_map() const { return next_real_map_; }
-  inline void set_next_real_map(MapInfo* value) { next_real_map_ = value; }
+  inline std::shared_ptr<MapInfo> next_real_map() const { return next_real_map_.lock(); }
+  inline void set_next_real_map(std::shared_ptr<MapInfo>& value) { next_real_map_ = value; }
 
   // This function guarantees it will never return nullptr.
   Elf* GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum expected_arch);
@@ -168,7 +190,7 @@ class MapInfo {
 
   std::atomic<ElfFields*> elf_fields_;
 
-  MapInfo* prev_map_ = nullptr;
+  std::weak_ptr<MapInfo> prev_map_;
   // This is the previous map that is not empty with a 0 offset. For
   // example, this set of maps:
   //  1000-2000  r--p 000000 00:00 0 libc.so
@@ -176,10 +198,10 @@ class MapInfo {
   //  3000-4000  r-xp 003000 00:00 0 libc.so
   // The last map's prev_map would point to the 2000-3000 map, while the
   // prev_real_map would point to the 1000-2000 map.
-  MapInfo* prev_real_map_ = nullptr;
+  std::weak_ptr<MapInfo> prev_real_map_;
 
   // Same as above but set to point to the next map.
-  MapInfo* next_real_map_ = nullptr;
+  std::weak_ptr<MapInfo> next_real_map_;
 };
 
 }  // namespace unwindstack
