@@ -149,7 +149,7 @@ class Unwinder {
   FrameData* FillInFrame(MapInfo* map_info, Elf* elf, uint64_t rel_pc, uint64_t pc_adjustment);
 
   size_t max_frames_;
-  Maps* maps_;
+  Maps* maps_ = nullptr;
   Regs* regs_;
   std::vector<FrameData> frames_;
   std::shared_ptr<Memory> process_memory_;
