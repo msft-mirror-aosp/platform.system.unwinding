@@ -24,6 +24,8 @@
 #include <string>
 #include <utility>
 
+#include <android-base/stringprintf.h>
+
 #include <unwindstack/Elf.h>
 #include <unwindstack/ElfInterface.h>
 #include <unwindstack/Log.h>
@@ -431,6 +433,23 @@ std::string Elf::GetBuildID(Memory* memory) {
     return ElfInterface::ReadBuildIDFromMemory<Elf64_Ehdr, Elf64_Shdr, Elf64_Nhdr>(memory);
   }
   return "";
+}
+
+std::string Elf::GetPrintableBuildID(std::string& build_id) {
+  if (build_id.empty()) {
+    return "";
+  }
+  std::string printable_build_id;
+  for (const char& c : build_id) {
+    // Use %hhx to avoid sign extension on abis that have signed chars.
+    printable_build_id += android::base::StringPrintf("%02hhx", c);
+  }
+  return printable_build_id;
+}
+
+std::string Elf::GetPrintableBuildID() {
+  std::string build_id = GetBuildID();
+  return Elf::GetPrintableBuildID(build_id);
 }
 
 }  // namespace unwindstack
