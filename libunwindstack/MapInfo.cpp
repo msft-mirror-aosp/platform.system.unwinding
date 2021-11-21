@@ -23,8 +23,6 @@
 #include <mutex>
 #include <string>
 
-#include <android-base/stringprintf.h>
-
 #include <unwindstack/Elf.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/Maps.h>
@@ -70,7 +68,8 @@ bool MapInfo::InitFileMemoryFromPreviousReadOnlyMap(MemoryFileAtOffset* memory) 
   // One last attempt, see if the previous map is read-only with the
   // same name and stretches across this map.
   auto prev_real_map = GetPrevRealMap();
-  if (prev_real_map == nullptr || prev_real_map->flags() != PROT_READ) {
+  if (prev_real_map == nullptr || prev_real_map->flags() != PROT_READ ||
+      prev_real_map->offset() >= offset()) {
     return false;
   }
 
@@ -240,66 +239,67 @@ Memory* MapInfo::CreateMemory(const std::shared_ptr<Memory>& process_memory) {
   return ranges;
 }
 
-Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum expected_arch) {
-  {
-    // Make sure no other thread is trying to add the elf to this map.
-    std::lock_guard<std::mutex> guard(elf_mutex());
+class ScopedElfCacheLock {
+ public:
+  ScopedElfCacheLock() {
+    if (Elf::CachingEnabled()) Elf::CacheLock();
+  }
+  ~ScopedElfCacheLock() {
+    if (Elf::CachingEnabled()) Elf::CacheUnlock();
+  }
+};
 
-    if (elf().get() != nullptr) {
+Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum expected_arch) {
+  // Make sure no other thread is trying to add the elf to this map.
+  std::lock_guard<std::mutex> guard(elf_mutex());
+
+  if (elf().get() != nullptr) {
+    return elf().get();
+  }
+
+  ScopedElfCacheLock elf_cache_lock;
+  if (Elf::CachingEnabled() && !name().empty()) {
+    if (Elf::CacheGet(this)) {
       return elf().get();
     }
+  }
 
-    bool locked = false;
-    if (Elf::CachingEnabled() && !name().empty()) {
-      Elf::CacheLock();
-      locked = true;
-      if (Elf::CacheGet(this)) {
-        Elf::CacheUnlock();
-        return elf().get();
-      }
-    }
-
-    Memory* memory = CreateMemory(process_memory);
-    if (locked) {
-      if (Elf::CacheAfterCreateMemory(this)) {
-        delete memory;
-        Elf::CacheUnlock();
-        return elf().get();
-      }
-    }
-    elf().reset(new Elf(memory));
-    // If the init fails, keep the elf around as an invalid object so we
-    // don't try to reinit the object.
-    elf()->Init();
-    if (elf()->valid() && expected_arch != elf()->arch()) {
-      // Make the elf invalid, mismatch between arch and expected arch.
-      elf()->Invalidate();
-    }
-
-    if (locked) {
-      Elf::CacheAdd(this);
-      Elf::CacheUnlock();
-    }
+  elf().reset(new Elf(CreateMemory(process_memory)));
+  // If the init fails, keep the elf around as an invalid object so we
+  // don't try to reinit the object.
+  elf()->Init();
+  if (elf()->valid() && expected_arch != elf()->arch()) {
+    // Make the elf invalid, mismatch between arch and expected arch.
+    elf()->Invalidate();
   }
 
   if (!elf()->valid()) {
     set_elf_start_offset(offset());
-  } else {
-    auto prev_real_map = GetPrevRealMap();
-    if (prev_real_map != nullptr && elf_start_offset() != offset() &&
-        prev_real_map->offset() == elf_start_offset()) {
-      // If there is a read-only map then a read-execute map that represents the
-      // same elf object, make sure the previous map is using the same elf
-      // object if it hasn't already been set.
-      std::lock_guard<std::mutex> guard(prev_real_map->elf_mutex());
-      if (prev_real_map->elf().get() == nullptr) {
-        prev_real_map->set_elf(elf());
-        prev_real_map->set_memory_backed_elf(memory_backed_elf());
-      } else {
-        // Discard this elf, and use the elf from the previous map instead.
-        set_elf(prev_real_map->elf());
-      }
+  } else if (auto prev_real_map = GetPrevRealMap(); prev_real_map != nullptr &&
+                                                    prev_real_map->flags() == PROT_READ &&
+                                                    prev_real_map->offset() < offset()) {
+    // If there is a read-only map then a read-execute map that represents the
+    // same elf object, make sure the previous map is using the same elf
+    // object if it hasn't already been set. Locking this should not result
+    // in a deadlock as long as the invariant that the code only ever tries
+    // to lock the previous real map holds true.
+    std::lock_guard<std::mutex> guard(prev_real_map->elf_mutex());
+    if (prev_real_map->elf() == nullptr) {
+      // Need to verify if the map is the previous read-only map.
+      prev_real_map->set_elf(elf());
+      prev_real_map->set_memory_backed_elf(memory_backed_elf());
+      prev_real_map->set_elf_start_offset(elf_start_offset());
+      prev_real_map->set_elf_offset(prev_real_map->offset() - elf_start_offset());
+    } else if (prev_real_map->elf_start_offset() == elf_start_offset()) {
+      // Discard this elf, and use the elf from the previous map instead.
+      set_elf(prev_real_map->elf());
     }
+  }
+
+  // Cache the elf only after all of the above checks since we might
+  // discard the original elf we created.
+  if (Elf::CachingEnabled()) {
+    Elf::CacheAdd(this);
   }
   return elf().get();
 }
@@ -415,15 +415,7 @@ MapInfo::ElfFields& MapInfo::GetElfFields() {
 
 std::string MapInfo::GetPrintableBuildID() {
   std::string raw_build_id = GetBuildID();
-  if (raw_build_id.empty()) {
-    return "";
-  }
-  std::string printable_build_id;
-  for (const char& c : raw_build_id) {
-    // Use %hhx to avoid sign extension on abis that have signed chars.
-    printable_build_id += android::base::StringPrintf("%02hhx", c);
-  }
-  return printable_build_id;
+  return Elf::GetPrintableBuildID(raw_build_id);
 }
 
 }  // namespace unwindstack
