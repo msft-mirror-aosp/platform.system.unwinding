@@ -68,6 +68,8 @@ class Elf {
 
   std::string GetBuildID();
 
+  std::string GetPrintableBuildID();
+
   int64_t GetLoadBias() { return load_bias_; }
 
   bool IsValidPc(uint64_t pc);
@@ -112,6 +114,8 @@ class Elf {
   static void CacheUnlock();
   static void CacheAdd(MapInfo* info);
   static bool CacheGet(MapInfo* info);
+
+  static std::string GetPrintableBuildID(std::string& build_id);
 
  protected:
   bool valid_ = false;
