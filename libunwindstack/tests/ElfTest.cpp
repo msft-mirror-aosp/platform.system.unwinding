@@ -294,12 +294,12 @@ TEST_F(ElfTest, rel_pc) {
   elf.FakeSetInterface(interface);
 
   elf.FakeSetValid(true);
-  MapInfo map_info(nullptr, nullptr, 0x1000, 0x2000, 0, 0, "");
+  auto map_info = MapInfo::Create(0x1000, 0x2000, 0, 0, "");
 
-  ASSERT_EQ(0x101U, elf.GetRelPc(0x1101, &map_info));
+  ASSERT_EQ(0x101U, elf.GetRelPc(0x1101, map_info.get()));
 
   elf.FakeSetValid(false);
-  ASSERT_EQ(0x101U, elf.GetRelPc(0x1101, &map_info));
+  ASSERT_EQ(0x101U, elf.GetRelPc(0x1101, map_info.get()));
 }
 
 void ElfTest::VerifyStepIfSignalHandler(uint64_t load_bias) {
@@ -549,6 +549,16 @@ TEST_F(ElfTest, error_code_valid) {
   EXPECT_EQ(0x1000U, error.address);
   EXPECT_EQ(ERROR_MEMORY_INVALID, elf.GetLastErrorCode());
   EXPECT_EQ(0x1000U, elf.GetLastErrorAddress());
+}
+
+TEST_F(ElfTest, get_printable_build_id_empty) {
+  std::string empty;
+  ASSERT_EQ("", Elf::GetPrintableBuildID(empty));
+}
+
+TEST_F(ElfTest, get_printable_build_id_check) {
+  std::string empty = {'\xff', '\x45', '\x40', '\x0f'};
+  ASSERT_EQ("ff45400f", Elf::GetPrintableBuildID(empty));
 }
 
 }  // namespace unwindstack
