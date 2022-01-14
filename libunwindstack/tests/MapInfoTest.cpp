@@ -38,7 +38,7 @@ TEST(MapInfoTest, maps_constructor_const_char) {
   EXPECT_EQ(3UL, map_info->offset());
   EXPECT_EQ(4UL, map_info->flags());
   EXPECT_EQ("map", map_info->name());
-  EXPECT_EQ(INT64_MAX, map_info->load_bias());
+  EXPECT_EQ(UINT64_MAX, map_info->load_bias());
   EXPECT_EQ(0UL, map_info->elf_offset());
   EXPECT_TRUE(map_info->elf().get() == nullptr);
 }
@@ -54,7 +54,7 @@ TEST(MapInfoTest, maps_constructor_string) {
   EXPECT_EQ(3UL, map_info->offset());
   EXPECT_EQ(4UL, map_info->flags());
   EXPECT_EQ("string_map", map_info->name());
-  EXPECT_EQ(INT64_MAX, map_info->load_bias());
+  EXPECT_EQ(UINT64_MAX, map_info->load_bias());
   EXPECT_EQ(0UL, map_info->elf_offset());
   EXPECT_TRUE(map_info->elf().get() == nullptr);
 }
