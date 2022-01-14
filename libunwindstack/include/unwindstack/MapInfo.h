@@ -74,7 +74,7 @@ class MapInfo {
   // Cached data for mapped ELF files.
   // We allocate this structure lazily since there are much fewer ELFs than maps.
   struct ElfFields {
-    ElfFields() : load_bias_(INT64_MAX), build_id_(0) {}
+    ElfFields() : load_bias_(UINT64_MAX), build_id_(0) {}
 
     std::shared_ptr<Elf> elf_;
     // The offset of the beginning of this mapping to the beginning of the
@@ -88,7 +88,7 @@ class MapInfo {
     // shared libraries into a read-only and read-execute map.
     uint64_t elf_start_offset_ = 0;
 
-    std::atomic_int64_t load_bias_;
+    std::atomic_uint64_t load_bias_;
 
     // This is a pointer to a new'd std::string.
     // Using an atomic value means that we don't need to lock and will
@@ -121,6 +121,15 @@ class MapInfo {
   //       returns nullptr.
   std::shared_ptr<MapInfo> GetNextRealMap();
 
+  // This is guaranteed to give out the Elf object associated with the
+  // object. The invariant is that once the Elf object is set under the
+  // lock in a MapInfo object it never changes and is not freed until
+  // the MapInfo object is destructed.
+  inline Elf* GetElfObj() {
+    std::lock_guard<std::mutex> guard(elf_mutex());
+    return elf().get();
+  }
+
   inline uint64_t start() const { return start_; }
   inline void set_start(uint64_t value) { start_ = value; }
 
@@ -147,8 +156,8 @@ class MapInfo {
   inline uint64_t elf_start_offset() { return GetElfFields().elf_start_offset_; }
   inline void set_elf_start_offset(uint64_t value) { GetElfFields().elf_start_offset_ = value; }
 
-  inline std::atomic_int64_t& load_bias() { return GetElfFields().load_bias_; }
-  inline void set_load_bias(int64_t value) { GetElfFields().load_bias_ = value; }
+  inline std::atomic_uint64_t& load_bias() { return GetElfFields().load_bias_; }
+  inline void set_load_bias(uint64_t value) { GetElfFields().load_bias_ = value; }
 
   inline std::atomic<SharedString*>& build_id() { return GetElfFields().build_id_; }
   inline void set_build_id(SharedString* value) { GetElfFields().build_id_ = value; }
@@ -165,7 +174,18 @@ class MapInfo {
   // This function guarantees it will never return nullptr.
   Elf* GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum expected_arch);
 
+  // Guaranteed to return the proper value if GetElf() has been called.
+  uint64_t GetLoadBias();
+
+  // Will get the proper value even if GetElf() hasn't been called.
   uint64_t GetLoadBias(const std::shared_ptr<Memory>& process_memory);
+
+  // This returns the name of the map plus the soname if this particular
+  // map represents an elf file that is contained inside of another file.
+  // The format of this soname embedded name is:
+  //   file.apk!libutils.so
+  // Otherwise, this function only returns the name of the map.
+  std::string GetFullName();
 
   Memory* CreateMemory(const std::shared_ptr<Memory>& process_memory);
 
