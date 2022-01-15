@@ -325,25 +325,31 @@ bool MapInfo::GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_
   return elf()->GetFunctionName(addr, name, func_offset);
 }
 
-uint64_t MapInfo::GetLoadBias(const std::shared_ptr<Memory>& process_memory) {
-  int64_t cur_load_bias = load_bias().load();
-  if (cur_load_bias != INT64_MAX) {
+uint64_t MapInfo::GetLoadBias() {
+  uint64_t cur_load_bias = load_bias().load();
+  if (cur_load_bias != UINT64_MAX) {
     return cur_load_bias;
   }
 
-  {
-    // Make sure no other thread is trying to add the elf to this map.
-    std::lock_guard<std::mutex> guard(elf_mutex());
-    if (elf() != nullptr) {
-      if (elf()->valid()) {
-        cur_load_bias = elf()->GetLoadBias();
-        set_load_bias(cur_load_bias);
-        return cur_load_bias;
-      } else {
-        set_load_bias(0);
-        return 0;
-      }
-    }
+  Elf* elf_obj = GetElfObj();
+  if (elf_obj == nullptr) {
+    return UINT64_MAX;
+  }
+
+  if (elf_obj->valid()) {
+    cur_load_bias = elf_obj->GetLoadBias();
+    set_load_bias(cur_load_bias);
+    return cur_load_bias;
+  }
+
+  set_load_bias(0);
+  return 0;
+}
+
+uint64_t MapInfo::GetLoadBias(const std::shared_ptr<Memory>& process_memory) {
+  uint64_t cur_load_bias = GetLoadBias();
+  if (cur_load_bias != UINT64_MAX) {
+    return cur_load_bias;
   }
 
   // Call lightweight static function that will only read enough of the
@@ -362,6 +368,23 @@ MapInfo::~MapInfo() {
   }
 }
 
+std::string MapInfo::GetFullName() {
+  Elf* elf_obj = GetElfObj();
+  if (elf_obj == nullptr || elf_start_offset() == 0 || name().empty()) {
+    return name();
+  }
+
+  std::string soname = elf_obj->GetSoname();
+  if (soname.empty()) {
+    return name();
+  }
+
+  std::string full_name(name());
+  full_name += '!';
+  full_name += soname;
+  return full_name;
+}
+
 SharedString MapInfo::GetBuildID() {
   SharedString* id = build_id().load();
   if (id != nullptr) {
@@ -372,12 +395,8 @@ SharedString MapInfo::GetBuildID() {
   // time it should be detected and only one thread should win and
   // save the data.
 
-  // Now need to see if the elf object exists.
-  // Make sure no other thread is trying to add the elf to this map.
-  elf_mutex().lock();
-  Elf* elf_obj = elf().get();
-  elf_mutex().unlock();
   std::string result;
+  Elf* elf_obj = GetElfObj();
   if (elf_obj != nullptr) {
     result = elf_obj->GetBuildID();
   } else {
