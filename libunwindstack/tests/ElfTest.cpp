@@ -551,12 +551,12 @@ TEST_F(ElfTest, error_code_valid) {
   EXPECT_EQ(0x1000U, elf.GetLastErrorAddress());
 }
 
-TEST_F(ElfTest, get_printable_build_id_empty) {
+TEST(ElfBuildIdTest, get_printable_build_id_empty) {
   std::string empty;
   ASSERT_EQ("", Elf::GetPrintableBuildID(empty));
 }
 
-TEST_F(ElfTest, get_printable_build_id_check) {
+TEST(ElfBuildIdTest, get_printable_build_id_check) {
   std::string empty = {'\xff', '\x45', '\x40', '\x0f'};
   ASSERT_EQ("ff45400f", Elf::GetPrintableBuildID(empty));
 }
