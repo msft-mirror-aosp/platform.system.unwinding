@@ -52,17 +52,15 @@ enum TestTypeEnum : uint8_t {
   TEST_TYPE_REMOTE_WITH_INVALID_CALL,
 };
 
+static std::atomic_bool g_ready;
 static volatile bool g_ready_for_remote;
 static volatile bool g_signal_ready_for_remote;
-// In order to avoid the compiler not emitting the unwind entries for
-// the InnerFunction code that loops waiting for g_finish, always make
-// g_finish a volatile instead of an atomic. This issue was only ever
-// observerd on the arm architecture.
-static volatile bool g_finish;
+static std::atomic_bool g_finish;
 static std::atomic_uintptr_t g_ucontext;
 static std::atomic_int g_waiters;
 
 static void ResetGlobals() {
+  g_ready = false;
   g_ready_for_remote = false;
   g_signal_ready_for_remote = false;
   g_finish = false;
@@ -78,7 +76,7 @@ static std::vector<const char*> kFunctionSignalOrder{"OuterFunction",        "Mi
 
 static void SignalHandler(int, siginfo_t*, void* sigcontext) {
   g_ucontext = reinterpret_cast<uintptr_t>(sigcontext);
-  while (!g_finish) {
+  while (!g_finish.load()) {
   }
 }
 
@@ -111,9 +109,8 @@ static std::string ErrorMsg(const std::vector<const char*>& function_names, Unwi
 
   return std::string(
              "Unwind completed without finding all frames\n"
-             "  Unwinder error: ") +
-         unwinder->LastErrorCodeString() + "\n" +
-         "  Looking for function: " + function_names.front() + "\n" + "Unwind data:\n" + unwind;
+             "  Looking for function: ") +
+         function_names.front() + "\n" + "Unwind data:\n" + unwind;
 }
 
 static void VerifyUnwindFrames(Unwinder* unwinder,
@@ -128,14 +125,6 @@ static void VerifyUnwindFrames(Unwinder* unwinder,
   }
 
   ASSERT_TRUE(expected_function_names.empty()) << ErrorMsg(expected_function_names, unwinder);
-
-  // Verify that the load bias of every map with a MapInfo is has been initialized.
-  for (auto& frame : unwinder->frames()) {
-    if (frame.map_info == nullptr) {
-      continue;
-    }
-    ASSERT_NE(UINT64_MAX, frame.map_info->GetLoadBias()) << "Frame " << frame.num << " failed";
-  }
 }
 
 static void VerifyUnwind(Unwinder* unwinder, std::vector<const char*> expected_function_names) {
@@ -161,7 +150,7 @@ extern "C" void InnerFunction(TestTypeEnum test_type) {
   switch (test_type) {
     case TEST_TYPE_LOCAL_WAIT_FOR_FINISH: {
       g_waiters++;
-      while (!g_finish) {
+      while (!g_finish.load()) {
       }
       break;
     }
@@ -169,6 +158,7 @@ extern "C" void InnerFunction(TestTypeEnum test_type) {
     case TEST_TYPE_REMOTE:
     case TEST_TYPE_REMOTE_WITH_INVALID_CALL: {
       g_ready_for_remote = true;
+      g_ready = true;
       if (test_type == TEST_TYPE_REMOTE_WITH_INVALID_CALL) {
         void (*crash_func)() = nullptr;
         crash_func();
@@ -241,20 +231,25 @@ void WaitForRemote(pid_t pid, uint64_t addr, bool leave_attached, bool* complete
   // Need to sleep before attempting first ptrace. Without this, on the
   // host it becomes impossible to attach and ptrace sets errno to EPERM.
   usleep(1000);
-  for (size_t i = 0; i < 4000; i++) {
-    ASSERT_TRUE(TestAttach(pid));
+  for (size_t i = 0; i < 1000; i++) {
+    if (ptrace(PTRACE_ATTACH, pid, 0, 0) == 0) {
+      ASSERT_TRUE(TestQuiescePid(pid))
+          << "Waiting for process to quiesce failed: " << strerror(errno);
 
-    MemoryRemote memory(pid);
-    // Read the remote value to see if we are ready.
-    bool value;
-    if (memory.ReadFully(addr, &value, sizeof(value)) && value) {
-      *completed = true;
-    }
-    if (!*completed || !leave_attached) {
-      ASSERT_TRUE(TestDetach(pid));
-    }
-    if (*completed) {
-      break;
+      MemoryRemote memory(pid);
+      // Read the remote value to see if we are ready.
+      bool value;
+      if (memory.ReadFully(addr, &value, sizeof(value)) && value) {
+        *completed = true;
+      }
+      if (!*completed || !leave_attached) {
+        ASSERT_EQ(0, ptrace(PTRACE_DETACH, pid, 0, 0));
+      }
+      if (*completed) {
+        break;
+      }
+    } else {
+      ASSERT_EQ(ESRCH, errno) << "ptrace attach failed with unexpected error: " << strerror(errno);
     }
     usleep(5000);
   }
@@ -280,7 +275,8 @@ TEST_F(UnwindTest, remote) {
 
   VerifyUnwind(pid, &maps, regs.get(), kFunctionOrder);
 
-  ASSERT_TRUE(TestDetach(pid));
+  ASSERT_EQ(0, ptrace(PTRACE_DETACH, pid, 0, 0))
+      << "ptrace detach failed with unexpected error: " << strerror(errno);
 }
 
 TEST_F(UnwindTest, unwind_from_pid_remote) {
@@ -304,7 +300,10 @@ TEST_F(UnwindTest, unwind_from_pid_remote) {
 
   VerifyUnwind(&unwinder, kFunctionOrder);
 
-  ASSERT_TRUE(TestDetach(pid));
+  // Verify that calling the same object works again.
+
+  ASSERT_EQ(0, ptrace(PTRACE_DETACH, pid, 0, 0))
+      << "ptrace detach failed with unexpected error: " << strerror(errno);
 }
 
 static void RemoteCheckForLeaks(void (*unwind_func)(void*)) {
@@ -322,7 +321,8 @@ static void RemoteCheckForLeaks(void (*unwind_func)(void*)) {
 
   TestCheckForLeaks(unwind_func, &pid);
 
-  ASSERT_TRUE(TestDetach(pid));
+  ASSERT_EQ(0, ptrace(PTRACE_DETACH, pid, 0, 0))
+      << "ptrace detach failed with unexpected error: " << strerror(errno);
 }
 
 static void RemoteUnwind(void* data) {
@@ -432,7 +432,8 @@ static void RemoteThroughSignal(int signal, unsigned int sa_flags) {
 
   VerifyUnwind(pid, &maps, regs.get(), kFunctionSignalOrder);
 
-  ASSERT_TRUE(TestDetach(pid));
+  ASSERT_EQ(0, ptrace(PTRACE_DETACH, pid, 0, 0))
+      << "ptrace detach failed with unexpected error: " << strerror(errno);
 }
 
 TEST_F(UnwindTest, remote_through_signal) {
@@ -550,14 +551,20 @@ static std::thread* CreateUnwindThread(std::atomic_int& tid, ThreadUnwinder& unw
       ;
 
     ThreadUnwinder thread_unwinder(512, &unwinder);
-    // Allow the unwind to timeout since this will be doing multiple
-    // unwinds at once.
-    for (size_t i = 0; i < 3; i++) {
-      thread_unwinder.UnwindWithSignal(SIGRTMIN, tid);
-      if (thread_unwinder.LastErrorCode() != ERROR_THREAD_TIMEOUT) {
+    thread_unwinder.UnwindWithSignal(SIGRTMIN, tid);
+#if defined(__arm__)
+    // On arm, there is a chance of winding up in case that doesn't unwind.
+    // Identify that case and allow unwinding in that case.
+    for (size_t i = 0; i < 10; i++) {
+      auto frames = thread_unwinder.frames();
+      if (frames.size() > 1 && frames[frames.size() - 1].pc < 1000 &&
+          frames[frames.size() - 2].function_name == "InnerFunction") {
+        thread_unwinder.UnwindWithSignal(SIGRTMIN, tid);
+      } else {
         break;
       }
     }
+#endif
     VerifyUnwindFrames(&thread_unwinder, kFunctionOrder);
     ++unwinders;
   });

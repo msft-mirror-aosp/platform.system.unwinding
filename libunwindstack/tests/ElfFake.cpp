@@ -26,7 +26,7 @@
 #include <unwindstack/SharedString.h>
 
 #include "ElfFake.h"
-#include "utils/RegsFake.h"
+#include "RegsFake.h"
 
 namespace unwindstack {
 
