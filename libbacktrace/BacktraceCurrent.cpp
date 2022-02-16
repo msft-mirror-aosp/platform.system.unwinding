@@ -28,7 +28,6 @@
 
 #include <string>
 
-#include <android-base/file.h>
 #include <android-base/threads.h>
 #include <backtrace/Backtrace.h>
 #include <backtrace/BacktraceMap.h>
@@ -98,7 +97,7 @@ bool BacktraceCurrent::Unwind(size_t num_ignore_frames, void* ucontext) {
 
 bool BacktraceCurrent::DiscardFrame(const backtrace_frame_data_t& frame) {
   if (BacktraceMap::IsValid(frame.map)) {
-    const std::string library = android::base::Basename(frame.map.name);
+    const std::string library = basename(frame.map.name.c_str());
     if (library == "libunwind.so" || library == "libbacktrace.so") {
       return true;
     }

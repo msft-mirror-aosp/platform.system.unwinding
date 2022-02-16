@@ -17,10 +17,8 @@
 #include <sys/ptrace.h>
 #include <sys/uio.h>
 
-#if defined(__BIONIC__)
+#ifdef __BIONIC__
 #include <bionic/mte.h>
-#else
-#define mte_supported() false
 #endif
 
 #include "MemoryLocal.h"
@@ -29,7 +27,7 @@
 namespace unwindstack {
 
 long MemoryRemote::ReadTag(uint64_t addr) {
-#if defined(PTRACE_PEEKMTETAGS) || defined(PT_PEEKMTETAGS)
+#if defined(__aarch64__)
   char tag;
   iovec iov = {&tag, 1};
   if (ptrace(PTRACE_PEEKMTETAGS, pid_, reinterpret_cast<void*>(addr), &iov) != 0 ||
