@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <inttypes.h>
 #include <stdint.h>
 
 #include <deque>
@@ -39,7 +38,7 @@ void ArmExidx::LogRawData() {
   for (const uint8_t data : data_) {
     log_str += android::base::StringPrintf(" 0x%02x", data);
   }
-  Log::Info(log_indent_, "%s", log_str.c_str());
+  log(log_indent_, log_str.c_str());
 }
 
 bool ArmExidx::ExtractEntryData(uint32_t entry_offset) {
@@ -68,9 +67,9 @@ bool ArmExidx::ExtractEntryData(uint32_t entry_offset) {
     status_ = ARM_STATUS_NO_UNWIND;
     if (log_type_ != ARM_LOG_NONE) {
       if (log_type_ == ARM_LOG_FULL) {
-        Log::Info(log_indent_, "Raw Data: 0x00 0x00 0x00 0x01");
+        log(log_indent_, "Raw Data: 0x00 0x00 0x00 0x01");
       }
-      Log::Info(log_indent_, "[cantunwind]");
+      log(log_indent_, "[cantunwind]");
     }
     return false;
   }
@@ -196,7 +195,7 @@ inline bool ArmExidx::DecodePrefix_10_00(uint8_t byte) {
   if (registers == 0) {
     // 10000000 00000000: Refuse to unwind
     if (log_type_ != ARM_LOG_NONE) {
-      Log::Info(log_indent_, "Refuse to unwind");
+      log(log_indent_, "Refuse to unwind");
     }
     status_ = ARM_STATUS_NO_UNWIND;
     return false;
@@ -217,7 +216,7 @@ inline bool ArmExidx::DecodePrefix_10_00(uint8_t byte) {
           add_comma = true;
         }
       }
-      Log::Info(log_indent_, "%s}", msg.c_str());
+      log(log_indent_, "%s}", msg.c_str());
     } else {
       uint32_t cfa_offset = __builtin_popcount(registers) * 4;
       log_cfa_offset_ += cfa_offset;
@@ -265,7 +264,7 @@ inline bool ArmExidx::DecodePrefix_10_01(uint8_t byte) {
     // 10011101: Reserved as prefix for ARM register to register moves
     // 10011111: Reserved as prefix for Intel Wireless MMX register to register moves
     if (log_type_ != ARM_LOG_NONE) {
-      Log::Info(log_indent_, "[Reserved]");
+      log(log_indent_, "[Reserved]");
     }
     status_ = ARM_STATUS_RESERVED;
     return false;
@@ -273,7 +272,7 @@ inline bool ArmExidx::DecodePrefix_10_01(uint8_t byte) {
   // 1001nnnn: Set vsp = r[nnnn] (nnnn != 13, 15)
   if (log_type_ != ARM_LOG_NONE) {
     if (log_type_ == ARM_LOG_FULL) {
-      Log::Info(log_indent_, "vsp = r%d", bits);
+      log(log_indent_, "vsp = r%d", bits);
     } else {
       log_regs_[LOG_CFA_REG] = bits;
     }
@@ -301,9 +300,9 @@ inline bool ArmExidx::DecodePrefix_10_10(uint8_t byte) {
         msg += android::base::StringPrintf("-r%d", 4 + end_reg);
       }
       if (byte & 0x8) {
-        Log::Info(log_indent_, "%s, r14}", msg.c_str());
+        log(log_indent_, "%s, r14}", msg.c_str());
       } else {
-        Log::Info(log_indent_, "%s}", msg.c_str());
+        log(log_indent_, "%s}", msg.c_str());
       }
     } else {
       end_reg += 4;
@@ -351,7 +350,7 @@ inline bool ArmExidx::DecodePrefix_10_11_0000() {
   // 10110000: Finish
   if (log_type_ != ARM_LOG_NONE) {
     if (log_type_ == ARM_LOG_FULL) {
-      Log::Info(log_indent_, "finish");
+      log(log_indent_, "finish");
     }
 
     if (log_skip_execution_) {
@@ -372,7 +371,7 @@ inline bool ArmExidx::DecodePrefix_10_11_0001() {
   if (byte == 0) {
     // 10110001 00000000: Spare
     if (log_type_ != ARM_LOG_NONE) {
-      Log::Info(log_indent_, "Spare");
+      log(log_indent_, "Spare");
     }
     status_ = ARM_STATUS_SPARE;
     return false;
@@ -380,7 +379,7 @@ inline bool ArmExidx::DecodePrefix_10_11_0001() {
   if (byte >> 4) {
     // 10110001 xxxxyyyy: Spare (xxxx != 0000)
     if (log_type_ != ARM_LOG_NONE) {
-      Log::Info(log_indent_, "Spare");
+      log(log_indent_, "Spare");
     }
     status_ = ARM_STATUS_SPARE;
     return false;
@@ -400,7 +399,7 @@ inline bool ArmExidx::DecodePrefix_10_11_0001() {
           add_comma = true;
         }
       }
-      Log::Info(log_indent_, "%s}", msg.c_str());
+      log(log_indent_, "%s}", msg.c_str());
     } else {
       byte &= 0xf;
       uint32_t cfa_offset = __builtin_popcount(byte) * 4;
@@ -457,7 +456,7 @@ inline bool ArmExidx::DecodePrefix_10_11_0010() {
   if (log_type_ != ARM_LOG_NONE) {
     int32_t cfa_offset = 0x204 + result;
     if (log_type_ == ARM_LOG_FULL) {
-      Log::Info(log_indent_, "vsp = vsp + %d", cfa_offset);
+      log(log_indent_, "vsp = vsp + %d", cfa_offset);
     } else {
       log_cfa_offset_ += cfa_offset;
     }
@@ -487,9 +486,9 @@ inline bool ArmExidx::DecodePrefix_10_11_0011() {
       if (end_reg) {
         msg += android::base::StringPrintf("-d%d", end_reg);
       }
-      Log::Info(log_indent_, "%s}", msg.c_str());
+      log(log_indent_, "%s}", msg.c_str());
     } else {
-      Log::Info(log_indent_, "Unsupported DX register display");
+      log(log_indent_, "Unsupported DX register display");
     }
 
     if (log_skip_execution_) {
@@ -503,7 +502,7 @@ inline bool ArmExidx::DecodePrefix_10_11_0011() {
 inline bool ArmExidx::DecodePrefix_10_11_01nn() {
   // 101101nn: Spare
   if (log_type_ != ARM_LOG_NONE) {
-    Log::Info(log_indent_, "Spare");
+    log(log_indent_, "Spare");
   }
   status_ = ARM_STATUS_SPARE;
   return false;
@@ -520,9 +519,9 @@ inline bool ArmExidx::DecodePrefix_10_11_1nnn(uint8_t byte) {
       if (last_reg) {
         msg += android::base::StringPrintf("-d%d", last_reg + 8);
       }
-      Log::Info(log_indent_, "%s}", msg.c_str());
+      log(log_indent_, "%s}", msg.c_str());
     } else {
-      Log::Info(log_indent_, "Unsupported DX register display");
+      log(log_indent_, "Unsupported DX register display");
     }
 
     if (log_skip_execution_) {
@@ -582,9 +581,9 @@ inline bool ArmExidx::DecodePrefix_11_000(uint8_t byte) {
         if (end_reg) {
           msg += android::base::StringPrintf("-wR%d", start_reg + end_reg);
         }
-        Log::Info(log_indent_, "%s}", msg.c_str());
+        log(log_indent_, "%s}", msg.c_str());
       } else {
-        Log::Info(log_indent_, "Unsupported wRX register display");
+        log(log_indent_, "Unsupported wRX register display");
       }
 
       if (log_skip_execution_) {
@@ -601,7 +600,7 @@ inline bool ArmExidx::DecodePrefix_11_000(uint8_t byte) {
     if (byte == 0) {
       // 11000111 00000000: Spare
       if (log_type_ != ARM_LOG_NONE) {
-        Log::Info(log_indent_, "Spare");
+        log(log_indent_, "Spare");
       }
       status_ = ARM_STATUS_SPARE;
       return false;
@@ -620,9 +619,9 @@ inline bool ArmExidx::DecodePrefix_11_000(uint8_t byte) {
               add_comma = true;
             }
           }
-          Log::Info(log_indent_, "%s}", msg.c_str());
+          log(log_indent_, "%s}", msg.c_str());
         } else {
-          Log::Info(log_indent_, "Unsupported wCGR register display");
+          log(log_indent_, "Unsupported wCGR register display");
         }
 
         if (log_skip_execution_) {
@@ -634,7 +633,7 @@ inline bool ArmExidx::DecodePrefix_11_000(uint8_t byte) {
     } else {
       // 11000111 xxxxyyyy: Spare (xxxx != 0000)
       if (log_type_ != ARM_LOG_NONE) {
-        Log::Info(log_indent_, "Spare");
+        log(log_indent_, "Spare");
       }
       status_ = ARM_STATUS_SPARE;
       return false;
@@ -648,9 +647,9 @@ inline bool ArmExidx::DecodePrefix_11_000(uint8_t byte) {
         if (nnn) {
           msg += android::base::StringPrintf("-wR%d", 10 + nnn);
         }
-        Log::Info(log_indent_, "%s}", msg.c_str());
+        log(log_indent_, "%s}", msg.c_str());
       } else {
-        Log::Info(log_indent_, "Unsupported wRX register display");
+        log(log_indent_, "Unsupported wRX register display");
       }
 
       if (log_skip_execution_) {
@@ -681,9 +680,9 @@ inline bool ArmExidx::DecodePrefix_11_001(uint8_t byte) {
         if (end_reg) {
           msg += android::base::StringPrintf("-d%d", 16 + start_reg + end_reg);
         }
-        Log::Info(log_indent_, "%s}", msg.c_str());
+        log(log_indent_, "%s}", msg.c_str());
       } else {
-        Log::Info(log_indent_, "Unsupported DX register display");
+        log(log_indent_, "Unsupported DX register display");
       }
 
       if (log_skip_execution_) {
@@ -706,9 +705,9 @@ inline bool ArmExidx::DecodePrefix_11_001(uint8_t byte) {
         if (end_reg) {
           msg += android::base::StringPrintf("-d%d", start_reg + end_reg);
         }
-        Log::Info(log_indent_, "%s}", msg.c_str());
+        log(log_indent_, "%s}", msg.c_str());
       } else {
-        Log::Info(log_indent_, "Unsupported DX register display");
+        log(log_indent_, "Unsupported DX register display");
       }
 
       if (log_skip_execution_) {
@@ -720,7 +719,7 @@ inline bool ArmExidx::DecodePrefix_11_001(uint8_t byte) {
   } else {
     // 11001yyy: Spare (yyy != 000, 001)
     if (log_type_ != ARM_LOG_NONE) {
-      Log::Info(log_indent_, "Spare");
+      log(log_indent_, "Spare");
     }
     status_ = ARM_STATUS_SPARE;
     return false;
@@ -739,9 +738,9 @@ inline bool ArmExidx::DecodePrefix_11_010(uint8_t byte) {
       if (end_reg) {
         msg += android::base::StringPrintf("-d%d", 8 + end_reg);
       }
-      Log::Info(log_indent_, "%s}", msg.c_str());
+      log(log_indent_, "%s}", msg.c_str());
     } else {
-      Log::Info(log_indent_, "Unsupported DX register display");
+      log(log_indent_, "Unsupported DX register display");
     }
 
     if (log_skip_execution_) {
@@ -765,7 +764,7 @@ inline bool ArmExidx::DecodePrefix_11(uint8_t byte) {
   default:
     // 11xxxyyy: Spare (xxx != 000, 001, 010)
     if (log_type_ != ARM_LOG_NONE) {
-      Log::Info(log_indent_, "Spare");
+      log(log_indent_, "Spare");
     }
     status_ = ARM_STATUS_SPARE;
     return false;
@@ -785,7 +784,7 @@ bool ArmExidx::Decode() {
     if (log_type_ != ARM_LOG_NONE) {
       int32_t cfa_offset = ((byte & 0x3f) << 2) + 4;
       if (log_type_ == ARM_LOG_FULL) {
-        Log::Info(log_indent_, "vsp = vsp + %d", cfa_offset);
+        log(log_indent_, "vsp = vsp + %d", cfa_offset);
       } else {
         log_cfa_offset_ += cfa_offset;
       }
@@ -802,7 +801,7 @@ bool ArmExidx::Decode() {
     if (log_type_ != ARM_LOG_NONE) {
       uint32_t cfa_offset = ((byte & 0x3f) << 2) + 4;
       if (log_type_ == ARM_LOG_FULL) {
-        Log::Info(log_indent_, "vsp = vsp - %d", cfa_offset);
+        log(log_indent_, "vsp = vsp - %d", cfa_offset);
       } else {
         log_cfa_offset_ -= cfa_offset;
       }
@@ -842,9 +841,9 @@ void ArmExidx::LogByReg() {
 
   if (log_cfa_offset_ != 0) {
     char sign = (log_cfa_offset_ > 0) ? '+' : '-';
-    Log::Info(log_indent_, "cfa = r%" PRIu8 " %c %d", cfa_reg, sign, abs(log_cfa_offset_));
+    log(log_indent_, "cfa = r%zu %c %d", cfa_reg, sign, abs(log_cfa_offset_));
   } else {
-    Log::Info(log_indent_, "cfa = r%" PRIu8, cfa_reg);
+    log(log_indent_, "cfa = r%zu", cfa_reg);
   }
 
   for (const auto& entry : log_regs_) {
@@ -852,10 +851,10 @@ void ArmExidx::LogByReg() {
       break;
     }
     if (entry.second == 0) {
-      Log::Info(log_indent_, "r%" PRIu8 " = [cfa]", entry.first);
+      log(log_indent_, "r%zu = [cfa]", entry.first);
     } else {
       char sign = (entry.second > 0) ? '-' : '+';
-      Log::Info(log_indent_, "r%" PRIu8 " = [cfa %c %d]", entry.first, sign, abs(entry.second));
+      log(log_indent_, "r%zu = [cfa %c %d]", entry.first, sign, abs(entry.second));
     }
   }
 }

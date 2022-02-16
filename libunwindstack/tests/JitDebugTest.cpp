@@ -29,7 +29,7 @@
 #include <unwindstack/Memory.h>
 
 #include "ElfFake.h"
-#include "utils/MemoryFake.h"
+#include "MemoryFake.h"
 
 namespace unwindstack {
 
@@ -65,15 +65,15 @@ class JitDebugTest : public ::testing::Test {
                        "200000-210000 rw-p 01ee000 00:00 0 /fake/elf4\n"));
     ASSERT_TRUE(maps_->Parse());
 
-    MapInfo* map_info = maps_->Get(3).get();
+    MapInfo* map_info = maps_->Get(3);
     ASSERT_TRUE(map_info != nullptr);
     CreateFakeElf(map_info, 0x2800, 0x2000, 0x2000, 0x3000);
 
-    map_info = maps_->Get(5).get();
+    map_info = maps_->Get(5);
     ASSERT_TRUE(map_info != nullptr);
     CreateFakeElf(map_info, 0x2800, 0x2000, 0x2000, 0x3000);
 
-    map_info = maps_->Get(7).get();
+    map_info = maps_->Get(7);
     ASSERT_TRUE(map_info != nullptr);
     CreateFakeElf(map_info, 0xee800, 0xee000, 0xee000, 0x10000);
   }
@@ -414,7 +414,7 @@ TEST_F(JitDebugTest, get_elf_search_libs) {
   EXPECT_TRUE(jit_debug_->Find(maps_.get(), 0x1500) == nullptr);
 
   // Change the name of the map that includes the value and verify this works.
-  auto map_info = maps_->Get(5);
+  MapInfo* map_info = maps_->Get(5);
   map_info->set_name("/system/lib/libart.so");
   map_info = maps_->Get(6);
   map_info->set_name("/system/lib/libart.so");

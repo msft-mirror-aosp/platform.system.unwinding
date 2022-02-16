@@ -39,8 +39,8 @@
 
 #include "ElfFake.h"
 #include "ElfTestUtils.h"
-#include "utils/MemoryFake.h"
-#include "utils/RegsFake.h"
+#include "MemoryFake.h"
+#include "RegsFake.h"
 
 namespace unwindstack {
 
@@ -49,8 +49,8 @@ class UnwinderTest : public ::testing::Test {
   static MapInfo* AddMapInfo(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags,
                              const char* name, Elf* elf = nullptr) {
     std::string str_name(name);
-    maps_->Add(start, end, offset, flags, name);
-    MapInfo* map_info = maps_->Find(start).get();
+    maps_->Add(start, end, offset, flags, name, static_cast<uint64_t>(-1));
+    MapInfo* map_info = maps_->Find(start);
     if (elf != nullptr) {
       map_info->set_elf(elf);
     }
@@ -99,7 +99,9 @@ class UnwinderTest : public ::testing::Test {
 
     AddMapInfo(0x53000, 0x54000, 0, PROT_READ | PROT_WRITE, "/fake/fake.oat");
 
-    AddMapInfo(0xa3000, 0xa4000, 0, PROT_READ | PROT_WRITE | PROT_EXEC, "/fake/fake.vdex");
+    map_info =
+        AddMapInfo(0xa3000, 0xa4000, 0, PROT_READ | PROT_WRITE | PROT_EXEC, "/fake/fake.vdex");
+    map_info->set_load_bias(0);
 
     elf = new ElfFake(new MemoryFake);
     elf->FakeSetInterface(new ElfInterfaceFake(nullptr));
@@ -137,7 +139,7 @@ class UnwinderTest : public ::testing::Test {
 
     map_info =
         AddMapInfo(0xd0000, 0xd1000, 0x1000, PROT_READ | PROT_WRITE | PROT_EXEC, "/fake/fake.apk");
-    map_info->set_elf_start_offset(0x1000);
+    map_info->set_load_bias(0);
 
     elf = new ElfFake(new MemoryFake);
     interface = new ElfInterfaceFake(nullptr);
@@ -217,15 +219,13 @@ TEST_F(UnwinderTest, multiple_frames) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -234,15 +234,13 @@ TEST_F(UnwinderTest, multiple_frames) {
   EXPECT_EQ(0x10010U, frame->sp);
   EXPECT_EQ("Frame1", frame->function_name);
   EXPECT_EQ(1U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[2];
   EXPECT_EQ(2U, frame->num);
@@ -251,15 +249,13 @@ TEST_F(UnwinderTest, multiple_frames) {
   EXPECT_EQ(0x10020U, frame->sp);
   EXPECT_EQ("Frame2", frame->function_name);
   EXPECT_EQ(2U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, multiple_frames_dont_resolve_names) {
@@ -289,15 +285,13 @@ TEST_F(UnwinderTest, multiple_frames_dont_resolve_names) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -306,15 +300,13 @@ TEST_F(UnwinderTest, multiple_frames_dont_resolve_names) {
   EXPECT_EQ(0x10010U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[2];
   EXPECT_EQ(2U, frame->num);
@@ -323,15 +315,13 @@ TEST_F(UnwinderTest, multiple_frames_dont_resolve_names) {
   EXPECT_EQ(0x10020U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, non_zero_load_bias) {
@@ -356,15 +346,13 @@ TEST_F(UnwinderTest, non_zero_load_bias) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/fake_load_bias.so", frame->map_info->name());
-  EXPECT_EQ("/fake/fake_load_bias.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0xa5000U, frame->map_info->start());
-  EXPECT_EQ(0xa6000U, frame->map_info->end());
-  EXPECT_EQ(0x5000U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_info->flags());
+  EXPECT_EQ("/fake/fake_load_bias.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0xa5000U, frame->map_start);
+  EXPECT_EQ(0xa6000U, frame->map_end);
+  EXPECT_EQ(0x5000U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, non_zero_elf_offset) {
@@ -389,15 +377,13 @@ TEST_F(UnwinderTest, non_zero_elf_offset) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/fake_offset.oat", frame->map_info->name());
-  EXPECT_EQ("/fake/fake_offset.oat", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0xa7000U, frame->map_info->start());
-  EXPECT_EQ(0xa8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_info->flags());
+  EXPECT_EQ("/fake/fake_offset.oat", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0xa7000U, frame->map_start);
+  EXPECT_EQ(0xa8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, non_zero_map_offset) {
@@ -422,15 +408,45 @@ TEST_F(UnwinderTest, non_zero_map_offset) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/fake.apk", frame->map_info->name());
-  EXPECT_EQ("/fake/fake.apk!lib_fake.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0x1d000U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0x1d000U, frame->map_info->offset());
-  EXPECT_EQ(0x43000U, frame->map_info->start());
-  EXPECT_EQ(0x44000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/fake/fake.apk!lib_fake.so", frame->map_name);
+  EXPECT_EQ(0x1d000U, frame->map_elf_start_offset);
+  EXPECT_EQ(0x1d000U, frame->map_exact_offset);
+  EXPECT_EQ(0x43000U, frame->map_start);
+  EXPECT_EQ(0x44000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
+}
+
+TEST_F(UnwinderTest, disable_embedded_soname) {
+  ElfInterfaceFake::FakePushFunctionData(FunctionData("Frame0", 0));
+
+  regs_.set_pc(0x43000);
+  regs_.set_sp(0x10000);
+  ElfInterfaceFake::FakePushStepData(StepData(0, 0, true));
+
+  Unwinder unwinder(64, maps_.get(), &regs_, process_memory_);
+  unwinder.SetEmbeddedSoname(false);
+  unwinder.Unwind();
+  EXPECT_EQ(ERROR_NONE, unwinder.LastErrorCode());
+  EXPECT_EQ(WARNING_NONE, unwinder.warnings());
+  EXPECT_FALSE(unwinder.elf_from_memory_not_file());
+
+  ASSERT_EQ(1U, unwinder.NumFrames());
+
+  auto* frame = &unwinder.frames()[0];
+  EXPECT_EQ(0U, frame->num);
+  EXPECT_EQ(0U, frame->rel_pc);
+  EXPECT_EQ(0x43000U, frame->pc);
+  EXPECT_EQ(0x10000U, frame->sp);
+  EXPECT_EQ("Frame0", frame->function_name);
+  EXPECT_EQ(0U, frame->function_offset);
+  EXPECT_EQ("/fake/fake.apk", frame->map_name);
+  EXPECT_EQ(0x1d000U, frame->map_elf_start_offset);
+  EXPECT_EQ(0x1d000U, frame->map_exact_offset);
+  EXPECT_EQ(0x43000U, frame->map_start);
+  EXPECT_EQ(0x44000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 // Verify that no attempt to continue after the step indicates it is done.
@@ -462,15 +478,13 @@ TEST_F(UnwinderTest, no_frames_after_finished) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 // Verify the maximum frames to save.
@@ -494,21 +508,18 @@ TEST_F(UnwinderTest, max_frames) {
   for (size_t i = 0; i < 20; i++) {
     auto* frame = &unwinder.frames()[i];
     EXPECT_EQ(i, frame->num);
-    SCOPED_TRACE(testing::Message() << "Failed at frame " << i);
-    EXPECT_EQ(i * 0x100, frame->rel_pc);
-    EXPECT_EQ(0x1000 + i * 0x100, frame->pc);
-    EXPECT_EQ(0x10000 + 0x10 * i, frame->sp);
-    EXPECT_EQ("Frame" + std::to_string(i), frame->function_name);
-    EXPECT_EQ(i, frame->function_offset);
-    ASSERT_TRUE(frame->map_info != nullptr);
-    EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-    EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-    EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-    EXPECT_EQ(0U, frame->map_info->offset());
-    EXPECT_EQ(0x1000U, frame->map_info->start());
-    EXPECT_EQ(0x8000U, frame->map_info->end());
-    EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-    EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+    EXPECT_EQ(i * 0x100, frame->rel_pc) << "Failed at frame " << i;
+    EXPECT_EQ(0x1000 + i * 0x100, frame->pc) << "Failed at frame " << i;
+    EXPECT_EQ(0x10000 + 0x10 * i, frame->sp) << "Failed at frame " << i;
+    EXPECT_EQ("Frame" + std::to_string(i), frame->function_name) << "Failed at frame " << i;
+    EXPECT_EQ(i, frame->function_offset) << "Failed at frame " << i;
+    EXPECT_EQ("/system/fake/libc.so", frame->map_name) << "Failed at frame " << i;
+    EXPECT_EQ(0U, frame->map_elf_start_offset) << "Failed at frame " << i;
+    EXPECT_EQ(0U, frame->map_exact_offset) << "Failed at frame " << i;
+    EXPECT_EQ(0x1000U, frame->map_start) << "Failed at frame " << i;
+    EXPECT_EQ(0x8000U, frame->map_end) << "Failed at frame " << i;
+    EXPECT_EQ(0U, frame->map_load_bias) << "Failed at frame " << i;
+    EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags) << "Failed at frame " << i;
   }
 }
 
@@ -545,15 +556,13 @@ TEST_F(UnwinderTest, verify_frames_skipped) {
   EXPECT_EQ(0x10050U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -562,15 +571,13 @@ TEST_F(UnwinderTest, verify_frames_skipped) {
   EXPECT_EQ(0x10060U, frame->sp);
   EXPECT_EQ("Frame1", frame->function_name);
   EXPECT_EQ(1U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libunwind.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libunwind.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x20000U, frame->map_info->start());
-  EXPECT_EQ(0x22000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libunwind.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x20000U, frame->map_start);
+  EXPECT_EQ(0x22000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[2];
   EXPECT_EQ(2U, frame->num);
@@ -579,14 +586,12 @@ TEST_F(UnwinderTest, verify_frames_skipped) {
   EXPECT_EQ(0x10070U, frame->sp);
   EXPECT_EQ("Frame2", frame->function_name);
   EXPECT_EQ(2U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/libanother.so", frame->map_info->name());
-  EXPECT_EQ("/fake/libanother.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x23000U, frame->map_info->start());
-  EXPECT_EQ(0x24000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/fake/libanother.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x23000U, frame->map_start);
+  EXPECT_EQ(0x24000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 // Verify SP in a non-existant map is okay.
@@ -614,14 +619,12 @@ TEST_F(UnwinderTest, sp_not_in_map) {
   EXPECT_EQ(0x63000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -630,14 +633,12 @@ TEST_F(UnwinderTest, sp_not_in_map) {
   EXPECT_EQ(0x50020U, frame->sp);
   EXPECT_EQ("Frame1", frame->function_name);
   EXPECT_EQ(1U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libunwind.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libunwind.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x20000U, frame->map_info->start());
-  EXPECT_EQ(0x22000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libunwind.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x20000U, frame->map_start);
+  EXPECT_EQ(0x22000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 // Verify PC in a device stops the unwind.
@@ -704,7 +705,13 @@ TEST_F(UnwinderTest, pc_without_map) {
   EXPECT_EQ(0x13000U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info == nullptr);
+  EXPECT_EQ("", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0U, frame->map_start);
+  EXPECT_EQ(0U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(0, frame->map_flags);
 }
 
 // Verify that a speculative frame is added.
@@ -736,7 +743,13 @@ TEST_F(UnwinderTest, speculative_frame) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info == nullptr);
+  EXPECT_EQ("", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0U, frame->map_start);
+  EXPECT_EQ(0U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(0, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -745,15 +758,13 @@ TEST_F(UnwinderTest, speculative_frame) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[2];
   EXPECT_EQ(2U, frame->num);
@@ -762,15 +773,13 @@ TEST_F(UnwinderTest, speculative_frame) {
   EXPECT_EQ(0x10020U, frame->sp);
   EXPECT_EQ("Frame1", frame->function_name);
   EXPECT_EQ(1U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/libanother.so", frame->map_info->name());
-  EXPECT_EQ("/fake/libanother.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x23000U, frame->map_info->start());
-  EXPECT_EQ(0x24000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/fake/libanother.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x23000U, frame->map_start);
+  EXPECT_EQ(0x24000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 // Verify that a speculative frame is added then removed because no other
@@ -801,15 +810,13 @@ TEST_F(UnwinderTest, speculative_frame_removed) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libunwind.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libunwind.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x20000U, frame->map_info->start());
-  EXPECT_EQ(0x22000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libunwind.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x20000U, frame->map_start);
+  EXPECT_EQ(0x22000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -818,7 +825,13 @@ TEST_F(UnwinderTest, speculative_frame_removed) {
   EXPECT_EQ(0x10010U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info == nullptr);
+  EXPECT_EQ("", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0U, frame->map_start);
+  EXPECT_EQ(0U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(0, frame->map_flags);
 }
 
 // Verify that a speculative frame is added and left if there are only
@@ -848,7 +861,13 @@ TEST_F(UnwinderTest, speculative_frame_not_removed_pc_bad) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info == nullptr);
+  EXPECT_EQ("", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0U, frame->map_start);
+  EXPECT_EQ(0U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(0, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -857,15 +876,13 @@ TEST_F(UnwinderTest, speculative_frame_not_removed_pc_bad) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 // Verify that a speculative frame does not cause a crash when it wasn't
@@ -885,32 +902,6 @@ TEST_F(UnwinderTest, speculative_frame_check_with_no_frames) {
   EXPECT_FALSE(unwinder.elf_from_memory_not_file());
 
   ASSERT_EQ(0U, unwinder.NumFrames());
-}
-
-// Verify that a speculative frame mapping to invalid map doesn't hide error
-// for the previous frame.
-TEST_F(UnwinderTest, speculative_frame_to_invalid_map_not_hide_prev_error) {
-  regs_.set_pc(0x100000);
-  regs_.set_sp(0x10000);
-  regs_.FakeSetReturnAddress(0x4);
-  regs_.FakeSetReturnAddressValid(true);
-
-  Unwinder unwinder(64, maps_.get(), &regs_, process_memory_);
-  unwinder.Unwind();
-  EXPECT_EQ(ERROR_INVALID_ELF, unwinder.LastErrorCode());
-  EXPECT_EQ(WARNING_NONE, unwinder.warnings());
-  EXPECT_FALSE(unwinder.elf_from_memory_not_file());
-
-  ASSERT_EQ(1U, unwinder.NumFrames());
-
-  auto* frame = &unwinder.frames()[0];
-  EXPECT_EQ(0U, frame->num);
-  EXPECT_EQ(0x300U, frame->rel_pc);
-  EXPECT_EQ(0x100000U, frame->pc);
-  EXPECT_EQ(0x10000U, frame->sp);
-  EXPECT_EQ("", frame->function_name);
-  EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
 }
 
 // Verify that an unwind stops when a frame is in given suffix.
@@ -936,7 +927,7 @@ TEST_F(UnwinderTest, map_ignore_suffixes) {
 
   ASSERT_EQ(2U, unwinder.NumFrames());
   // Make sure the elf was not initialized.
-  MapInfo* map_info = maps_->Find(0x53000).get();
+  MapInfo* map_info = maps_->Find(0x53000);
   ASSERT_TRUE(map_info != nullptr);
   EXPECT_TRUE(map_info->elf() == nullptr);
 
@@ -947,15 +938,13 @@ TEST_F(UnwinderTest, map_ignore_suffixes) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -964,15 +953,13 @@ TEST_F(UnwinderTest, map_ignore_suffixes) {
   EXPECT_EQ(0x10010U, frame->sp);
   EXPECT_EQ("Frame1", frame->function_name);
   EXPECT_EQ(1U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/fake.apk", frame->map_info->name());
-  EXPECT_EQ("/fake/fake.apk!lib_fake.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0x1d000U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0x1d000U, frame->map_info->offset());
-  EXPECT_EQ(0x43000U, frame->map_info->start());
-  EXPECT_EQ(0x44000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/fake/fake.apk!lib_fake.so", frame->map_name);
+  EXPECT_EQ(0x1d000U, frame->map_elf_start_offset);
+  EXPECT_EQ(0x1d000U, frame->map_exact_offset);
+  EXPECT_EQ(0x43000U, frame->map_start);
+  EXPECT_EQ(0x44000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 // Verify that an unwind stops when the sp and pc don't change.
@@ -1007,15 +994,13 @@ TEST_F(UnwinderTest, sp_pc_do_not_change) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -1024,15 +1009,13 @@ TEST_F(UnwinderTest, sp_pc_do_not_change) {
   EXPECT_EQ(0x10010U, frame->sp);
   EXPECT_EQ("Frame1", frame->function_name);
   EXPECT_EQ(1U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/compressed.so", frame->map_info->name());
-  EXPECT_EQ("/fake/compressed.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x33000U, frame->map_info->start());
-  EXPECT_EQ(0x34000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/fake/compressed.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x33000U, frame->map_start);
+  EXPECT_EQ(0x34000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[2];
   EXPECT_EQ(2U, frame->num);
@@ -1041,15 +1024,13 @@ TEST_F(UnwinderTest, sp_pc_do_not_change) {
   EXPECT_EQ(0x10020U, frame->sp);
   EXPECT_EQ("Frame2", frame->function_name);
   EXPECT_EQ(2U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/compressed.so", frame->map_info->name());
-  EXPECT_EQ("/fake/compressed.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x33000U, frame->map_info->start());
-  EXPECT_EQ(0x34000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/fake/compressed.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x33000U, frame->map_start);
+  EXPECT_EQ(0x34000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, dex_pc_in_map) {
@@ -1073,15 +1054,13 @@ TEST_F(UnwinderTest, dex_pc_in_map) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/fake.vdex", frame->map_info->name());
-  EXPECT_EQ("/fake/fake.vdex", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0xa3000U, frame->map_info->start());
-  EXPECT_EQ(0xa4000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_info->flags());
+  EXPECT_EQ("/fake/fake.vdex", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0xa3000U, frame->map_start);
+  EXPECT_EQ(0xa4000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -1090,15 +1069,13 @@ TEST_F(UnwinderTest, dex_pc_in_map) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, dex_pc_in_map_non_zero_offset) {
@@ -1122,15 +1099,13 @@ TEST_F(UnwinderTest, dex_pc_in_map_non_zero_offset) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/fake.apk", frame->map_info->name());
-  EXPECT_EQ("/fake/fake.apk", frame->map_info->GetFullName());
-  EXPECT_EQ(0x1000U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0x1000U, frame->map_info->offset());
-  EXPECT_EQ(0xd0000U, frame->map_info->start());
-  EXPECT_EQ(0xd1000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_info->flags());
+  EXPECT_EQ("/fake/fake.apk", frame->map_name);
+  EXPECT_EQ(0x1000U, frame->map_elf_start_offset);
+  EXPECT_EQ(0x1000U, frame->map_exact_offset);
+  EXPECT_EQ(0xd0000U, frame->map_start);
+  EXPECT_EQ(0xd1000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -1139,15 +1114,13 @@ TEST_F(UnwinderTest, dex_pc_in_map_non_zero_offset) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, dex_pc_not_in_map) {
@@ -1171,7 +1144,13 @@ TEST_F(UnwinderTest, dex_pc_not_in_map) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info == nullptr);
+  EXPECT_EQ("", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0U, frame->map_start);
+  EXPECT_EQ(0U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(0, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -1180,15 +1159,13 @@ TEST_F(UnwinderTest, dex_pc_not_in_map) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, dex_pc_not_in_map_valid_dex_files) {
@@ -1214,7 +1191,13 @@ TEST_F(UnwinderTest, dex_pc_not_in_map_valid_dex_files) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info == nullptr);
+  EXPECT_EQ("", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0U, frame->map_start);
+  EXPECT_EQ(0U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(0, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -1223,15 +1206,13 @@ TEST_F(UnwinderTest, dex_pc_not_in_map_valid_dex_files) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, dex_pc_multiple_frames) {
@@ -1258,14 +1239,13 @@ TEST_F(UnwinderTest, dex_pc_multiple_frames) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/fake.vdex", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0xa3000U, frame->map_info->start());
-  EXPECT_EQ(0xa4000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_info->flags());
+  EXPECT_EQ("/fake/fake.vdex", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0xa3000U, frame->map_start);
+  EXPECT_EQ(0xa4000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_flags);
 
   frame = &unwinder.frames()[1];
   EXPECT_EQ(1U, frame->num);
@@ -1274,15 +1254,13 @@ TEST_F(UnwinderTest, dex_pc_multiple_frames) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x1000U, frame->map_info->start());
-  EXPECT_EQ(0x8000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/system/fake/libc.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x1000U, frame->map_start);
+  EXPECT_EQ(0x8000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 
   frame = &unwinder.frames()[2];
   EXPECT_EQ(2U, frame->num);
@@ -1291,15 +1269,13 @@ TEST_F(UnwinderTest, dex_pc_multiple_frames) {
   EXPECT_EQ(0x10010U, frame->sp);
   EXPECT_EQ("Frame1", frame->function_name);
   EXPECT_EQ(1U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/compressed.so", frame->map_info->name());
-  EXPECT_EQ("/fake/compressed.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0x33000U, frame->map_info->start());
-  EXPECT_EQ(0x34000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_info->flags());
+  EXPECT_EQ("/fake/compressed.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0x33000U, frame->map_start);
+  EXPECT_EQ(0x34000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, dex_pc_max_frames) {
@@ -1323,15 +1299,13 @@ TEST_F(UnwinderTest, dex_pc_max_frames) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/fake.vdex", frame->map_info->name());
-  EXPECT_EQ("/fake/fake.vdex", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0xa3000U, frame->map_info->start());
-  EXPECT_EQ(0xa4000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_info->flags());
+  EXPECT_EQ("/fake/fake.vdex", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0xa3000U, frame->map_start);
+  EXPECT_EQ(0xa4000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, elf_from_memory_not_file) {
@@ -1356,15 +1330,13 @@ TEST_F(UnwinderTest, elf_from_memory_not_file) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/fake/unreadable.so", frame->map_info->name());
-  EXPECT_EQ("/fake/unreadable.so", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0xc0000U, frame->map_info->start());
-  EXPECT_EQ(0xc1000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_info->flags());
+  EXPECT_EQ("/fake/unreadable.so", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0xc0000U, frame->map_start);
+  EXPECT_EQ(0xc1000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, elf_from_memory_but_no_valid_file_with_bracket) {
@@ -1389,15 +1361,13 @@ TEST_F(UnwinderTest, elf_from_memory_but_no_valid_file_with_bracket) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("[vdso]", frame->map_info->name());
-  EXPECT_EQ("[vdso]", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0xc1000U, frame->map_info->start());
-  EXPECT_EQ(0xc2000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_info->flags());
+  EXPECT_EQ("[vdso]", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0xc1000U, frame->map_start);
+  EXPECT_EQ(0xc2000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, elf_from_memory_but_empty_filename) {
@@ -1422,15 +1392,13 @@ TEST_F(UnwinderTest, elf_from_memory_but_empty_filename) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("", frame->map_info->name());
-  EXPECT_EQ("", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0xc2000U, frame->map_info->start());
-  EXPECT_EQ(0xc3000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_info->flags());
+  EXPECT_EQ("", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0xc2000U, frame->map_start);
+  EXPECT_EQ(0xc3000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_flags);
 }
 
 TEST_F(UnwinderTest, elf_from_memory_but_from_memfd) {
@@ -1455,15 +1423,13 @@ TEST_F(UnwinderTest, elf_from_memory_but_from_memfd) {
   EXPECT_EQ(0x10000U, frame->sp);
   EXPECT_EQ("Frame0", frame->function_name);
   EXPECT_EQ(0U, frame->function_offset);
-  ASSERT_TRUE(frame->map_info != nullptr);
-  EXPECT_EQ("/memfd:/jit-cache", frame->map_info->name());
-  EXPECT_EQ("/memfd:/jit-cache", frame->map_info->GetFullName());
-  EXPECT_EQ(0U, frame->map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame->map_info->offset());
-  EXPECT_EQ(0xc3000U, frame->map_info->start());
-  EXPECT_EQ(0xc4000U, frame->map_info->end());
-  EXPECT_EQ(0U, frame->map_info->GetLoadBias());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_info->flags());
+  EXPECT_EQ("/memfd:/jit-cache", frame->map_name);
+  EXPECT_EQ(0U, frame->map_elf_start_offset);
+  EXPECT_EQ(0U, frame->map_exact_offset);
+  EXPECT_EQ(0xc3000U, frame->map_start);
+  EXPECT_EQ(0xc4000U, frame->map_end);
+  EXPECT_EQ(0U, frame->map_load_bias);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame->map_flags);
 }
 
 // Verify format frame code.
@@ -1483,16 +1449,18 @@ TEST_F(UnwinderTest, format_frame) {
   frame.sp = 0x1000;
   frame.function_name = "function";
   frame.function_offset = 100;
-  auto map_info = MapInfo::Create(0x3000, 0x6000, 0, PROT_READ, "/fake/libfake.so");
-  map_info->set_elf_start_offset(0x2000);
-  frame.map_info = map_info;
+  frame.map_name = "/fake/libfake.so";
+  frame.map_elf_start_offset = 0x2000;
+  frame.map_start = 0x3000;
+  frame.map_end = 0x6000;
+  frame.map_flags = PROT_READ;
 
   EXPECT_EQ("  #01 pc 0000000000001000  /fake/libfake.so (offset 0x2000) (function+100)",
             unwinder64.FormatFrame(frame));
   EXPECT_EQ("  #01 pc 00001000  /fake/libfake.so (offset 0x2000) (function+100)",
             unwinder32.FormatFrame(frame));
 
-  map_info->set_elf_start_offset(0);
+  frame.map_elf_start_offset = 0;
   EXPECT_EQ("  #01 pc 0000000000001000  /fake/libfake.so (function+100)",
             unwinder64.FormatFrame(frame));
   EXPECT_EQ("  #01 pc 00001000  /fake/libfake.so (function+100)", unwinder32.FormatFrame(frame));
@@ -1511,11 +1479,12 @@ TEST_F(UnwinderTest, format_frame) {
   EXPECT_EQ("  #01 pc 0000000000001000  /fake/libfake.so", unwinder64.FormatFrame(frame));
   EXPECT_EQ("  #01 pc 00001000  /fake/libfake.so", unwinder32.FormatFrame(frame));
 
-  map_info->name() = "";
+  frame.map_name = "";
   EXPECT_EQ("  #01 pc 0000000000001000  <anonymous:3000>", unwinder64.FormatFrame(frame));
   EXPECT_EQ("  #01 pc 00001000  <anonymous:3000>", unwinder32.FormatFrame(frame));
 
-  frame.map_info = nullptr;
+  frame.map_start = 0;
+  frame.map_end = 0;
   EXPECT_EQ("  #01 pc 0000000000001000  <unknown>", unwinder64.FormatFrame(frame));
   EXPECT_EQ("  #01 pc 00001000  <unknown>", unwinder32.FormatFrame(frame));
 }
@@ -1532,9 +1501,11 @@ TEST_F(UnwinderTest, format_frame_build_id) {
   frame.sp = 0x1000;
   frame.function_name = "function";
   frame.function_offset = 100;
-  frame.map_info = MapInfo::Create(0x3000, 0x6000, 0, PROT_READ, "/fake/libfake.so");
-  SharedString* build_id = new SharedString(std::string{0x46, 0x41, 0x4b, 0x45});
-  frame.map_info->set_build_id(build_id);
+  frame.map_name = "/fake/libfake.so";
+  frame.map_elf_start_offset = 0;
+  frame.map_start = 0x3000;
+  frame.map_end = 0x6000;
+  frame.map_flags = PROT_READ;
 
   EXPECT_EQ("  #01 pc 00001000  /fake/libfake.so (function+100)", unwinder.FormatFrame(frame));
   unwinder.SetDisplayBuildID(true);
@@ -1640,15 +1611,13 @@ TEST_F(UnwinderTest, build_frame_pc_only_errors) {
   frame = unwinder.BuildFrameFromPcOnly(0x100310);
   EXPECT_EQ(0x10030eU, frame.pc);
   EXPECT_EQ(0x60eU, frame.rel_pc);
-  ASSERT_TRUE(frame.map_info != nullptr);
-  EXPECT_EQ("/fake/jit.so", frame.map_info->name());
-  EXPECT_EQ("/fake/jit.so", frame.map_info->GetFullName());
-  EXPECT_EQ(0x100U, frame.map_info->elf_start_offset());
-  EXPECT_EQ(0x200U, frame.map_info->offset());
-  EXPECT_EQ(0x100000U, frame.map_info->start());
-  EXPECT_EQ(0x101000U, frame.map_info->end());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame.map_info->flags());
-  EXPECT_EQ(0U, frame.map_info->GetLoadBias());
+  EXPECT_EQ("/fake/jit.so", frame.map_name);
+  EXPECT_EQ(0x100U, frame.map_elf_start_offset);
+  EXPECT_EQ(0x200U, frame.map_exact_offset);
+  EXPECT_EQ(0x100000U, frame.map_start);
+  EXPECT_EQ(0x101000U, frame.map_end);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame.map_flags);
+  EXPECT_EQ(0x300U, frame.map_load_bias);
   EXPECT_EQ("", frame.function_name);
   EXPECT_EQ(0U, frame.function_offset);
 }
@@ -1664,15 +1633,13 @@ TEST_F(UnwinderTest, build_frame_pc_valid_elf) {
   frame = unwinder.BuildFrameFromPcOnly(0x1010);
   EXPECT_EQ(0x100cU, frame.pc);
   EXPECT_EQ(0xcU, frame.rel_pc);
-  ASSERT_TRUE(frame.map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame.map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame.map_info->GetFullName());
-  EXPECT_EQ(0U, frame.map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame.map_info->offset());
-  EXPECT_EQ(0x1000U, frame.map_info->start());
-  EXPECT_EQ(0x8000U, frame.map_info->end());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame.map_info->flags());
-  EXPECT_EQ(0U, frame.map_info->GetLoadBias());
+  EXPECT_EQ("/system/fake/libc.so", frame.map_name);
+  EXPECT_EQ(0U, frame.map_elf_start_offset);
+  EXPECT_EQ(0U, frame.map_exact_offset);
+  EXPECT_EQ(0x1000U, frame.map_start);
+  EXPECT_EQ(0x8000U, frame.map_end);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame.map_flags);
+  EXPECT_EQ(0U, frame.map_load_bias);
   EXPECT_EQ("", frame.function_name);
   EXPECT_EQ(0U, frame.function_offset);
 
@@ -1683,15 +1650,13 @@ TEST_F(UnwinderTest, build_frame_pc_valid_elf) {
   frame = unwinder.BuildFrameFromPcOnly(0x1010);
   EXPECT_EQ(0x100cU, frame.pc);
   EXPECT_EQ(0xcU, frame.rel_pc);
-  ASSERT_TRUE(frame.map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame.map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame.map_info->GetFullName());
-  EXPECT_EQ(0U, frame.map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame.map_info->offset());
-  EXPECT_EQ(0x1000U, frame.map_info->start());
-  EXPECT_EQ(0x8000U, frame.map_info->end());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame.map_info->flags());
-  EXPECT_EQ(0U, frame.map_info->GetLoadBias());
+  EXPECT_EQ("/system/fake/libc.so", frame.map_name);
+  EXPECT_EQ(0U, frame.map_elf_start_offset);
+  EXPECT_EQ(0U, frame.map_exact_offset);
+  EXPECT_EQ(0x1000U, frame.map_start);
+  EXPECT_EQ(0x8000U, frame.map_end);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame.map_flags);
+  EXPECT_EQ(0U, frame.map_load_bias);
   EXPECT_EQ("", frame.function_name);
   EXPECT_EQ(0U, frame.function_offset);
 
@@ -1701,15 +1666,13 @@ TEST_F(UnwinderTest, build_frame_pc_valid_elf) {
   frame = unwinder.BuildFrameFromPcOnly(0x1010);
   EXPECT_EQ(0x100cU, frame.pc);
   EXPECT_EQ(0xcU, frame.rel_pc);
-  ASSERT_TRUE(frame.map_info != nullptr);
-  EXPECT_EQ("/system/fake/libc.so", frame.map_info->name());
-  EXPECT_EQ("/system/fake/libc.so", frame.map_info->GetFullName());
-  EXPECT_EQ(0U, frame.map_info->elf_start_offset());
-  EXPECT_EQ(0U, frame.map_info->offset());
-  EXPECT_EQ(0x1000U, frame.map_info->start());
-  EXPECT_EQ(0x8000U, frame.map_info->end());
-  EXPECT_EQ(PROT_READ | PROT_WRITE, frame.map_info->flags());
-  EXPECT_EQ(0U, frame.map_info->GetLoadBias());
+  EXPECT_EQ("/system/fake/libc.so", frame.map_name);
+  EXPECT_EQ(0U, frame.map_elf_start_offset);
+  EXPECT_EQ(0U, frame.map_exact_offset);
+  EXPECT_EQ(0x1000U, frame.map_start);
+  EXPECT_EQ(0x8000U, frame.map_end);
+  EXPECT_EQ(PROT_READ | PROT_WRITE, frame.map_flags);
+  EXPECT_EQ(0U, frame.map_load_bias);
   EXPECT_EQ("Frame0", frame.function_name);
   EXPECT_EQ(10U, frame.function_offset);
 }
@@ -1774,15 +1737,13 @@ TEST_F(UnwinderTest, build_frame_pc_in_jit) {
   FrameData frame = unwinder.BuildFrameFromPcOnly(0x100310);
   EXPECT_EQ(0x10030eU, frame.pc);
   EXPECT_EQ(0x60eU, frame.rel_pc);
-  ASSERT_TRUE(frame.map_info != nullptr);
-  EXPECT_EQ("/fake/jit.so", frame.map_info->name());
-  EXPECT_EQ("/fake/jit.so", frame.map_info->GetFullName());
-  EXPECT_EQ(0x100U, frame.map_info->elf_start_offset());
-  EXPECT_EQ(0x200U, frame.map_info->offset());
-  EXPECT_EQ(0x100000U, frame.map_info->start());
-  EXPECT_EQ(0x101000U, frame.map_info->end());
-  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame.map_info->flags());
-  EXPECT_EQ(0U, frame.map_info->GetLoadBias());
+  EXPECT_EQ("/fake/jit.so", frame.map_name);
+  EXPECT_EQ(0x100U, frame.map_elf_start_offset);
+  EXPECT_EQ(0x200U, frame.map_exact_offset);
+  EXPECT_EQ(0x100000U, frame.map_start);
+  EXPECT_EQ(0x101000U, frame.map_end);
+  EXPECT_EQ(PROT_READ | PROT_WRITE | PROT_EXEC, frame.map_flags);
+  EXPECT_EQ(0U, frame.map_load_bias);
   EXPECT_EQ("FakeJitFunction", frame.function_name);
   EXPECT_EQ(0xeU, frame.function_offset);
 }
@@ -1808,22 +1769,6 @@ TEST_F(UnwinderDeathTest, set_jit_debug_error) {
   std::shared_ptr<Memory> process_memory(new MemoryFake);
   Unwinder unwinder(10, &maps, process_memory);
   ASSERT_DEATH(CreateJitDebug(ARCH_UNKNOWN, process_memory), "");
-}
-
-TEST_F(UnwinderTest, unwinder_from_pid_with_external_maps) {
-  LocalMaps map;
-  ASSERT_TRUE(map.Parse());
-
-  UnwinderFromPid unwinder1(10, getpid(), &map);
-  unwinder1.SetArch(Regs::CurrentArch());
-  ASSERT_EQ(&map, unwinder1.GetMaps());
-  ASSERT_TRUE(unwinder1.Init());
-  ASSERT_EQ(&map, unwinder1.GetMaps());
-
-  UnwinderFromPid unwinder2(10, getpid(), Regs::CurrentArch(), &map);
-  ASSERT_EQ(&map, unwinder2.GetMaps());
-  ASSERT_TRUE(unwinder2.Init());
-  ASSERT_EQ(&map, unwinder2.GetMaps());
 }
 
 TEST_F(UnwinderDeathTest, set_dex_files_error) {
