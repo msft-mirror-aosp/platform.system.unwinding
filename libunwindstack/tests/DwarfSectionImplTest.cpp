@@ -25,25 +25,49 @@
 #include "DwarfEncoding.h"
 
 #include "LogFake.h"
-#include "utils/DwarfSectionImplFake.h"
-#include "utils/MemoryFake.h"
-#include "utils/RegsFake.h"
+#include "MemoryFake.h"
+#include "RegsFake.h"
 
 namespace unwindstack {
+
+template <typename TypeParam>
+class TestDwarfSectionImpl : public DwarfSectionImpl<TypeParam> {
+ public:
+  TestDwarfSectionImpl(Memory* memory) : DwarfSectionImpl<TypeParam>(memory) {}
+  virtual ~TestDwarfSectionImpl() = default;
+
+  bool Init(uint64_t, uint64_t, int64_t) override { return false; }
+
+  void GetFdes(std::vector<const DwarfFde*>*) override {}
+
+  const DwarfFde* GetFdeFromPc(uint64_t) override { return nullptr; }
+
+  uint64_t GetCieOffsetFromFde32(uint32_t) { return 0; }
+
+  uint64_t GetCieOffsetFromFde64(uint64_t) { return 0; }
+
+  uint64_t AdjustPcFromFde(uint64_t) override { return 0; }
+
+  void TestSetCachedCieLocRegs(uint64_t offset, const DwarfLocations& loc_regs) {
+    this->cie_loc_regs_[offset] = loc_regs;
+  }
+  void TestClearCachedCieLocRegs() { this->cie_loc_regs_.clear(); }
+  void TestClearError() { this->last_error_.code = DWARF_ERROR_NONE; }
+};
 
 template <typename TypeParam>
 class DwarfSectionImplTest : public ::testing::Test {
  protected:
   void SetUp() override {
     memory_.Clear();
-    section_ = new DwarfSectionImplFake<TypeParam>(&memory_);
+    section_ = new TestDwarfSectionImpl<TypeParam>(&memory_);
     ResetLogs();
   }
 
   void TearDown() override { delete section_; }
 
   MemoryFake memory_;
-  DwarfSectionImplFake<TypeParam>* section_ = nullptr;
+  TestDwarfSectionImpl<TypeParam>* section_ = nullptr;
 };
 TYPED_TEST_SUITE_P(DwarfSectionImplTest);
 
@@ -54,7 +78,7 @@ TYPED_TEST_P(DwarfSectionImplTest, GetCieFromOffset_fail_should_not_cache) {
   EXPECT_EQ(DWARF_ERROR_MEMORY_INVALID, this->section_->LastErrorCode());
   EXPECT_EQ(0x4000U, this->section_->LastErrorAddress());
 
-  this->section_->FakeClearError();
+  this->section_->TestClearError();
   ASSERT_TRUE(this->section_->GetCieFromOffset(0x4000) == nullptr);
   EXPECT_EQ(DWARF_ERROR_MEMORY_INVALID, this->section_->LastErrorCode());
   EXPECT_EQ(0x4000U, this->section_->LastErrorAddress());
@@ -65,7 +89,7 @@ TYPED_TEST_P(DwarfSectionImplTest, GetFdeFromOffset_fail_should_not_cache) {
   EXPECT_EQ(DWARF_ERROR_MEMORY_INVALID, this->section_->LastErrorCode());
   EXPECT_EQ(0x4000U, this->section_->LastErrorAddress());
 
-  this->section_->FakeClearError();
+  this->section_->TestClearError();
   ASSERT_TRUE(this->section_->GetFdeFromOffset(0x4000) == nullptr);
   EXPECT_EQ(DWARF_ERROR_MEMORY_INVALID, this->section_->LastErrorCode());
   EXPECT_EQ(0x4000U, this->section_->LastErrorAddress());
@@ -185,19 +209,19 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_cfa_bad) {
   ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 
-  this->section_->FakeClearError();
+  this->section_->TestClearError();
   loc_regs.erase(CFA_REG);
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_INVALID, {0, 0}};
   ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 
-  this->section_->FakeClearError();
+  this->section_->TestClearError();
   loc_regs.erase(CFA_REG);
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_OFFSET, {0, 0}};
   ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 
-  this->section_->FakeClearError();
+  this->section_->TestClearError();
   loc_regs.erase(CFA_REG);
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_VAL_OFFSET, {0, 0}};
   ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
@@ -542,7 +566,7 @@ TYPED_TEST_P(DwarfSectionImplTest, GetCfaLocationInfo_cie_cached) {
 
   DwarfLocations cie_loc_regs;
   cie_loc_regs[6] = DwarfLocation{DWARF_LOCATION_REGISTER, {4, 0}};
-  this->section_->FakeSetCachedCieLocRegs(0x8000, cie_loc_regs);
+  this->section_->TestSetCachedCieLocRegs(0x8000, cie_loc_regs);
   this->memory_.SetMemory(0x6000, std::vector<uint8_t>{0x09, 0x04, 0x03});
 
   DwarfLocations loc_regs;
