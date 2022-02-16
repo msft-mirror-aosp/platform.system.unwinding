@@ -24,7 +24,7 @@
 
 #include <unwindstack/Memory.h>
 
-#include "utils/MemoryFake.h"
+#include "MemoryFake.h"
 
 namespace unwindstack {
 
