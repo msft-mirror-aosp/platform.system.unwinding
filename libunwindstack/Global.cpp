@@ -21,8 +21,6 @@
 #include <string>
 #include <vector>
 
-#include <android-base/file.h>
-
 #include <unwindstack/Global.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/Maps.h>
@@ -50,7 +48,7 @@ bool Global::Searchable(const std::string& name) {
     return false;
   }
 
-  std::string base_name = android::base::Basename(name);
+  const char* base_name = basename(name.c_str());
   for (const std::string& lib : search_libs_) {
     if (base_name == lib) {
       return true;
@@ -79,7 +77,8 @@ void Global::FindAndReadVariable(Maps* maps, const char* var_str) {
   //   f3000-f4000 2000 rw- /system/lib/libc.so
   MapInfo* map_zero = nullptr;
   for (const auto& info : *maps) {
-    if ((info->flags() & (PROT_READ | PROT_WRITE)) == (PROT_READ | PROT_WRITE) &&
+    if (info->offset() != 0 &&
+        (info->flags() & (PROT_READ | PROT_WRITE)) == (PROT_READ | PROT_WRITE) &&
         map_zero != nullptr && Searchable(info->name()) && info->name() == map_zero->name()) {
       Elf* elf = map_zero->GetElf(memory_, arch());
       uint64_t ptr;
