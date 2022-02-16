@@ -22,10 +22,12 @@
 
 #include <memory>
 
+#define LOG_TAG "unwind"
+#include <log/log.h>
+
 #include <android-base/unique_fd.h>
 #include <art_api/dex_file_support.h>
 
-#include <unwindstack/Log.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/Memory.h>
 
@@ -39,7 +41,7 @@ std::mutex DexFile::g_lock;
 
 static bool CheckDexSupport() {
   if (std::string err_msg; !art_api::dex::TryLoadLibdexfile(&err_msg)) {
-    Log::Error("Failed to initialize DEX file support: %s", err_msg.c_str());
+    ALOGW("Failed to initialize DEX file support: %s", err_msg.c_str());
     return false;
   }
   return true;
