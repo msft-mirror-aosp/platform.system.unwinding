@@ -28,7 +28,6 @@
 
 #include <android-base/file.h>
 #include <android-base/stringprintf.h>
-#include <android-base/strings.h>
 
 #include <unwindstack/DexFiles.h>
 #include <unwindstack/Elf.h>
@@ -127,7 +126,6 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
   ClearErrors();
 
   frames_.clear();
-  elf_from_memory_not_file_ = false;
 
   // Clear any cached data from previous unwinds.
   process_memory_->Clear();
@@ -161,13 +159,6 @@ void Unwinder::Unwind(const std::vector<std::string>* initial_map_names_to_skip,
         break;
       }
       elf = map_info->GetElf(process_memory_, arch_);
-      // If this elf is memory backed, and there is a valid file, then set
-      // an indicator that we couldn't open the file.
-      const std::string& map_name = map_info->name();
-      if (!elf_from_memory_not_file_ && map_info->memory_backed_elf() && !map_name.empty() &&
-          map_name[0] != '[' && !android::base::StartsWith(map_name, "/memfd:")) {
-        elf_from_memory_not_file_ = true;
-      }
       step_pc = regs_->pc();
       rel_pc = elf->GetRelPc(step_pc, map_info.get());
       // Everyone except elf data in gdb jit debug maps uses the relative pc.
