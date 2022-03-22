@@ -127,11 +127,10 @@ cc_library {
         "//bionic/libc/malloc_debug",
         "//frameworks/native/opengl/libs",
         "//packages/modules/vndk/apex",
+        "//packages/modules/Bluetooth/tools/rootcanal",
         "//packages/modules/Bluetooth/system/gd",
-        "//packages/modules/Bluetooth/system/vendor_libs/test_vendor_lib",
         "//system/core/init",
         "//system/core/libutils",
-        "//packages/modules/Bluetooth/tools/rootcanal",
     ],
     min_sdk_version: "apex_inherit",
     vndk: {
