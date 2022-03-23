@@ -36,7 +36,7 @@
 #include <unwindstack/RegsX86_64.h>
 
 #include "../ElfFake.h"
-#include "utils/MemoryFake.h"
+#include "../MemoryFake.h"
 
 #include "fuzzer/FuzzedDataProvider.h"
 

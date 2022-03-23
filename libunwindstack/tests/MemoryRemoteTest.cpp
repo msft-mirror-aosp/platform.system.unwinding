@@ -32,8 +32,8 @@
 
 #include "MemoryRemote.h"
 
+#include "MemoryFake.h"
 #include "TestUtils.h"
-#include "utils/MemoryFake.h"
 
 namespace unwindstack {
 

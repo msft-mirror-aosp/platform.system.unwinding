@@ -32,7 +32,7 @@
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
 
-#include "utils/MemoryFake.h"
+#include "MemoryFake.h"
 
 namespace unwindstack {
 
