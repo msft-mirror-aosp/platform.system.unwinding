@@ -92,16 +92,11 @@ void UnwindStackMap::FillIn(uint64_t addr, backtrace_map_t* map) {
   }
 
   // Fill in the load_bias.
-  std::shared_ptr<unwindstack::MapInfo> map_info = stack_maps_->Find(addr);
+  unwindstack::MapInfo* map_info = stack_maps_->Find(addr);
   if (map_info == nullptr) {
     return;
   }
   map->load_bias = map_info->GetLoadBias(process_memory_);
-}
-
-std::string UnwindStackMap::GetBuildId(uint64_t addr) {
-  auto map_info = stack_maps_->Find(addr);
-  return map_info == nullptr ? std::string() : map_info->GetPrintableBuildID();
 }
 
 uint64_t UnwindStackMap::GetLoadBias(size_t index) {
@@ -109,7 +104,7 @@ uint64_t UnwindStackMap::GetLoadBias(size_t index) {
     return 0;
   }
 
-  std::shared_ptr<unwindstack::MapInfo> map_info = stack_maps_->Get(index);
+  unwindstack::MapInfo* map_info = stack_maps_->Get(index);
   if (map_info == nullptr) {
     return 0;
   }
@@ -121,7 +116,7 @@ std::string UnwindStackMap::GetFunctionName(uint64_t pc, uint64_t* offset) {
   unwindstack::Maps* maps = stack_maps();
 
   // Get the map for this
-  auto map_info = maps->Find(pc);
+  unwindstack::MapInfo* map_info = maps->Find(pc);
   if (map_info == nullptr || map_info->flags() & PROT_DEVICE_MAP) {
     return "";
   }
@@ -140,7 +135,7 @@ std::string UnwindStackMap::GetFunctionName(uint64_t pc, uint64_t* offset) {
 
   unwindstack::SharedString name;
   uint64_t func_offset;
-  if (!elf->GetFunctionName(elf->GetRelPc(pc, map_info.get()), &name, &func_offset)) {
+  if (!elf->GetFunctionName(elf->GetRelPc(pc, map_info), &name, &func_offset)) {
     return "";
   }
   *offset = func_offset;

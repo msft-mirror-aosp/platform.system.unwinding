@@ -32,7 +32,7 @@
 #include "DwarfCfa.h"
 
 #include "LogFake.h"
-#include "utils/MemoryFake.h"
+#include "MemoryFake.h"
 
 namespace unwindstack {
 
