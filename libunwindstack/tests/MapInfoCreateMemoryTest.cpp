@@ -35,7 +35,7 @@
 #include <unwindstack/Memory.h>
 
 #include "ElfTestUtils.h"
-#include "utils/MemoryFake.h"
+#include "MemoryFake.h"
 
 namespace unwindstack {
 
@@ -89,32 +89,32 @@ class MapInfoCreateMemoryTest : public ::testing::Test {
 };
 
 TEST_F(MapInfoCreateMemoryTest, end_le_start) {
-  auto info = MapInfo::Create(0x100, 0x100, 0, 0, elf_.path);
+  MapInfo info(nullptr, nullptr, 0x100, 0x100, 0, 0, elf_.path);
 
-  std::unique_ptr<Memory> memory(info->CreateMemory(process_memory_));
+  std::unique_ptr<Memory> memory(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() == nullptr);
 
-  info->set_end(0xff);
-  memory.reset(info->CreateMemory(process_memory_));
+  info.set_end(0xff);
+  memory.reset(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() == nullptr);
 
   // Make sure this test is valid.
-  info->set_end(0x101);
-  memory.reset(info->CreateMemory(process_memory_));
+  info.set_end(0x101);
+  memory.reset(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() != nullptr);
-  EXPECT_FALSE(info->memory_backed_elf());
+  EXPECT_FALSE(info.memory_backed_elf());
 }
 
 // Verify that if the offset is non-zero but there is no elf at the offset,
 // that the full file is used.
 TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_full_file) {
-  auto info = MapInfo::Create(0x100, 0x200, 0x100, 0, elf_.path);
+  MapInfo info(nullptr, nullptr, 0x100, 0x200, 0x100, 0, elf_.path);
 
-  std::unique_ptr<Memory> memory(info->CreateMemory(process_memory_));
+  std::unique_ptr<Memory> memory(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() != nullptr);
-  EXPECT_FALSE(info->memory_backed_elf());
-  ASSERT_EQ(0x100U, info->elf_offset());
-  EXPECT_EQ(0U, info->elf_start_offset());
+  EXPECT_FALSE(info.memory_backed_elf());
+  ASSERT_EQ(0x100U, info.elf_offset());
+  EXPECT_EQ(0x100U, info.elf_start_offset());
 
   // Read the entire file.
   std::vector<uint8_t> buffer(1024);
@@ -129,61 +129,62 @@ TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_full_file) {
 
   // Now verify the elf start offset is set correctly based on the previous
   // info.
-  auto prev_info = MapInfo::Create(0, 0x100, 0x10, 0, "");
-  info->set_prev_map(prev_info);
+  MapInfo prev_info(nullptr, nullptr, 0, 0x100, 0x10, 0, "");
+  info.set_prev_map(&prev_info);
+  info.set_prev_real_map(&prev_info);
 
   // No preconditions met, change each one until it should set the elf start
   // offset to zero.
-  info->set_elf_offset(0);
-  info->set_elf_start_offset(0);
-  info->set_memory_backed_elf(false);
-  memory.reset(info->CreateMemory(process_memory_));
+  info.set_elf_offset(0);
+  info.set_elf_start_offset(0);
+  info.set_memory_backed_elf(false);
+  memory.reset(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() != nullptr);
-  EXPECT_FALSE(info->memory_backed_elf());
-  ASSERT_EQ(0x100U, info->elf_offset());
-  EXPECT_EQ(0U, info->elf_start_offset());
+  EXPECT_FALSE(info.memory_backed_elf());
+  ASSERT_EQ(0x100U, info.elf_offset());
+  EXPECT_EQ(0x100U, info.elf_start_offset());
 
-  prev_info->set_offset(0);
-  info->set_elf_offset(0);
-  info->set_elf_start_offset(0);
-  info->set_memory_backed_elf(false);
-  memory.reset(info->CreateMemory(process_memory_));
+  prev_info.set_offset(0);
+  info.set_elf_offset(0);
+  info.set_elf_start_offset(0);
+  info.set_memory_backed_elf(false);
+  memory.reset(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() != nullptr);
-  EXPECT_FALSE(info->memory_backed_elf());
-  ASSERT_EQ(0x100U, info->elf_offset());
-  EXPECT_EQ(0U, info->elf_start_offset());
+  EXPECT_FALSE(info.memory_backed_elf());
+  ASSERT_EQ(0x100U, info.elf_offset());
+  EXPECT_EQ(0x100U, info.elf_start_offset());
 
-  prev_info->set_flags(PROT_READ);
-  info->set_elf_offset(0);
-  info->set_elf_start_offset(0);
-  info->set_memory_backed_elf(false);
-  memory.reset(info->CreateMemory(process_memory_));
+  prev_info.set_flags(PROT_READ);
+  info.set_elf_offset(0);
+  info.set_elf_start_offset(0);
+  info.set_memory_backed_elf(false);
+  memory.reset(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() != nullptr);
-  EXPECT_FALSE(info->memory_backed_elf());
-  ASSERT_EQ(0x100U, info->elf_offset());
-  EXPECT_EQ(0U, info->elf_start_offset());
+  EXPECT_FALSE(info.memory_backed_elf());
+  ASSERT_EQ(0x100U, info.elf_offset());
+  EXPECT_EQ(0x100U, info.elf_start_offset());
 
-  prev_info->set_name(info->name());
-  info->set_elf_offset(0);
-  info->set_elf_start_offset(0);
-  info->set_memory_backed_elf(false);
-  memory.reset(info->CreateMemory(process_memory_));
+  prev_info.set_name(info.name());
+  info.set_elf_offset(0);
+  info.set_elf_start_offset(0);
+  info.set_memory_backed_elf(false);
+  memory.reset(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() != nullptr);
-  EXPECT_FALSE(info->memory_backed_elf());
-  ASSERT_EQ(0x100U, info->elf_offset());
-  EXPECT_EQ(0U, info->elf_start_offset());
+  EXPECT_FALSE(info.memory_backed_elf());
+  ASSERT_EQ(0x100U, info.elf_offset());
+  EXPECT_EQ(0U, info.elf_start_offset());
 }
 
 // Verify that if the offset is non-zero and there is an elf at that
 // offset, that only part of the file is used.
 TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_partial_file) {
-  auto info = MapInfo::Create(0x100, 0x200, 0x1000, 0, elf_at_1000_.path);
+  MapInfo info(nullptr, nullptr, 0x100, 0x200, 0x1000, 0, elf_at_1000_.path);
 
-  std::unique_ptr<Memory> memory(info->CreateMemory(process_memory_));
+  std::unique_ptr<Memory> memory(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() != nullptr);
-  EXPECT_FALSE(info->memory_backed_elf());
-  ASSERT_EQ(0U, info->elf_offset());
-  EXPECT_EQ(0x1000U, info->elf_start_offset());
+  EXPECT_FALSE(info.memory_backed_elf());
+  ASSERT_EQ(0U, info.elf_offset());
+  EXPECT_EQ(0x1000U, info.elf_start_offset());
 
   // Read the valid part of the file.
   std::vector<uint8_t> buffer(0x100);
@@ -202,13 +203,13 @@ TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_partial_file) {
 // embedded elf is bigger than the initial map, the new object is larger
 // than the original map size. Do this for a 32 bit elf and a 64 bit elf.
 TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_partial_file_whole_elf32) {
-  auto info = MapInfo::Create(0x5000, 0x6000, 0x1000, 0, elf32_at_map_.path);
+  MapInfo info(nullptr, nullptr, 0x5000, 0x6000, 0x1000, 0, elf32_at_map_.path);
 
-  std::unique_ptr<Memory> memory(info->CreateMemory(process_memory_));
+  std::unique_ptr<Memory> memory(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() != nullptr);
-  EXPECT_FALSE(info->memory_backed_elf());
-  ASSERT_EQ(0U, info->elf_offset());
-  EXPECT_EQ(0x1000U, info->elf_start_offset());
+  EXPECT_FALSE(info.memory_backed_elf());
+  ASSERT_EQ(0U, info.elf_offset());
+  EXPECT_EQ(0x1000U, info.elf_start_offset());
 
   // Verify the memory is a valid elf.
   uint8_t e_ident[SELFMAG + 1];
@@ -220,13 +221,13 @@ TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_partial_file_whole_e
 }
 
 TEST_F(MapInfoCreateMemoryTest, file_backed_non_zero_offset_partial_file_whole_elf64) {
-  auto info = MapInfo::Create(0x7000, 0x8000, 0x2000, 0, elf64_at_map_.path);
+  MapInfo info(nullptr, nullptr, 0x7000, 0x8000, 0x2000, 0, elf64_at_map_.path);
 
-  std::unique_ptr<Memory> memory(info->CreateMemory(process_memory_));
+  std::unique_ptr<Memory> memory(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() != nullptr);
-  EXPECT_FALSE(info->memory_backed_elf());
-  ASSERT_EQ(0U, info->elf_offset());
-  EXPECT_EQ(0x2000U, info->elf_start_offset());
+  EXPECT_FALSE(info.memory_backed_elf());
+  ASSERT_EQ(0U, info.elf_offset());
+  EXPECT_EQ(0x2000U, info.elf_start_offset());
 
   // Verify the memory is a valid elf.
   uint8_t e_ident[SELFMAG + 1];
@@ -243,14 +244,14 @@ TEST_F(MapInfoCreateMemoryTest, check_device_maps) {
   // be returned if the file mapping fails, but the device check is incorrect.
   std::vector<uint8_t> buffer(1024);
   uint64_t start = reinterpret_cast<uint64_t>(buffer.data());
-  auto info = MapInfo::Create(start, start + buffer.size(), 0, 0x8000, "/dev/something");
+  MapInfo info(nullptr, nullptr, start, start + buffer.size(), 0, 0x8000, "/dev/something");
 
-  std::unique_ptr<Memory> memory(info->CreateMemory(process_memory_));
+  std::unique_ptr<Memory> memory(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() == nullptr);
 }
 
 TEST_F(MapInfoCreateMemoryTest, process_memory) {
-  auto info = MapInfo::Create(0x2000, 0x3000, 0, PROT_READ, "");
+  MapInfo info(nullptr, nullptr, 0x2000, 0x3000, 0, PROT_READ, "");
 
   Elf32_Ehdr ehdr = {};
   TestInitEhdr<Elf32_Ehdr>(&ehdr, ELFCLASS32, EM_ARM);
@@ -262,11 +263,11 @@ TEST_F(MapInfoCreateMemoryTest, process_memory) {
   for (size_t i = sizeof(ehdr); i < buffer.size(); i++) {
     buffer[i] = i % 256;
   }
-  memory_->SetMemory(info->start(), buffer.data(), buffer.size());
+  memory_->SetMemory(info.start(), buffer.data(), buffer.size());
 
-  std::unique_ptr<Memory> memory(info->CreateMemory(process_memory_));
+  std::unique_ptr<Memory> memory(info.CreateMemory(process_memory_));
   ASSERT_TRUE(memory.get() != nullptr);
-  EXPECT_TRUE(info->memory_backed_elf());
+  EXPECT_TRUE(info.memory_backed_elf());
 
   memset(buffer.data(), 0, buffer.size());
   ASSERT_TRUE(memory->ReadFully(0, buffer.data(), buffer.size()));
@@ -293,7 +294,7 @@ TEST_F(MapInfoCreateMemoryTest, valid_rosegment_zero_offset) {
   // Set the memory in the r-x map.
   memory_->SetMemoryBlock(0x3000, 0x2000, 0x5d);
 
-  auto map_info = maps.Find(0x3000).get();
+  MapInfo* map_info = maps.Find(0x3000);
   ASSERT_TRUE(map_info != nullptr);
 
   std::unique_ptr<Memory> mem(map_info->CreateMemory(process_memory_));
@@ -340,7 +341,7 @@ TEST_F(MapInfoCreateMemoryTest, valid_rosegment_non_zero_offset) {
   memory_->SetMemoryBlock(0x3000 + sizeof(ehdr), 0x4000 - sizeof(ehdr), 0x34);
   memory_->SetMemoryBlock(0x4000, 0x1000, 0x43);
 
-  auto map_info = maps.Find(0x4000).get();
+  MapInfo* map_info = maps.Find(0x4000);
   ASSERT_TRUE(map_info != nullptr);
 
   std::unique_ptr<Memory> mem(map_info->CreateMemory(process_memory_));
@@ -366,44 +367,13 @@ TEST_F(MapInfoCreateMemoryTest, valid_rosegment_non_zero_offset) {
   }
 }
 
-TEST_F(MapInfoCreateMemoryTest, valid_single_rx_non_zero_offset) {
-  Maps maps;
-  maps.Add(0x3000, 0x5000, 0xa000, PROT_READ | PROT_EXEC, "/only/in/memory.apk", 0);
-
-  Elf32_Ehdr ehdr = {};
-  TestInitEhdr<Elf32_Ehdr>(&ehdr, ELFCLASS32, EM_ARM);
-
-  // Setup an elf at offset 0x3000 in memory..
-  memory_->SetMemory(0x3000, &ehdr, sizeof(ehdr));
-  memory_->SetMemoryBlock(0x3000 + sizeof(ehdr), 0x5000 - sizeof(ehdr), 0x34);
-
-  auto map_info = maps.Find(0x3000);
-  ASSERT_TRUE(map_info != nullptr);
-
-  std::unique_ptr<Memory> mem(map_info->CreateMemory(process_memory_));
-  ASSERT_TRUE(mem.get() != nullptr);
-  EXPECT_TRUE(map_info->memory_backed_elf());
-  EXPECT_EQ(0UL, map_info->elf_offset());
-  EXPECT_EQ(0xa000UL, map_info->offset());
-  EXPECT_EQ(0xa000UL, map_info->elf_start_offset());
-
-  // Verify that reading values from this memory works properly.
-  std::vector<uint8_t> buffer(0x3000);
-  size_t bytes = mem->Read(0, buffer.data(), buffer.size());
-  ASSERT_EQ(0x2000UL, bytes);
-  ASSERT_EQ(0, memcmp(&ehdr, buffer.data(), sizeof(ehdr)));
-  for (size_t i = sizeof(ehdr); i < bytes; i++) {
-    ASSERT_EQ(0x34, buffer[i]) << "Failed at byte " << i;
-  }
-}
-
 TEST_F(MapInfoCreateMemoryTest, rosegment_from_file) {
   Maps maps;
   maps.Add(0x500, 0x600, 0, PROT_READ, "something_else", 0);
   maps.Add(0x1000, 0x2000, 0x1000, PROT_READ, elf_at_1000_.path, 0);
   maps.Add(0x2000, 0x3000, 0x2000, PROT_READ | PROT_EXEC, elf_at_1000_.path, 0);
 
-  auto map_info = maps.Find(0x2000).get();
+  MapInfo* map_info = maps.Find(0x2000);
   ASSERT_TRUE(map_info != nullptr);
 
   // Set up the size
@@ -455,7 +425,7 @@ TEST_F(MapInfoCreateMemoryTest, valid_rosegment_offset_overflow) {
   // Set the memory in the r-x map.
   memory_->SetMemoryBlock(0x3000, 0x2000, 0x5d);
 
-  auto map_info = maps.Find(0x3000).get();
+  MapInfo* map_info = maps.Find(0x3000);
   ASSERT_TRUE(map_info != nullptr);
 
   std::unique_ptr<Memory> mem(map_info->CreateMemory(process_memory_));
