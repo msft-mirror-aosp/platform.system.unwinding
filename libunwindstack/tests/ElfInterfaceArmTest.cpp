@@ -26,7 +26,7 @@
 #include "ElfInterfaceArm.h"
 
 #include "ElfFake.h"
-#include "utils/MemoryFake.h"
+#include "MemoryFake.h"
 
 namespace unwindstack {
 
