@@ -23,7 +23,7 @@
 
 #include <unwindstack/DwarfMemory.h>
 
-#include "utils/MemoryFake.h"
+#include "MemoryFake.h"
 
 namespace unwindstack {
 

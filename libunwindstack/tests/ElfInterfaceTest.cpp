@@ -26,7 +26,7 @@
 #include "ElfInterfaceArm.h"
 
 #include "ElfFake.h"
-#include "utils/MemoryFake.h"
+#include "MemoryFake.h"
 
 #if !defined(PT_ARM_EXIDX)
 #define PT_ARM_EXIDX 0x70000001
