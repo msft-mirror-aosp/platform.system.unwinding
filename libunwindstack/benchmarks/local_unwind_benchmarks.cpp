@@ -22,12 +22,12 @@
 
 #include <android-base/strings.h>
 
-#include <unwindstack/LocalUnwinder.h>
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsGetLocal.h>
 #include <unwindstack/Unwinder.h>
+#include "MemoryLocalUnsafe.h"
 
 constexpr size_t kMaxFrames = 32;
 
@@ -73,13 +73,6 @@ static size_t Unwind(void* data_ptr) {
   unwinder.SetResolveNames(data->resolve_names);
   unwinder.Unwind();
   return unwinder.NumFrames();
-}
-
-static size_t LocalUnwind(void* unwind_ptr) {
-  unwindstack::LocalUnwinder* unwinder = reinterpret_cast<unwindstack::LocalUnwinder*>(unwind_ptr);
-  std::vector<unwindstack::LocalFrameData> frame_info;
-  unwinder->Unwind(&frame_info, kMaxFrames);
-  return frame_info.size();
 }
 
 static void BM_local_unwind_uncached_process_memory(benchmark::State& state) {
@@ -142,16 +135,6 @@ static void BM_local_unwind_local_updatable_maps_thread_cached(benchmark::State&
 }
 BENCHMARK(BM_local_unwind_local_updatable_maps_thread_cached);
 
-static void BM_local_unwind_local_unwinder(benchmark::State& state) {
-  unwindstack::LocalUnwinder unwinder;
-  if (!unwinder.Init()) {
-    state.SkipWithError("Failed to init local unwinder.");
-  }
-
-  Run(state, LocalUnwind, &unwinder);
-}
-BENCHMARK(BM_local_unwind_local_unwinder);
-
 static void BM_local_unwind_uncached_process_memory_no_func_names(benchmark::State& state) {
   auto process_memory = unwindstack::Memory::CreateProcessMemory(getpid());
   unwindstack::LocalMaps maps;
@@ -199,3 +182,15 @@ static void BM_local_unwind_local_updatable_maps_cached_no_func_names(benchmark:
   Run(state, Unwind, &data);
 }
 BENCHMARK(BM_local_unwind_local_updatable_maps_cached_no_func_names);
+
+static void BM_local_unwind_uncached_process_memory_unsafe_reads(benchmark::State& state) {
+  std::shared_ptr<unwindstack::Memory> process_memory(new unwindstack::MemoryLocalUnsafe());
+  unwindstack::LocalMaps maps;
+  if (!maps.Parse()) {
+    state.SkipWithError("Failed to parse local maps.");
+  }
+
+  UnwindData data = {.process_memory = process_memory, .maps = &maps, .resolve_names = true};
+  Run(state, Unwind, &data);
+}
+BENCHMARK(BM_local_unwind_uncached_process_memory_unsafe_reads);
