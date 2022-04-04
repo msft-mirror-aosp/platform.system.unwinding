@@ -56,9 +56,6 @@ cc_library_headers {
         "//apex_available:anyapex",
     ],
     target: {
-        linux_glibc: {
-            enabled: true,
-        },
         linux_bionic: {
             enabled: true,
         },
@@ -127,13 +124,10 @@ cc_library {
         "//bionic/libc/malloc_debug",
         "//frameworks/native/opengl/libs",
         "//packages/modules/vndk/apex",
+        "//packages/modules/Bluetooth/tools/rootcanal",
         "//packages/modules/Bluetooth/system/gd",
-        "//system/bt/gd",
-        "//packages/modules/Bluetooth/system/vendor_libs/test_vendor_lib",
-        "//system/bt/vendor_libs/test_vendor_lib",
         "//system/core/init",
         "//system/core/libutils",
-        "//packages/modules/Bluetooth/tools/rootcanal",
     ],
     min_sdk_version: "apex_inherit",
     vndk: {
@@ -199,7 +193,7 @@ cc_test_library {
     ],
 
     target: {
-        linux_glibc: {
+        host_linux: {
             // This forces the creation of eh_frame with unwind information
             // for host.
             cflags: [
