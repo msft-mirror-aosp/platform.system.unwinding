@@ -174,4 +174,22 @@ TEST(MapInfoTest, multiple_thread_get_elf_fields) {
   }
 }
 
+TEST(MapInfoTest, elf_file_not_readable) {
+  auto map_info_readable = MapInfo::Create(0, 0x1000, 0, PROT_READ, "fake.so");
+  map_info_readable->set_memory_backed_elf(true);
+  ASSERT_TRUE(map_info_readable->ElfFileNotReadable());
+
+  auto map_info_no_name = MapInfo::Create(0, 0x1000, 0, PROT_READ, "");
+  map_info_no_name->set_memory_backed_elf(true);
+  ASSERT_FALSE(map_info_no_name->ElfFileNotReadable());
+
+  auto map_info_bracket = MapInfo::Create(0, 0x2000, 0, PROT_READ, "[vdso]");
+  map_info_bracket->set_memory_backed_elf(true);
+  ASSERT_FALSE(map_info_bracket->ElfFileNotReadable());
+
+  auto map_info_memfd = MapInfo::Create(0, 0x3000, 0, PROT_READ, "/memfd:jit-cache");
+  map_info_memfd->set_memory_backed_elf(true);
+  ASSERT_FALSE(map_info_memfd->ElfFileNotReadable());
+}
+
 }  // namespace unwindstack
