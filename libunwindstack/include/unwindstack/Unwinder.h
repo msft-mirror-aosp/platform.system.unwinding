@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBUNWINDSTACK_UNWINDER_H
-#define _LIBUNWINDSTACK_UNWINDER_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -83,6 +82,9 @@ class Unwinder {
   std::string FormatFrame(size_t frame_num) const;
   std::string FormatFrame(const FrameData& frame) const;
 
+  static std::string FormatFrame(ArchEnum arch, const FrameData& frame,
+                                 bool display_build_id = true);
+
   void SetArch(ArchEnum arch) { arch_ = arch; };
 
   void SetJitDebug(JitDebug* jit_debug);
@@ -102,6 +104,7 @@ class Unwinder {
 
   void SetDexFiles(DexFiles* dex_files);
 
+  const ErrorData& LastError() { return last_error_; }
   ErrorCode LastErrorCode() { return last_error_.code; }
   const char* LastErrorCodeString() { return GetErrorCodeString(last_error_.code); }
   uint64_t LastErrorAddress() { return last_error_.address; }
@@ -120,6 +123,8 @@ class Unwinder {
   Unwinder(size_t max_frames, Maps* maps = nullptr) : max_frames_(max_frames), maps_(maps) {}
   Unwinder(size_t max_frames, ArchEnum arch, Maps* maps = nullptr)
       : max_frames_(max_frames), maps_(maps), arch_(arch) {}
+  Unwinder(size_t max_frames, ArchEnum arch, Maps* maps, std::shared_ptr<Memory>& process_memory)
+      : max_frames_(max_frames), maps_(maps), process_memory_(process_memory), arch_(arch) {}
 
   void ClearErrors() {
     warnings_ = WARNING_NONE;
@@ -149,13 +154,14 @@ class UnwinderFromPid : public Unwinder {
  public:
   UnwinderFromPid(size_t max_frames, pid_t pid, Maps* maps = nullptr)
       : Unwinder(max_frames, maps), pid_(pid) {}
+  UnwinderFromPid(size_t max_frames, pid_t pid, std::shared_ptr<Memory>& process_memory)
+      : Unwinder(max_frames, nullptr, process_memory), pid_(pid) {}
   UnwinderFromPid(size_t max_frames, pid_t pid, ArchEnum arch, Maps* maps = nullptr)
       : Unwinder(max_frames, arch, maps), pid_(pid) {}
+  UnwinderFromPid(size_t max_frames, pid_t pid, ArchEnum arch, Maps* maps,
+                  std::shared_ptr<Memory>& process_memory)
+      : Unwinder(max_frames, arch, maps, process_memory), pid_(pid) {}
   virtual ~UnwinderFromPid() = default;
-
-  void SetProcessMemory(std::shared_ptr<Memory>& process_memory) {
-    process_memory_ = process_memory;
-  }
 
   bool Init();
 
@@ -173,6 +179,7 @@ class UnwinderFromPid : public Unwinder {
 class ThreadUnwinder : public UnwinderFromPid {
  public:
   ThreadUnwinder(size_t max_frames, Maps* maps = nullptr);
+  ThreadUnwinder(size_t max_frames, Maps* maps, std::shared_ptr<Memory>& process_memory);
   ThreadUnwinder(size_t max_frames, const ThreadUnwinder* unwinder);
   virtual ~ThreadUnwinder() = default;
 
@@ -189,5 +196,3 @@ class ThreadUnwinder : public UnwinderFromPid {
 };
 
 }  // namespace unwindstack
-
-#endif  // _LIBUNWINDSTACK_UNWINDER_H
