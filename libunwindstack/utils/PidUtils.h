@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,21 +17,24 @@
 #pragma once
 
 #include <stdint.h>
+#include <sys/types.h>
 
-#include <memory>
-#include <vector>
-
-#include <GlobalDebugInterface.h>
+#include <functional>
 
 namespace unwindstack {
 
-enum ArchEnum : uint8_t;
-class DexFile;
-class Memory;
+enum PidRunEnum : uint8_t {
+  PID_RUN_KEEP_GOING,
+  PID_RUN_PASS,
+  PID_RUN_FAIL,
+};
 
-using DexFiles = GlobalDebugInterface<DexFile>;
+bool Quiesce(pid_t pid);
 
-std::unique_ptr<DexFiles> CreateDexFiles(ArchEnum arch, std::shared_ptr<Memory>& memory,
-                                         std::vector<std::string> search_libs = {});
+bool Attach(pid_t pid);
+
+bool Detach(pid_t pid);
+
+bool RunWhenQuiesced(pid_t pid, bool leave_attached, std::function<PidRunEnum()> fn);
 
 }  // namespace unwindstack
