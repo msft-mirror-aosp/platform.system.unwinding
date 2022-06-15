@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_DWARF_EH_FRAME_WITH_HDR_H
+#define _LIBUNWINDSTACK_DWARF_EH_FRAME_WITH_HDR_H
 
 #include <stdint.h>
 
@@ -81,3 +82,5 @@ class DwarfEhFrameWithHdr : public DwarfSectionImpl<AddressType> {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_DWARF_EH_FRAME_WITH_HDR_H

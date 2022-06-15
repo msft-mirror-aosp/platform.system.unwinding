@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_DEX_FILES_H
+#define _LIBUNWINDSTACK_DEX_FILES_H
 
 #include <stdint.h>
 
@@ -35,3 +36,5 @@ std::unique_ptr<DexFiles> CreateDexFiles(ArchEnum arch, std::shared_ptr<Memory>&
                                          std::vector<std::string> search_libs = {});
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_DEX_FILES_H

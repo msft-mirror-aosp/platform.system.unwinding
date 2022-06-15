@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_MEMORY_OFFLINE_H
+#define _LIBUNWINDSTACK_MEMORY_OFFLINE_H
 
 #include <stdint.h>
 
@@ -34,8 +35,6 @@ class MemoryOffline : public Memory {
   virtual ~MemoryOffline() = default;
 
   bool Init(const std::string& file, uint64_t offset);
-
-  bool Init(const std::string& file, uint64_t offset, uint64_t start, uint64_t size);
 
   size_t Read(uint64_t addr, void* dst, size_t size) override;
 
@@ -57,3 +56,5 @@ class MemoryOfflineParts : public Memory {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_MEMORY_OFFLINE_H

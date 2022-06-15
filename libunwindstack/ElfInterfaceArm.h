@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_ELF_INTERFACE_ARM_H
+#define _LIBUNWINDSTACK_ELF_INTERFACE_ARM_H
 
 #include <elf.h>
 #include <stdint.h>
@@ -93,3 +94,5 @@ class ElfInterfaceArm : public ElfInterface32 {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_ELF_INTERFACE_ARM_H

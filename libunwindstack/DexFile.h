@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_DEX_FILE_H
+#define _LIBUNWINDSTACK_DEX_FILE_H
 
 #include <stdint.h>
 
@@ -79,3 +80,5 @@ class DexFile {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_DEX_FILE_H

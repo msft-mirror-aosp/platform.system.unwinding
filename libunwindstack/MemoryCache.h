@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_MEMORY_CACHE_H
+#define _LIBUNWINDSTACK_MEMORY_CACHE_H
 
 #include <pthread.h>
 #include <stdint.h>
@@ -90,3 +91,5 @@ class MemoryThreadCache : public MemoryCacheBase {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_MEMORY_CACHE_H

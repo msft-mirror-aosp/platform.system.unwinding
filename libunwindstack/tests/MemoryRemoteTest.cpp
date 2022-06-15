@@ -32,9 +32,8 @@
 
 #include "MemoryRemote.h"
 
-#include "PidUtils.h"
+#include "MemoryFake.h"
 #include "TestUtils.h"
-#include "utils/MemoryFake.h"
 
 namespace unwindstack {
 
@@ -50,7 +49,7 @@ TEST(MemoryRemoteTest, read) {
   ASSERT_LT(0, pid);
   TestScopedPidReaper reap(pid);
 
-  ASSERT_TRUE(Attach(pid));
+  ASSERT_TRUE(TestAttach(pid));
 
   MemoryRemote remote(pid);
 
@@ -60,7 +59,7 @@ TEST(MemoryRemoteTest, read) {
     ASSERT_EQ(0x4cU, dst[i]) << "Failed at byte " << i;
   }
 
-  ASSERT_TRUE(Detach(pid));
+  ASSERT_TRUE(TestDetach(pid));
 }
 
 TEST(MemoryRemoteTest, read_large) {
@@ -79,7 +78,7 @@ TEST(MemoryRemoteTest, read_large) {
   ASSERT_LT(0, pid);
   TestScopedPidReaper reap(pid);
 
-  ASSERT_TRUE(Attach(pid));
+  ASSERT_TRUE(TestAttach(pid));
 
   MemoryRemote remote(pid);
 
@@ -89,7 +88,7 @@ TEST(MemoryRemoteTest, read_large) {
     ASSERT_EQ(i / getpagesize(), dst[i]) << "Failed at byte " << i;
   }
 
-  ASSERT_TRUE(Detach(pid));
+  ASSERT_TRUE(TestDetach(pid));
 }
 
 TEST(MemoryRemoteTest, read_partial) {
@@ -112,7 +111,7 @@ TEST(MemoryRemoteTest, read_partial) {
   // Unmap from our process.
   ASSERT_EQ(0, munmap(mapping, 3 * getpagesize()));
 
-  ASSERT_TRUE(Attach(pid));
+  ASSERT_TRUE(TestAttach(pid));
 
   MemoryRemote remote(pid);
 
@@ -133,7 +132,7 @@ TEST(MemoryRemoteTest, read_partial) {
     ASSERT_EQ(0x4cU, dst[i]) << "Failed at byte " << i;
   }
 
-  ASSERT_TRUE(Detach(pid));
+  ASSERT_TRUE(TestDetach(pid));
 }
 
 TEST(MemoryRemoteTest, read_fail) {
@@ -153,7 +152,7 @@ TEST(MemoryRemoteTest, read_fail) {
   ASSERT_LT(0, pid);
   TestScopedPidReaper reap(pid);
 
-  ASSERT_TRUE(Attach(pid));
+  ASSERT_TRUE(TestAttach(pid));
 
   MemoryRemote remote(pid);
 
@@ -172,7 +171,7 @@ TEST(MemoryRemoteTest, read_fail) {
 
   ASSERT_EQ(0, munmap(src, pagesize));
 
-  ASSERT_TRUE(Detach(pid));
+  ASSERT_TRUE(TestDetach(pid));
 }
 
 TEST(MemoryRemoteTest, read_overflow) {
@@ -185,7 +184,7 @@ TEST(MemoryRemoteTest, read_overflow) {
   ASSERT_LT(0, pid);
   TestScopedPidReaper reap(pid);
 
-  ASSERT_TRUE(Attach(pid));
+  ASSERT_TRUE(TestAttach(pid));
 
   MemoryRemote remote(pid);
 
@@ -193,7 +192,7 @@ TEST(MemoryRemoteTest, read_overflow) {
   std::vector<uint8_t> dst(200);
   ASSERT_FALSE(remote.ReadFully(UINT64_MAX - 100, dst.data(), 200));
 
-  ASSERT_TRUE(Detach(pid));
+  ASSERT_TRUE(TestDetach(pid));
 }
 
 TEST(MemoryRemoteTest, read_illegal) {
@@ -205,7 +204,7 @@ TEST(MemoryRemoteTest, read_illegal) {
   ASSERT_LT(0, pid);
   TestScopedPidReaper reap(pid);
 
-  ASSERT_TRUE(Attach(pid));
+  ASSERT_TRUE(TestAttach(pid));
 
   MemoryRemote remote(pid);
 
@@ -213,7 +212,7 @@ TEST(MemoryRemoteTest, read_illegal) {
   ASSERT_FALSE(remote.ReadFully(0, dst.data(), 1));
   ASSERT_FALSE(remote.ReadFully(0, dst.data(), 100));
 
-  ASSERT_TRUE(Detach(pid));
+  ASSERT_TRUE(TestDetach(pid));
 }
 
 TEST(MemoryRemoteTest, read_mprotect_hole) {
@@ -234,7 +233,7 @@ TEST(MemoryRemoteTest, read_mprotect_hole) {
 
   ASSERT_EQ(0, munmap(mapping, 3 * page_size));
 
-  ASSERT_TRUE(Attach(pid));
+  ASSERT_TRUE(TestAttach(pid));
 
   MemoryRemote remote(pid);
   std::vector<uint8_t> dst(getpagesize() * 4, 0xCC);
@@ -248,7 +247,7 @@ TEST(MemoryRemoteTest, read_mprotect_hole) {
     ASSERT_EQ(0xCC, dst[i]);
   }
 
-  ASSERT_TRUE(Detach(pid));
+  ASSERT_TRUE(TestDetach(pid));
 }
 
 TEST(MemoryRemoteTest, read_munmap_hole) {
@@ -271,7 +270,7 @@ TEST(MemoryRemoteTest, read_munmap_hole) {
   ASSERT_EQ(0, munmap(mapping, page_size));
   ASSERT_EQ(0, munmap(static_cast<char*>(mapping) + 2 * page_size, page_size));
 
-  ASSERT_TRUE(Attach(pid));
+  ASSERT_TRUE(TestAttach(pid));
 
   MemoryRemote remote(pid);
   std::vector<uint8_t> dst(getpagesize() * 4, 0xCC);
@@ -284,7 +283,7 @@ TEST(MemoryRemoteTest, read_munmap_hole) {
     ASSERT_EQ(0xCC, dst[i]);
   }
 
-  ASSERT_TRUE(Detach(pid));
+  ASSERT_TRUE(TestDetach(pid));
 }
 
 // Verify that the memory remote object chooses a memory read function
@@ -308,7 +307,7 @@ TEST(MemoryRemoteTest, read_choose_correctly) {
 
   ASSERT_EQ(0, munmap(mapping, 2 * page_size));
 
-  ASSERT_TRUE(Attach(pid));
+  ASSERT_TRUE(TestAttach(pid));
 
   // We know that process_vm_readv of a mprotect'd PROT_NONE region will fail.
   // Read from the PROT_NONE area first to force the choice of ptrace.
@@ -337,7 +336,7 @@ TEST(MemoryRemoteTest, read_choose_correctly) {
   ASSERT_EQ(sizeof(value), bytes);
   ASSERT_EQ(0xfcfcfcfcU, value);
 
-  ASSERT_TRUE(Detach(pid));
+  ASSERT_TRUE(TestDetach(pid));
 }
 
 }  // namespace unwindstack

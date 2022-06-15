@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_MACHINE_MIPS64_H
+#define _LIBUNWINDSTACK_MACHINE_MIPS64_H
 
 #include <stdint.h>
 
@@ -61,3 +62,5 @@ enum Mips64Reg : uint16_t {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_MACHINE_MIPS64_H

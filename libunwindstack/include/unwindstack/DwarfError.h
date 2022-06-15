@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_DWARF_ERROR_H
+#define _LIBUNWINDSTACK_DWARF_ERROR_H
 
 #include <stdint.h>
 
@@ -39,3 +40,5 @@ struct DwarfErrorData {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_DWARF_ERROR_H

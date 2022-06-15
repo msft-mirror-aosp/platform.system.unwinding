@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_DWARF_DEBUG_FRAME_H
+#define _LIBUNWINDSTACK_DWARF_DEBUG_FRAME_H
 
 #include <stdint.h>
 
@@ -45,3 +46,5 @@ class DwarfDebugFrame : public DwarfSectionImpl<AddressType> {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_DWARF_DEBUG_FRAME_H

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_UNWINDERCOMPONENTCREATOR_H
+#define _LIBUNWINDSTACK_UNWINDERCOMPONENTCREATOR_H
 
 #include <elf.h>
 #include <sys/mman.h>
@@ -35,7 +36,7 @@
 #include <unwindstack/RegsX86_64.h>
 
 #include "../ElfFake.h"
-#include "utils/MemoryFake.h"
+#include "../MemoryFake.h"
 
 #include "fuzzer/FuzzedDataProvider.h"
 
@@ -80,3 +81,4 @@ std::unique_ptr<unwindstack::DexFiles> GetDexFiles(FuzzedDataProvider* data_prov
                                                    std::shared_ptr<unwindstack::Memory> memory,
                                                    uint max_libraries, uint max_library_length,
                                                    unwindstack::ArchEnum arch);
+#endif  // _LIBUNWINDSTACK_UNWINDERCOMPONENTCREATOR_H

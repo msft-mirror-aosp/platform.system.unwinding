@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_THREAD_ENTRY_H
+#define _LIBUNWINDSTACK_THREAD_ENTRY_H
 
 #include <pthread.h>
 #include <sys/types.h>
@@ -73,3 +74,5 @@ class ThreadEntry {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_THREAD_ENTRY_H

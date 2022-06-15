@@ -25,7 +25,6 @@
 
 #include "MemoryLocal.h"
 #include "MemoryRemote.h"
-#include "PidUtils.h"
 #include "TestUtils.h"
 
 namespace unwindstack {
@@ -69,14 +68,14 @@ TEST(MemoryMteTest, remote_read_tag) {
   ASSERT_LT(0, pid);
   TestScopedPidReaper reap(pid);
 
-  ASSERT_TRUE(Attach(pid));
+  ASSERT_TRUE(TestAttach(pid));
 
   MemoryRemote remote(pid);
 
   EXPECT_EQ(1, remote.ReadTag(mapping));
   EXPECT_EQ(0, remote.ReadTag(mapping + 16));
 
-  ASSERT_TRUE(Detach(pid));
+  ASSERT_TRUE(TestDetach(pid));
 }
 
 TEST(MemoryMteTest, local_read_tag) {

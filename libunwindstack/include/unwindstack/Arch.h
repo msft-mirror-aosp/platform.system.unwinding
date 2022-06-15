@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_ARCH_H
+#define _LIBUNWINDSTACK_ARCH_H
 
 #include <stddef.h>
 
@@ -42,3 +43,5 @@ static inline bool ArchIs32Bit(ArchEnum arch) {
 }
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_ARCH_H

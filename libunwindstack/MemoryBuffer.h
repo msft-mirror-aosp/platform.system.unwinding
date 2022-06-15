@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_MEMORY_BUFFER_H
+#define _LIBUNWINDSTACK_MEMORY_BUFFER_H
 
 #include <stdint.h>
 
@@ -55,3 +56,5 @@ class MemoryBuffer : public Memory {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_MEMORY_BUFFER_H

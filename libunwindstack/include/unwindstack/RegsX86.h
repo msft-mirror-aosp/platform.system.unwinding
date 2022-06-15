@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_REGS_X86_H
+#define _LIBUNWINDSTACK_REGS_X86_H
 
 #include <stdint.h>
 
@@ -58,3 +59,5 @@ class RegsX86 : public RegsImpl<uint32_t> {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_REGS_X86_H

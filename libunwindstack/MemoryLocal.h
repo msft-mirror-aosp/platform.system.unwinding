@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_MEMORY_LOCAL_H
+#define _LIBUNWINDSTACK_MEMORY_LOCAL_H
 
 #include <stdint.h>
 
@@ -32,3 +33,5 @@ class MemoryLocal : public Memory {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_MEMORY_LOCAL_H

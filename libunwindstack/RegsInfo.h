@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_REGS_INFO_H
+#define _LIBUNWINDSTACK_REGS_INFO_H
 
 #include <stdint.h>
 
@@ -63,3 +64,5 @@ struct RegsInfo {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_REGS_INFO_H

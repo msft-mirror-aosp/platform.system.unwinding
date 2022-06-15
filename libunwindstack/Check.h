@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_CHECK_H
+#define _LIBUNWINDSTACK_CHECK_H
 
 #include <stdlib.h>
 
@@ -22,10 +23,12 @@
 
 namespace unwindstack {
 
-#define CHECK(assertion)                                       \
-  if (__builtin_expect(!(assertion), false)) {                 \
-    Log::Error("%s:%d: %s\n", __FILE__, __LINE__, #assertion); \
-    abort();                                                   \
+#define CHECK(assertion)                                   \
+  if (__builtin_expect(!(assertion), false)) {             \
+    log(0, "%s:%d: %s\n", __FILE__, __LINE__, #assertion); \
+    abort();                                               \
   }
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_CHECK_H

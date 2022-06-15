@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_TESTS_ELF_TEST_UTILS_H
+#define _LIBUNWINDSTACK_TESTS_ELF_TEST_UTILS_H
 
 #include <functional>
 #include <string>
@@ -33,3 +34,5 @@ void TestInitGnuDebugdata(uint32_t elf_class, uint32_t machine_type, bool init_g
 std::string TestGetFileDirectory();
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_TESTS_ELF_TEST_UTILS_H

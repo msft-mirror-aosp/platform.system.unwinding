@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_MACHINE_X86_H
+#define _LIBUNWINDSTACK_MACHINE_X86_H
 
 #include <stdint.h>
 
@@ -46,3 +47,5 @@ enum X86Reg : uint16_t {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_MACHINE_X86_H

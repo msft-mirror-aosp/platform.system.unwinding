@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_ARM_EXIDX_H
+#define _LIBUNWINDSTACK_ARM_EXIDX_H
 
 #include <stdint.h>
 
@@ -121,3 +122,5 @@ class ArmExidx {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_ARM_EXIDX_H

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_GLOBAL_H
+#define _LIBUNWINDSTACK_GLOBAL_H
 
 #include <stdint.h>
 
@@ -58,3 +59,5 @@ class Global {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_GLOBAL_H

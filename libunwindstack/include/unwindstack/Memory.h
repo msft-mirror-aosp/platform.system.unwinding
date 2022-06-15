@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_MEMORY_H
+#define _LIBUNWINDSTACK_MEMORY_H
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -64,3 +65,5 @@ class Memory {
 };
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_MEMORY_H

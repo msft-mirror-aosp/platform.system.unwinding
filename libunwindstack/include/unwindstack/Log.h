@@ -14,24 +14,17 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef _LIBUNWINDSTACK_LOG_H
+#define _LIBUNWINDSTACK_LOG_H
 
-#include <stdarg.h>
 #include <stdint.h>
-
-#if !defined(__printflike)
-#define __printflike(x, y) __attribute__((__format__(printf, x, y)))
-#endif
 
 namespace unwindstack {
 
-namespace Log {
-
-void Error(const char* format, ...) __printflike(1, 2);
-void Info(const char* format, ...) __printflike(1, 2);
-void Info(uint8_t indent, const char* format, ...) __printflike(2, 3);
-void AsyncSafe(const char* format, ...) __printflike(1, 2);
-
-}  // namespace Log
+void log_to_stdout(bool enable);
+void log(uint8_t indent, const char* format, ...);
+void log_async_safe(const char* format, ...);
 
 }  // namespace unwindstack
+
+#endif  // _LIBUNWINDSTACK_LOG_H
