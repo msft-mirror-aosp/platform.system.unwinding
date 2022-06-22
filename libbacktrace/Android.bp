@@ -92,12 +92,7 @@ cc_library {
     native_bridge_supported: true,
     recovery_available: true,
     // Deprecated, use libunwindstack.
-    visibility: ["//packages/modules/vndk/apex"],
-    vndk: {
-        enabled: true,
-        support_system_process: true,
-        private: true,
-    },
+    visibility: ["//visibility:private"],
     host_supported: true,
     defaults: ["libbacktrace_defaults"],
 
