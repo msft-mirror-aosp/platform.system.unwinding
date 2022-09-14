@@ -179,7 +179,7 @@ bool AndroidUnwinder::Unwind(Regs* initial_regs, AndroidUnwinderData& data) {
 
 bool AndroidLocalUnwinder::InternalUnwind(std::optional<pid_t> tid, AndroidUnwinderData& data) {
   if (!tid) {
-    *tid = android::base::GetThreadId();
+    tid = android::base::GetThreadId();
   }
 
   if (static_cast<uint64_t>(*tid) == android::base::GetThreadId()) {
@@ -228,7 +228,7 @@ bool AndroidRemoteUnwinder::InternalInitialize(ErrorData& error) {
 
 bool AndroidRemoteUnwinder::InternalUnwind(std::optional<pid_t> tid, AndroidUnwinderData& data) {
   if (!tid) {
-    *tid = pid_;
+    tid = pid_;
   }
 
   std::unique_ptr<Regs> regs(Regs::RemoteGet(*tid));

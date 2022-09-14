@@ -280,40 +280,29 @@ TEST(AndroidLocalUnwinderTest, unwind_current_thread_show_all_frames) {
       << GetBacktrace(unwinder, data.frames);
 }
 
+__attribute__((__noinline__)) extern "C" void ThreadBusyWait(std::atomic<pid_t>* tid,
+                                                             volatile bool* keep_running) {
+  *tid = android::base::GetThreadId();
+  while (*keep_running) {
+  }
+}
+
 TEST(AndroidLocalUnwinderTest, unwind_different_thread) {
   std::atomic<pid_t> tid;
-  std::atomic_bool keep_running = true;
+  volatile bool keep_running = true;
   std::thread thread([&tid, &keep_running] {
-    tid = android::base::GetThreadId();
-    while (keep_running) {
-    }
+    ThreadBusyWait(&tid, &keep_running);
     return nullptr;
   });
 
   while (tid == 0) {
   }
 
-  {
-    AndroidLocalUnwinder unwinder;
-    AndroidUnwinderData data;
-    ASSERT_TRUE(unwinder.Unwind(data));
-    // Verify that the libunwindstack.so does not appear in the first frame.
-    ASSERT_TRUE(data.frames[0].map_info == nullptr ||
-                !android::base::EndsWith(data.frames[0].map_info->name(), "/libunwindstack.so"))
-        << "libunwindstack.so not removed properly\n"
-        << GetBacktrace(unwinder, data.frames);
-  }
-
-  {
-    AndroidLocalUnwinder unwinder;
-    AndroidUnwinderData data(true);
-    ASSERT_TRUE(unwinder.Unwind(data));
-    // Verify that the libunwindstack.so does appear in the first frame.
-    ASSERT_TRUE(data.frames[0].map_info != nullptr &&
-                android::base::EndsWith(data.frames[0].map_info->name(), "/libunwindstack.so"))
-        << "libunwindstack.so was removed improperly\n"
-        << GetBacktrace(unwinder, data.frames);
-  }
+  AndroidLocalUnwinder unwinder;
+  AndroidUnwinderData data;
+  ASSERT_TRUE(unwinder.Unwind(tid, data));
+  // Verify that we are unwinding the thread.
+  ASSERT_EQ("ThreadBusyWait", data.frames[0].function_name);
 
   // Allow the thread to terminate normally.
   keep_running = false;
