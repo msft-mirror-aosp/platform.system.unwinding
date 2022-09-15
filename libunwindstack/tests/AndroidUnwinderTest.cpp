@@ -412,4 +412,18 @@ TEST(AndroidRemoteUnwinderTest, suffix_ignore) {
   }));
 }
 
+TEST(AndroidRemoteUnwinderTest, remote_get_arch_ptrace_fails) {
+  AndroidRemoteUnwinder unwinder(getpid());
+  AndroidUnwinderData data;
+  ASSERT_FALSE(unwinder.Unwind(data));
+  EXPECT_EQ("Ptrace Call Failed", data.GetErrorString());
+}
+
+TEST(AndroidRemoteUnwinderTest, remote_get_ptrace_fails) {
+  AndroidRemoteUnwinder unwinder(getpid(), Regs::CurrentArch());
+  AndroidUnwinderData data;
+  ASSERT_FALSE(unwinder.Unwind(data));
+  EXPECT_EQ("Ptrace Call Failed", data.GetErrorString());
+}
+
 }  // namespace unwindstack
