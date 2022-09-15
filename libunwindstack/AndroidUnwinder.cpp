@@ -206,10 +206,9 @@ bool AndroidLocalUnwinder::InternalUnwind(std::optional<pid_t> tid, AndroidUnwin
 
 bool AndroidRemoteUnwinder::InternalInitialize(ErrorData& error) {
   if (arch_ == ARCH_UNKNOWN) {
-    arch_ = Regs::RemoteGetArch(pid_);
+    arch_ = Regs::RemoteGetArch(pid_, &error.code);
   }
   if (arch_ == ARCH_UNKNOWN) {
-    error.code = ERROR_BAD_ARCH;
     return false;
   }
 
@@ -231,7 +230,10 @@ bool AndroidRemoteUnwinder::InternalUnwind(std::optional<pid_t> tid, AndroidUnwi
     tid = pid_;
   }
 
-  std::unique_ptr<Regs> regs(Regs::RemoteGet(*tid));
+  std::unique_ptr<Regs> regs(Regs::RemoteGet(*tid, &data.error.code));
+  if (regs == nullptr) {
+    return false;
+  }
   return AndroidUnwinder::Unwind(regs.get(), data);
 }
 
