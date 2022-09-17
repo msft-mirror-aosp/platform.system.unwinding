@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <unwindstack/Elf.h>
+#include <unwindstack/Log.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsArm.h>
@@ -43,7 +44,7 @@ static constexpr size_t kMaxUserRegsSize = std::max(
 
 // This function assumes that reg_data is already aligned to a 64 bit value.
 // If not this could crash with an unaligned access.
-Regs* Regs::RemoteGet(pid_t pid) {
+Regs* Regs::RemoteGet(pid_t pid, ErrorCode* error_code) {
   // Make the buffer large enough to contain the largest registers type.
   std::vector<uint64_t> buffer(kMaxUserRegsSize / sizeof(uint64_t));
   struct iovec io;
@@ -51,6 +52,10 @@ Regs* Regs::RemoteGet(pid_t pid) {
   io.iov_len = buffer.size() * sizeof(uint64_t);
 
   if (ptrace(PTRACE_GETREGSET, pid, NT_PRSTATUS, reinterpret_cast<void*>(&io)) == -1) {
+    Log::Error("PTRACE_GETREGSET failed for pid %d: %s", pid, strerror(errno));
+    if (error_code != nullptr) {
+      *error_code = ERROR_PTRACE_CALL;
+    }
     return nullptr;
   }
 
@@ -65,10 +70,15 @@ Regs* Regs::RemoteGet(pid_t pid) {
   case sizeof(arm64_user_regs):
     return RegsArm64::Read(buffer.data());
   }
+
+  Log::Error("No matching size of user regs structure for pid %d: size %zu", pid, io.iov_len);
+  if (error_code != nullptr) {
+    *error_code = ERROR_UNSUPPORTED;
+  }
   return nullptr;
 }
 
-ArchEnum Regs::RemoteGetArch(pid_t pid) {
+ArchEnum Regs::RemoteGetArch(pid_t pid, ErrorCode* error_code) {
   // Make the buffer large enough to contain the largest registers type.
   std::vector<uint64_t> buffer(kMaxUserRegsSize / sizeof(uint64_t));
   struct iovec io;
@@ -76,6 +86,10 @@ ArchEnum Regs::RemoteGetArch(pid_t pid) {
   io.iov_len = buffer.size() * sizeof(uint64_t);
 
   if (ptrace(PTRACE_GETREGSET, pid, NT_PRSTATUS, reinterpret_cast<void*>(&io)) == -1) {
+    Log::Error("PTRACE_GETREGSET failed for pid %d: %s", pid, strerror(errno));
+    if (error_code != nullptr) {
+      *error_code = ERROR_PTRACE_CALL;
+    }
     return ARCH_UNKNOWN;
   }
 
@@ -89,6 +103,11 @@ ArchEnum Regs::RemoteGetArch(pid_t pid) {
       return ARCH_ARM;
     case sizeof(arm64_user_regs):
       return ARCH_ARM64;
+  }
+
+  Log::Error("No matching size of user regs structure for pid %d: size %zu", pid, io.iov_len);
+  if (error_code != nullptr) {
+    *error_code = ERROR_UNSUPPORTED;
   }
   return ARCH_UNKNOWN;
 }
