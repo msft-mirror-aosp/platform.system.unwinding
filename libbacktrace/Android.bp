@@ -169,6 +169,7 @@ cc_test {
     host_supported: true,
     test_options: {
         unit_test: true,
+        tags: ["no-remote"],
     },
     srcs: [
         "backtrace_test.cpp",
