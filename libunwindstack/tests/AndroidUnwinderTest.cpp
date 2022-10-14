@@ -173,14 +173,24 @@ TEST(AndroidLocalUnwinderTest, suffix_ignore) {
 }
 
 TEST(AndroidUnwinderTest, verify_all_unwind_functions) {
-  AndroidLocalUnwinder unwinder;
+  // Do not reuse the unwinder object to verify initialization is done
+  // correctly.
   AndroidUnwinderData data;
-  ASSERT_TRUE(unwinder.Unwind(data));
-  ASSERT_TRUE(unwinder.Unwind(std::nullopt, data));
-  ASSERT_TRUE(unwinder.Unwind(getpid(), data));
+  {
+    AndroidLocalUnwinder unwinder;
+    ASSERT_TRUE(unwinder.Unwind(data));
+  }
+  {
+    AndroidLocalUnwinder unwinder;
+    ASSERT_TRUE(unwinder.Unwind(std::nullopt, data));
+  }
+  {
+    AndroidLocalUnwinder unwinder;
+    ASSERT_TRUE(unwinder.Unwind(getpid(), data));
+  }
+
   std::unique_ptr<Regs> regs(Regs::CreateFromLocal());
   RegsGetLocal(regs.get());
-
   void* ucontext;
   switch (regs->Arch()) {
     case ARCH_ARM: {
@@ -235,17 +245,21 @@ TEST(AndroidUnwinderTest, verify_all_unwind_functions) {
       ucontext = nullptr;
       break;
   }
+
+  AndroidLocalUnwinder unwinder_with_ucontext;
   ASSERT_TRUE(ucontext != nullptr);
-  ASSERT_TRUE(unwinder.Unwind(ucontext, data));
+  ASSERT_TRUE(unwinder_with_ucontext.Unwind(ucontext, data));
   free(ucontext);
+
+  AndroidLocalUnwinder unwinder_with_regs;
   AndroidUnwinderData reg_data;
-  ASSERT_TRUE(unwinder.Unwind(regs.get(), reg_data));
+  ASSERT_TRUE(unwinder_with_regs.Unwind(regs.get(), reg_data));
   ASSERT_EQ(data.frames.size(), reg_data.frames.size());
   // Make sure all of the frame data is exactly the same.
   for (size_t i = 0; i < data.frames.size(); i++) {
     SCOPED_TRACE("\nMismatch at Frame " + std::to_string(i) + "\nucontext trace:\n" +
-                 GetBacktrace(unwinder, data.frames) + "\nregs trace:\n" +
-                 GetBacktrace(unwinder, reg_data.frames));
+                 GetBacktrace(unwinder_with_ucontext, data.frames) + "\nregs trace:\n" +
+                 GetBacktrace(unwinder_with_regs, reg_data.frames));
     const auto& frame_context = data.frames[i];
     const auto& frame_reg = reg_data.frames[i];
     ASSERT_EQ(frame_context.num, frame_reg.num);
@@ -254,7 +268,9 @@ TEST(AndroidUnwinderTest, verify_all_unwind_functions) {
     ASSERT_EQ(frame_context.sp, frame_reg.sp);
     ASSERT_STREQ(frame_context.function_name.c_str(), frame_reg.function_name.c_str());
     ASSERT_EQ(frame_context.function_offset, frame_reg.function_offset);
-    ASSERT_EQ(frame_context.map_info.get(), frame_reg.map_info.get());
+    ASSERT_STREQ(frame_context.map_info->name().c_str(), frame_reg.map_info->name().c_str());
+    ASSERT_EQ(frame_context.map_info->start(), frame_reg.map_info->start());
+    ASSERT_EQ(frame_context.map_info->end(), frame_reg.map_info->end());
   }
 }
 
