@@ -143,6 +143,11 @@ bool AndroidUnwinder::Unwind(void* ucontext, AndroidUnwinderData& data) {
     data.error.code = ERROR_INVALID_PARAMETER;
     return false;
   }
+
+  if (!Initialize(data.error)) {
+    return false;
+  }
+
   std::unique_ptr<Regs> regs(Regs::CreateFromUcontext(arch_, ucontext));
   return Unwind(regs.get(), data);
 }
