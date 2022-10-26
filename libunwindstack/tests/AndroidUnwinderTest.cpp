@@ -305,7 +305,6 @@ __attribute__((__noinline__)) extern "C" void ThreadBusyWait(std::atomic<pid_t>*
 }
 
 TEST(AndroidLocalUnwinderTest, unwind_different_thread) {
-  SKIP_WITH_HWASAN;  // TODO(b/253512802): Re-enable.
   std::atomic<pid_t> tid;
   volatile bool keep_running = true;
   std::thread thread([&tid, &keep_running] {
@@ -320,7 +319,15 @@ TEST(AndroidLocalUnwinderTest, unwind_different_thread) {
   AndroidUnwinderData data;
   ASSERT_TRUE(unwinder.Unwind(tid, data));
   // Verify that we are unwinding the thread.
-  ASSERT_EQ("ThreadBusyWait", data.frames[0].function_name);
+  if (running_with_hwasan()) {
+    // Could be in a hwasan function, so allow the second caller to be ThreadBusyWait.
+    ASSERT_TRUE(data.frames[0].function_name == "ThreadBusyWait" ||
+                data.frames[1].function_name == "ThreadBusyWait")
+        << GetBacktrace(unwinder, data.frames);
+  } else {
+    ASSERT_EQ("ThreadBusyWait", data.frames[0].function_name)
+        << GetBacktrace(unwinder, data.frames);
+  }
 
   // Allow the thread to terminate normally.
   keep_running = false;
