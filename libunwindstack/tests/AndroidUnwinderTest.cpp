@@ -29,6 +29,7 @@
 #include <vector>
 
 #include <android-base/strings.h>
+#include <android-base/test_utils.h>
 #include <android-base/threads.h>
 
 #include <unwindstack/AndroidUnwinder.h>
@@ -304,6 +305,7 @@ __attribute__((__noinline__)) extern "C" void ThreadBusyWait(std::atomic<pid_t>*
 }
 
 TEST(AndroidLocalUnwinderTest, unwind_different_thread) {
+  SKIP_WITH_HWASAN;  // TODO(b/253512802): Re-enable.
   std::atomic<pid_t> tid;
   volatile bool keep_running = true;
   std::thread thread([&tid, &keep_running] {
