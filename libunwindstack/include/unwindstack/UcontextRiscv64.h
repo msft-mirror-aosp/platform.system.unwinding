@@ -28,6 +28,8 @@
 
 #pragma once
 
+namespace unwindstack {
+
 #include <sys/cdefs.h>
 
 typedef uint64_t __riscv_mc_gp_state[32];  // unsigned long
@@ -78,3 +80,5 @@ struct riscv64_ucontext_t {
   int8_t __padding[128 - sizeof(riscv64_sigset_t)];  // char
   riscv64_mcontext_t uc_mcontext;
 };
+
+}  // namespace unwindstack
