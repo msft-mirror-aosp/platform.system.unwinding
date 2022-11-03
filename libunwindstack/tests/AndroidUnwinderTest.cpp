@@ -15,6 +15,7 @@
  */
 
 #include <dlfcn.h>
+#include <fcntl.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
@@ -149,6 +150,28 @@ TEST(AndroidUnwinderTest, create) {
     }
     return PID_RUN_PASS;
   }));
+}
+
+TEST(AndroidUnwinderTest, initialize_fails) {
+  AndroidLocalUnwinder unwinder;
+
+  // Induce a failure in the initialize function by grabbing every
+  // fd available.
+  std::vector<android::base::unique_fd> fds;
+  while (true) {
+    auto fd = android::base::unique_fd(TEMP_FAILURE_RETRY(open("/dev/null", O_RDONLY)));
+    if (fd == -1) {
+      break;
+    }
+    fds.emplace_back(std::move(fd));
+  }
+
+  ErrorData error;
+  ASSERT_FALSE(unwinder.Initialize(error));
+
+  // Make sure there is no crash when trying to unwind.
+  AndroidUnwinderData data;
+  ASSERT_FALSE(unwinder.Unwind(data));
 }
 
 TEST(AndroidLocalUnwinderTest, initialize_before) {
