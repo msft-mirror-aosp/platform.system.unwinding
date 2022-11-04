@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+#include <errno.h>
 #include <stdint.h>
+#include <string.h>
 #include <sys/ptrace.h>
 #include <sys/uio.h>
 
