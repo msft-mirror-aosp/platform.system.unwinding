@@ -81,10 +81,9 @@ bool AndroidUnwinder::Initialize(ErrorData& error) {
   // libart.so or libartd.so.
   static std::vector<std::string> search_libs [[clang::no_destroy]] = {"libart.so", "libartd.so"};
 
-  bool initialize = true;
-  std::call_once(initialize_, [this, &initialize, &error]() {
-    initialize = InternalInitialize(error);
-    if (!initialize) {
+  std::call_once(initialize_, [this, &error]() {
+    if (!InternalInitialize(error)) {
+      initialize_status_ = false;
       return;
     }
 
@@ -93,9 +92,10 @@ bool AndroidUnwinder::Initialize(ErrorData& error) {
 #if defined(DEXFILE_SUPPORT)
     dex_files_ = CreateDexFiles(arch_, process_memory_, search_libs);
 #endif
+    initialize_status_ = true;
   });
 
-  return initialize;
+  return initialize_status_;
 }
 
 std::string AndroidUnwinder::FormatFrame(const FrameData& frame) const {
