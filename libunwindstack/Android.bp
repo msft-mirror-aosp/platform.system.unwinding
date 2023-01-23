@@ -54,6 +54,7 @@ cc_defaults {
 libunwindstack_common_src_files = [
     "AndroidUnwinder.cpp",
     "ArmExidx.cpp",
+    "Demangle.cpp",
     "DexFiles.cpp",
     "DwarfCfa.cpp",
     "DwarfEhFrameWithHdr.cpp",
@@ -121,6 +122,10 @@ cc_defaults {
 
     static_libs: [
         "libprocinfo",
+    ],
+
+    whole_static_libs: [
+        "librustc_demangle_static",
     ],
 
     shared_libs: [
@@ -273,6 +278,7 @@ cc_defaults {
         "tests/AndroidUnwinderTest.cpp",
         "tests/ArmExidxDecodeTest.cpp",
         "tests/ArmExidxExtractTest.cpp",
+        "tests/DemangleTest.cpp",
         "tests/DexFileTest.cpp",
         "tests/DexFilesTest.cpp",
         "tests/DwarfCfaLogTest.cpp",
