@@ -87,6 +87,8 @@ TEST_F(RegsRemoteTest, remote_get_arch) {
   ASSERT_EQ(ARCH_X86, Regs::RemoteGetArch(pid_));
 #elif defined(__x86_64__)
   ASSERT_EQ(ARCH_X86_64, Regs::RemoteGetArch(pid_));
+#elif defined(__riscv)
+  ASSERT_EQ(ARCH_RISCV64, Regs::RemoteGetArch(pid_));
 #else
   ASSERT_EQ(ARCH_NONE, Regs::RemoteGetArch(pid_));
 #endif
