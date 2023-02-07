@@ -109,6 +109,14 @@ cc_defaults {
             header_libs: ["bionic_libc_platform_headers"],
             static_libs: ["libasync_safe"],
         },
+        android: {
+            cflags: ["-DRUST_SUPPORTED"],
+            whole_static_libs: ["librustc_demangle_static"],
+        },
+        linux_glibc: {
+            cflags: ["-DRUST_SUPPORTED"],
+            whole_static_libs: ["librustc_demangle_static"],
+        },
     },
 
     arch: {
@@ -122,10 +130,6 @@ cc_defaults {
 
     static_libs: [
         "libprocinfo",
-    ],
-
-    whole_static_libs: [
-        "librustc_demangle_static",
     ],
 
     shared_libs: [
