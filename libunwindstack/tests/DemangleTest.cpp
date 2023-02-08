@@ -38,6 +38,9 @@ TEST(DemangleTest, cxx_names) {
 }
 
 TEST(DemangleTest, rust_names) {
+#if defined(RUST_SUPPORTED)
+  GTEST_SKIP() << "Rust not supported.";
+#endif
   EXPECT_EQ("std::rt::lang_start_internal",
             DemangleNameIfNeeded("_RNvNtCs2WRBrrl1bb1_3std2rt19lang_start_internal"));
   EXPECT_EQ("profcollectd::main", DemangleNameIfNeeded("_RNvCs4VPobU5SDH_12profcollectd4main"));
