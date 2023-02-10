@@ -19,9 +19,7 @@
 
 #include <string>
 
-#if defined(RUST_SUPPORTED)
 #include <rustc_demangle.h>
-#endif
 
 #include <unwindstack/Demangle.h>
 
@@ -36,11 +34,9 @@ std::string DemangleNameIfNeeded(const std::string& name) {
   if (name[1] == 'Z') {
     // Try to demangle C++ name.
     demangled_str = abi::__cxa_demangle(name.c_str(), nullptr, nullptr, nullptr);
-#if defined(RUST_SUPPORTED)
   } else if (name[1] == 'R') {
     // Try to demangle rust name.
     demangled_str = rustc_demangle(name.c_str(), nullptr, nullptr, nullptr);
-#endif
   }
 
   if (demangled_str == nullptr) {
