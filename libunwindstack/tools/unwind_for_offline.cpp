@@ -89,7 +89,7 @@ bool CreateAndChangeDumpDir(std::filesystem::path thread_dir, pid_t tid, bool is
 }
 
 bool SaveRegs(unwindstack::Regs* regs) {
-  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen("regs.txt", "w+"), &fclose);
+  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen("regs.txt", "we+"), &fclose);
   if (fp == nullptr) {
     perror("Failed to create file regs.txt");
     return false;
@@ -123,7 +123,7 @@ bool SaveStack(pid_t tid, const std::vector<std::pair<uint64_t, uint64_t>>& stac
 
     fprintf(output_fp, "\nSaving the stack 0x%" PRIx64 "-0x%" PRIx64 "\n", sp_start, sp_end);
 
-    std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(file_name.c_str(), "w+"), &fclose);
+    std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(file_name.c_str(), "we+"), &fclose);
     if (fp == nullptr) {
       perror("Failed to create stack.data");
       return false;
@@ -150,13 +150,13 @@ bool SaveStack(pid_t tid, const std::vector<std::pair<uint64_t, uint64_t>>& stac
 bool CopyElf(unwindstack::MapInfo* map_info, std::string* name) {
   std::string cur_name = android::base::Basename(map_info->name());
 
-  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(map_info->name().c_str(), "r"), &fclose);
+  std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(map_info->name().c_str(), "re"), &fclose);
   if (fp == nullptr) {
     perror((std::string("Cannot open ") + map_info->name().c_str()).c_str());
     return false;
   }
 
-  std::unique_ptr<FILE, decltype(&fclose)> output(fopen(cur_name.c_str(), "w+"), &fclose);
+  std::unique_ptr<FILE, decltype(&fclose)> output(fopen(cur_name.c_str(), "we+"), &fclose);
   if (output == nullptr) {
     perror((std::string("Cannot create file " + cur_name)).c_str());
     return false;
@@ -196,7 +196,7 @@ bool CreateElfFromMemory(pid_t tid, unwindstack::MapInfo* map_info, std::string*
     return false;
   }
 
-  std::unique_ptr<FILE, decltype(&fclose)> output(fopen(cur_name.c_str(), "w+"), &fclose);
+  std::unique_ptr<FILE, decltype(&fclose)> output(fopen(cur_name.c_str(), "we+"), &fclose);
   if (output == nullptr) {
     perror((std::string("Cannot create ") + cur_name).c_str());
     return false;
@@ -324,7 +324,7 @@ bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread, 
     return false;
   }
 
-  std::unique_ptr<FILE, decltype(&fclose)> maps_fp(fopen("maps.txt", "w+"), &fclose);
+  std::unique_ptr<FILE, decltype(&fclose)> maps_fp(fopen("maps.txt", "we+"), &fclose);
   if (maps_fp == nullptr) {
     perror("Failed to create maps.txt");
     return false;
@@ -372,7 +372,7 @@ int main(int argc, char** argv) {
           fprintf(stderr, "Ensure there is no space between '-f' and the filename provided.\n");
           return usage(EXIT_FAILURE);
         }
-        output_fp.reset(fopen(output_filename.c_str(), "a"));
+        output_fp.reset(fopen(output_filename.c_str(), "ae"));
         break;
       }
       case '?': {
