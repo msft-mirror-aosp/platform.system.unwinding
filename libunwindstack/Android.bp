@@ -369,6 +369,7 @@ cc_defaults {
         "offline_files/apk_rorx_unreadable_arm64/*",
         "offline_files/apk_rx_arm64/*",
         "offline_files/apk_rx_unreadable_arm64/*",
+        "offline_files/apk_soname_at_end_arm64/*",
         "offline_files/art_quick_osr_stub_arm/*",
         "offline_files/bad_eh_frame_hdr_arm64/*",
         "offline_files/debug_frame_first_x86/*",
