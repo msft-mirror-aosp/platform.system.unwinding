@@ -109,14 +109,6 @@ cc_defaults {
             header_libs: ["bionic_libc_platform_headers"],
             static_libs: ["libasync_safe"],
         },
-        android: {
-            cflags: ["-DRUST_SUPPORTED"],
-            whole_static_libs: ["librustc_demangle_static"],
-        },
-        linux_glibc: {
-            cflags: ["-DRUST_SUPPORTED"],
-            whole_static_libs: ["librustc_demangle_static"],
-        },
     },
 
     arch: {
@@ -130,6 +122,10 @@ cc_defaults {
 
     static_libs: [
         "libprocinfo",
+    ],
+
+    whole_static_libs: [
+        "librustc_demangle_static",
     ],
 
     shared_libs: [
@@ -373,6 +369,7 @@ cc_defaults {
         "offline_files/apk_rorx_unreadable_arm64/*",
         "offline_files/apk_rx_arm64/*",
         "offline_files/apk_rx_unreadable_arm64/*",
+        "offline_files/apk_soname_at_end_arm64/*",
         "offline_files/art_quick_osr_stub_arm/*",
         "offline_files/bad_eh_frame_hdr_arm64/*",
         "offline_files/debug_frame_first_x86/*",
