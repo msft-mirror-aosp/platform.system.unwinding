@@ -238,10 +238,10 @@ cc_library {
     shared_libs: [
         "libbase",
         "libunwindstack",
-        "libprocinfo",
     ],
     whole_static_libs: [
         "libc++fs",
+        "libprocinfo",
         "libz",
     ],
     srcs: [
@@ -351,7 +351,6 @@ cc_defaults {
     static_libs: [
         "libdexfile_support",
         "libgmock",
-        "libprocinfo",
         "libunwindstack_utils",
     ],
 
@@ -469,9 +468,9 @@ cc_defaults {
     defaults: ["libunwindstack_flags"],
 
     shared_libs: [
-        "libunwindstack_stdout_log",
         "libbase",
         "liblzma",
+        "libunwindstack_stdout_log",
     ],
     target: {
         // Always disable optimizations for host to make it easier to debug.
@@ -515,8 +514,8 @@ cc_binary {
     name: "unwind_for_offline",
     defaults: ["libunwindstack_tools"],
     static_libs: [
-        "libunwindstack_utils",
         "libc++fs",
+        "libunwindstack_utils",
     ],
 
     srcs: [
@@ -584,8 +583,8 @@ cc_benchmark {
     ],
 
     static_libs: [
-        "libunwindstack_utils",
         "libprocinfo",
+        "libunwindstack_utils",
     ],
 
     target: {
