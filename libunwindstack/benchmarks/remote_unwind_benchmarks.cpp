@@ -35,7 +35,7 @@
 #include "tests/TestUtils.h"
 
 static bool WaitForRemote(pid_t pid, volatile bool* ready_ptr) {
-  return unwindstack::RunWhenQuiesced(pid, true, [pid, ready_ptr]() {
+  return unwindstack::WaitForPidState(pid, [pid, ready_ptr]() {
     unwindstack::MemoryRemote memory(pid);
     bool ready;
     uint64_t ready_addr = reinterpret_cast<uint64_t>(ready_ptr);
