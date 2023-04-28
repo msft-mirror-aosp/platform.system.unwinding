@@ -23,12 +23,15 @@
 #include <bionic/mte.h>
 #endif
 
+#include "ForkTest.h"
 #include "MemoryLocal.h"
 #include "MemoryRemote.h"
 #include "PidUtils.h"
 #include "TestUtils.h"
 
 namespace unwindstack {
+
+using MemoryMteTest = ForkTest;
 
 static uintptr_t CreateTagMapping() {
 #if defined(__aarch64__)
@@ -48,7 +51,7 @@ static uintptr_t CreateTagMapping() {
 #endif
 }
 
-TEST(MemoryMteTest, remote_read_tag) {
+TEST_F(MemoryMteTest, remote_read_tag) {
 #if !defined(__aarch64__)
   GTEST_SKIP() << "Requires aarch64";
 #else
@@ -60,26 +63,15 @@ TEST(MemoryMteTest, remote_read_tag) {
   uintptr_t mapping = CreateTagMapping();
   ASSERT_NE(0U, mapping);
 
-  pid_t pid;
-  if ((pid = fork()) == 0) {
-    while (true)
-      ;
-    exit(1);
-  }
-  ASSERT_LT(0, pid);
-  TestScopedPidReaper reap(pid);
+  ASSERT_NO_FATAL_FAILURE(Fork());
 
-  ASSERT_TRUE(Attach(pid));
-
-  MemoryRemote remote(pid);
+  MemoryRemote remote(pid_);
 
   EXPECT_EQ(1, remote.ReadTag(mapping));
   EXPECT_EQ(0, remote.ReadTag(mapping + 16));
-
-  ASSERT_TRUE(Detach(pid));
 }
 
-TEST(MemoryMteTest, local_read_tag) {
+TEST_F(MemoryMteTest, local_read_tag) {
 #if !defined(__aarch64__)
   GTEST_SKIP() << "Requires aarch64";
 #else
