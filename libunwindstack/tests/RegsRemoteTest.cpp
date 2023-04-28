@@ -26,33 +26,14 @@
 
 #include <unwindstack/Regs.h>
 
+#include "ForkTest.h"
 #include "PidUtils.h"
 
 namespace unwindstack {
 
-class RegsRemoteTest : public ::testing::Test {
+class RegsRemoteTest : public ForkTest {
  protected:
-  void SetUp() override {
-    if ((pid_ = fork()) == 0) {
-      volatile bool run = true;
-      while (!run) {
-      }
-      exit(1);
-    }
-    ASSERT_TRUE(pid_ != -1);
-    ASSERT_TRUE(Attach(pid_));
-  }
-
-  void TearDown() override {
-    if (pid_ == -1) {
-      return;
-    }
-    EXPECT_TRUE(Detach(pid_));
-    kill(pid_, SIGKILL);
-    waitpid(pid_, nullptr, 0);
-  }
-
-  pid_t pid_ = -1;
+  void SetUp() override { Fork(); }
 };
 
 TEST_F(RegsRemoteTest, remote_get) {
