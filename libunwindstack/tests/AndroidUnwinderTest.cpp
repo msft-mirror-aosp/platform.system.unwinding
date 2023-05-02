@@ -327,15 +327,23 @@ TEST(AndroidLocalUnwinderTest, unwind_different_thread) {
   AndroidUnwinderData data;
   ASSERT_TRUE(unwinder.Unwind(tid, data));
   // Verify that we are unwinding the thread.
-  if (running_with_hwasan()) {
-    // Could be in a hwasan function, so allow the second caller to be ThreadBusyWait.
-    ASSERT_TRUE(data.frames[0].function_name == "ThreadBusyWait" ||
-                data.frames[1].function_name == "ThreadBusyWait")
-        << GetBacktrace(unwinder, data.frames);
-  } else {
-    ASSERT_EQ("ThreadBusyWait", data.frames[0].function_name)
-        << GetBacktrace(unwinder, data.frames);
+
+  // It's possible that ThreadBusyWait is not the lowest called function.
+  // This can happen when running hwasan or if you run fast enough, you
+  // can catch the code still in the atomic operator= function, but after
+  // the tid is set. We really only care that the unwind sees you are in
+  // ThreadBusyWait, so look for it specifically.
+  size_t i = 0;
+  for (; i < data.frames.size(); i++) {
+    if (data.frames[i].function_name == "ThreadBusyWait") {
+      break;
+    }
   }
+  ASSERT_NE(i, data.frames.size()) << "Cannot find ThreadBusyWait in backtrace\n"
+                                   << GetBacktrace(unwinder, data.frames);
+  ASSERT_NE(i + 1, data.frames.size())
+      << "ThreadBusyWait function is the last frame of the unwind.\n"
+      << GetBacktrace(unwinder, data.frames);
 
   // Allow the thread to terminate normally.
   keep_running = false;
