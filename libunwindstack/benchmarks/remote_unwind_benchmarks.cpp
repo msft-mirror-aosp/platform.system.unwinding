@@ -111,7 +111,7 @@ static void RemoteUnwind(benchmark::State& state, bool cached) {
     state.SkipWithError("Failed to parse maps.");
   }
 
-  for (auto _ : state) {
+  for (const auto& _ : state) {
     std::unique_ptr<unwindstack::Regs> regs(unwindstack::Regs::RemoteGet(pid));
     unwindstack::Unwinder unwinder(32, &maps, regs.get(), process_memory);
     unwinder.Unwind();
@@ -152,7 +152,7 @@ static void RemoteAndroidUnwind(benchmark::State& state, bool cached) {
     state.SkipWithError("Failed to initialize unwinder.");
   }
 
-  for (auto _ : state) {
+  for (const auto& _ : state) {
     unwindstack::AndroidUnwinderData data;
     if (!unwinder.Unwind(data) || data.frames.size() < 5) {
       state.SkipWithError("Failed to unwind properly.");
