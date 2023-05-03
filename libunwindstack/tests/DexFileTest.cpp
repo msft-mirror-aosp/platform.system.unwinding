@@ -51,6 +51,10 @@ static void CheckForLeak(size_t loop, size_t* first_allocated_bytes, size_t* las
 }
 
 TEST(DexFileTest, from_file_no_leak) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   TemporaryFile tf;
   ASSERT_TRUE(tf.fd != -1);
 
@@ -68,6 +72,10 @@ TEST(DexFileTest, from_file_no_leak) {
 }
 
 TEST(DexFileTest, from_memory_no_leak) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   MemoryFake memory;
 
   memory.SetMemory(0x1000, kDexData, sizeof(kDexData));
