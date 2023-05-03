@@ -298,11 +298,19 @@ static void LocalUnwind(void* data) {
 }
 
 TEST_F(UnwindTest, local_check_for_leak) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   TestTypeEnum test_type = TEST_TYPE_LOCAL_UNWINDER;
   TestCheckForLeaks(LocalUnwind, &test_type);
 }
 
 TEST_F(UnwindTest, local_use_from_pid_check_for_leak) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   TestTypeEnum test_type = TEST_TYPE_LOCAL_UNWINDER_FROM_PID;
   TestCheckForLeaks(LocalUnwind, &test_type);
 }
@@ -344,6 +352,10 @@ static void RemoteUnwind(void* data) {
 }
 
 TEST_F(UnwindTest, remote_check_for_leaks) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   RemoteCheckForLeaks(RemoteUnwind);
 }
 
@@ -360,6 +372,10 @@ static void RemoteUnwindFromPid(void* data) {
 }
 
 TEST_F(UnwindTest, remote_unwind_for_pid_check_for_leaks) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   RemoteCheckForLeaks(RemoteUnwindFromPid);
 }
 
