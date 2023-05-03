@@ -375,9 +375,9 @@ TEST_F(UnwindTest, from_context) {
   act.sa_flags = SA_RESTART | SA_SIGINFO | SA_ONSTACK;
   ASSERT_EQ(0, sigaction(SIGUSR1, &act, nullptr));
 
-  // Wait 20 seconds for the tid to get set.
+  // Wait 20 seconds for the thread to get be running in the right function.
   for (time_t start_time = time(nullptr); time(nullptr) - start_time < 20;) {
-    if (tid.load() != 0) {
+    if (g_waiters.load() == 1) {
       break;
     }
     usleep(1000);
@@ -458,15 +458,13 @@ TEST_F(UnwindTest, multiple_threads_unwind_same_map) {
 }
 
 TEST_F(UnwindTest, thread_unwind) {
-  ResetGlobals();
-
   std::atomic_int tid(0);
   std::thread thread([&tid]() {
     tid = android::base::GetThreadId();
     OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
   });
 
-  while (tid.load() == 0) {
+  while (g_waiters.load() != 1) {
   }
 
   ThreadUnwinder unwinder(512);
@@ -479,15 +477,13 @@ TEST_F(UnwindTest, thread_unwind) {
 }
 
 TEST_F(UnwindTest, thread_unwind_copy_regs) {
-  ResetGlobals();
-
   std::atomic_int tid(0);
   std::thread thread([&tid]() {
     tid = android::base::GetThreadId();
     OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
   });
 
-  while (tid.load() == 0) {
+  while (g_waiters.load() != 1) {
   }
 
   ThreadUnwinder unwinder(512);
@@ -507,15 +503,13 @@ TEST_F(UnwindTest, thread_unwind_copy_regs) {
 }
 
 TEST_F(UnwindTest, thread_unwind_with_external_maps) {
-  ResetGlobals();
-
   std::atomic_int tid(0);
   std::thread thread([&tid]() {
     tid = android::base::GetThreadId();
     OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
   });
 
-  while (tid.load() == 0) {
+  while (g_waiters.load() != 1) {
   }
 
   LocalMaps maps;
@@ -586,7 +580,6 @@ static std::thread* CreateUnwindThread(std::atomic_int& tid, ThreadUnwinder& unw
 
 TEST_F(UnwindTest, thread_unwind_same_thread_from_threads) {
   static constexpr size_t kNumThreads = 300;
-  ResetGlobals();
 
   std::atomic_int tid(0);
   std::thread thread([&tid]() {
@@ -622,7 +615,6 @@ TEST_F(UnwindTest, thread_unwind_same_thread_from_threads) {
 
 TEST_F(UnwindTest, thread_unwind_multiple_thread_from_threads) {
   static constexpr size_t kNumThreads = 100;
-  ResetGlobals();
 
   std::atomic_int tids[kNumThreads] = {};
   std::vector<std::thread*> threads;
@@ -666,7 +658,6 @@ TEST_F(UnwindTest, thread_unwind_multiple_thread_from_threads) {
 
 TEST_F(UnwindTest, thread_unwind_multiple_thread_from_threads_updatable_maps) {
   static constexpr size_t kNumThreads = 100;
-  ResetGlobals();
 
   // Do this before the threads are started so that the maps needed to
   // unwind are not created yet, and this verifies the dynamic nature
