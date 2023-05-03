@@ -561,6 +561,10 @@ static void OfflineUnwind(void* data) {
 }
 
 TEST_F(UnwindOfflineTest, unwind_offline_check_for_leaks) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   std::string error_msg;
   if (!offline_utils_.Init({.offline_files_dir = "jit_debug_arm/",
                             .arch = ARCH_ARM,
