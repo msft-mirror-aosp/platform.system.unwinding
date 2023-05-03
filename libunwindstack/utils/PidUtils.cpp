@@ -104,7 +104,7 @@ bool Detach(pid_t pid) {
 
 static constexpr time_t kMaxWaitTimeSeconds = 30;
 
-bool WaitForPidState(pid_t pid, std::function<PidRunEnum()> state_check_func) {
+bool WaitForPidState(pid_t pid, const std::function<PidRunEnum()>& state_check_func) {
   PidRunEnum status = PID_RUN_KEEP_GOING;
   for (time_t start_time = time(nullptr);
        time(nullptr) - start_time < kMaxWaitTimeSeconds && status == PID_RUN_KEEP_GOING;) {
@@ -128,7 +128,7 @@ bool WaitForPidState(pid_t pid, std::function<PidRunEnum()> state_check_func) {
   return status == PID_RUN_PASS;
 }
 
-bool WaitForPidStateAfterAttach(pid_t pid, std::function<PidRunEnum()> state_check_func) {
+bool WaitForPidStateAfterAttach(pid_t pid, const std::function<PidRunEnum()>& state_check_func) {
   PidRunEnum status;
   time_t start_time = time(nullptr);
   do {
