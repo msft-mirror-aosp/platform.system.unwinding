@@ -56,7 +56,7 @@ class ForkTest : public ::testing::Test {
     FAIL() << "Unable to fork and attach to process.";
   }
 
-  void ForkAndWaitForPidState(std::function<PidRunEnum()> state_check_func) {
+  void ForkAndWaitForPidState(const std::function<PidRunEnum()>& state_check_func) {
     for (size_t i = 0; i < kMaxRetries; i++) {
       ASSERT_NO_FATAL_FAILURE(Fork());
 
