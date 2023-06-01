@@ -46,6 +46,8 @@ TEST_F(RegsRemoteTest, remote_get) {
   ASSERT_EQ(ARCH_X86, regs->Arch());
 #elif defined(__x86_64__)
   ASSERT_EQ(ARCH_X86_64, regs->Arch());
+#elif defined(__riscv)
+  ASSERT_EQ(ARCH_RISCV64, regs->Arch());
 #else
   ASSERT_EQ(nullptr, regs.get());
 #endif
