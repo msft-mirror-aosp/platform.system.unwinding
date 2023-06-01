@@ -35,14 +35,17 @@
 
 #include <unwindstack/AndroidUnwinder.h>
 #include <unwindstack/Error.h>
+#include <unwindstack/MachineRiscv64.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
 #include <unwindstack/RegsGetLocal.h>
+#include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
 #include <unwindstack/UcontextArm.h>
 #include <unwindstack/UcontextArm64.h>
+#include <unwindstack/UcontextRiscv64.h>
 #include <unwindstack/UcontextX86.h>
 #include <unwindstack/UcontextX86_64.h>
 #include <unwindstack/Unwinder.h>
@@ -249,6 +252,13 @@ TEST_F(AndroidUnwinderTest, verify_all_unwind_functions) {
       x86_64_ucontext->uc_mcontext.rcx = (*regs_x86_64)[X86_64_REG_RCX];
       x86_64_ucontext->uc_mcontext.rsp = (*regs_x86_64)[X86_64_REG_RSP];
       x86_64_ucontext->uc_mcontext.rip = (*regs_x86_64)[X86_64_REG_RIP];
+    } break;
+    case ARCH_RISCV64: {
+      riscv64_ucontext_t* riscv64_ucontext =
+          reinterpret_cast<riscv64_ucontext_t*>(malloc(sizeof(riscv64_ucontext_t)));
+      ucontext = riscv64_ucontext;
+      memcpy(&riscv64_ucontext->uc_mcontext.__gregs, regs->RawData(),
+             RISCV64_REG_MAX * sizeof(uint64_t));
     } break;
     default:
       ucontext = nullptr;
