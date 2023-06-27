@@ -21,15 +21,11 @@
 #include <unwindstack/Elf.h>
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>
-#include <unwindstack/MachineMips.h>
-#include <unwindstack/MachineMips64.h>
 #include <unwindstack/MachineRiscv64.h>
 #include <unwindstack/MachineX86.h>
 #include <unwindstack/MachineX86_64.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsMips.h>
-#include <unwindstack/RegsMips64.h>
 #include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
@@ -220,63 +216,6 @@ TEST_F(RegsStepIfSignalHandlerTest, x86_64_step_if_signal_handler) {
   EXPECT_EQ(0x150U, regs[X86_64_REG_RIP]);
   EXPECT_EQ(0x140U, regs.sp());
   EXPECT_EQ(0x150U, regs.pc());
-}
-
-TEST_F(RegsStepIfSignalHandlerTest, mips_step_if_signal_handler_non_rt) {
-  uint64_t addr = 0x1000;
-  RegsMips regs;
-  regs[MIPS_REG_PC] = 0x8000;
-  regs[MIPS_REG_SP] = addr;
-
-  elf_memory_->SetData64(0x8000, 0x0000000c24021017ULL);
-
-  for (uint64_t index = 0; index <= 50; index++) {
-    process_memory_.SetData64(addr + index * 8, index * 0x10);
-  }
-
-  ASSERT_TRUE(regs.StepIfSignalHandler(0x8000, elf_.get(), &process_memory_));
-  EXPECT_EQ(0x220U, regs[MIPS_REG_SP]);
-  EXPECT_EQ(0x040U, regs[MIPS_REG_PC]);
-  EXPECT_EQ(0x220U, regs.sp());
-  EXPECT_EQ(0x040U, regs.pc());
-}
-
-TEST_F(RegsStepIfSignalHandlerTest, mips_step_if_signal_handler_rt) {
-  uint64_t addr = 0x1000;
-  RegsMips regs;
-  regs[MIPS_REG_PC] = 0x8000;
-  regs[MIPS_REG_SP] = addr;
-
-  elf_memory_->SetData64(0x8000, 0x0000000c24021061ULL);
-
-  for (uint64_t index = 0; index <= 100; index++) {
-    process_memory_.SetData64(addr + index * 8, index * 0x10);
-  }
-
-  ASSERT_TRUE(regs.StepIfSignalHandler(0x8000, elf_.get(), &process_memory_));
-  EXPECT_EQ(0x350U, regs[MIPS_REG_SP]);
-  EXPECT_EQ(0x170U, regs[MIPS_REG_PC]);
-  EXPECT_EQ(0x350U, regs.sp());
-  EXPECT_EQ(0x170U, regs.pc());
-}
-
-TEST_F(RegsStepIfSignalHandlerTest, mips64_step_if_signal_handler) {
-  uint64_t addr = 0x1000;
-  RegsMips64 regs;
-  regs[MIPS64_REG_PC] = 0x8000;
-  regs[MIPS64_REG_SP] = addr;
-
-  elf_memory_->SetData64(0x8000, 0x0000000c2402145bULL);
-
-  for (uint64_t index = 0; index <= 100; index++) {
-    process_memory_.SetData64(addr + index * 8, index * 0x10);
-  }
-
-  ASSERT_TRUE(regs.StepIfSignalHandler(0x8000, elf_.get(), &process_memory_));
-  EXPECT_EQ(0x350U, regs[MIPS64_REG_SP]);
-  EXPECT_EQ(0x600U, regs[MIPS64_REG_PC]);
-  EXPECT_EQ(0x350U, regs.sp());
-  EXPECT_EQ(0x600U, regs.pc());
 }
 
 }  // namespace unwindstack

@@ -77,8 +77,6 @@ libunwindstack_common_src_files = [
     "RegsX86.cpp",
     "RegsX86_64.cpp",
     "RegsRiscv64.cpp",
-    "RegsMips.cpp",
-    "RegsMips64.cpp",
     "Symbols.cpp",
     "ThreadEntry.cpp",
     "ThreadUnwinder.cpp",
