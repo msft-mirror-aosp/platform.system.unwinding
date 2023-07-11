@@ -25,8 +25,6 @@
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsMips.h>
-#include <unwindstack/RegsMips64.h>
 #include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
@@ -112,28 +110,6 @@ TEST_F(RegsTest, rel_pc) {
   EXPECT_EQ(1U, GetPcAdjustment(0x2, elf_.get(), ARCH_X86_64));
   EXPECT_EQ(1U, GetPcAdjustment(0x1, elf_.get(), ARCH_X86_64));
   EXPECT_EQ(0U, GetPcAdjustment(0x0, elf_.get(), ARCH_X86_64));
-
-  EXPECT_EQ(8U, GetPcAdjustment(0x10, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(8U, GetPcAdjustment(0x8, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x7, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x6, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x5, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x4, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x3, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x2, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x1, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x0, elf_.get(), ARCH_MIPS));
-
-  EXPECT_EQ(8U, GetPcAdjustment(0x10, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(8U, GetPcAdjustment(0x8, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x7, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x6, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x5, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x4, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x3, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x2, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x1, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x0, elf_.get(), ARCH_MIPS64));
 }
 
 TEST_F(RegsTest, rel_pc_arm) {
@@ -188,12 +164,6 @@ TEST_F(RegsTest, elf_invalid) {
 
   EXPECT_EQ(0x800U, invalid_elf->GetRelPc(0x1800, map_info.get()));
   EXPECT_EQ(1U, GetPcAdjustment(0x800U, invalid_elf, ARCH_X86_64));
-
-  EXPECT_EQ(0x900U, invalid_elf->GetRelPc(0x1900, map_info.get()));
-  EXPECT_EQ(8U, GetPcAdjustment(0x900U, invalid_elf, ARCH_MIPS));
-
-  EXPECT_EQ(0xa00U, invalid_elf->GetRelPc(0x1a00, map_info.get()));
-  EXPECT_EQ(8U, GetPcAdjustment(0xa00U, invalid_elf, ARCH_MIPS64));
 }
 
 TEST_F(RegsTest, arm_verify_sp_pc) {
@@ -232,24 +202,6 @@ TEST_F(RegsTest, x86_64_verify_sp_pc) {
   EXPECT_EQ(0x4900000000U, x86_64.pc());
 }
 
-TEST_F(RegsTest, mips_verify_sp_pc) {
-  RegsMips mips;
-  uint32_t* regs = reinterpret_cast<uint32_t*>(mips.RawData());
-  regs[29] = 0x100;
-  regs[32] = 0x200;
-  EXPECT_EQ(0x100U, mips.sp());
-  EXPECT_EQ(0x200U, mips.pc());
-}
-
-TEST_F(RegsTest, mips64_verify_sp_pc) {
-  RegsMips64 mips64;
-  uint64_t* regs = reinterpret_cast<uint64_t*>(mips64.RawData());
-  regs[29] = 0xb100000000ULL;
-  regs[32] = 0xc200000000ULL;
-  EXPECT_EQ(0xb100000000U, mips64.sp());
-  EXPECT_EQ(0xc200000000U, mips64.pc());
-}
-
 TEST_F(RegsTest, arm64_strip_pac_mask) {
   RegsArm64 arm64;
   arm64.SetPseudoRegister(Arm64Reg::ARM64_PREG_RA_SIGN_STATE, 1);
@@ -278,12 +230,6 @@ TEST_F(RegsTest, machine_type) {
 
   RegsX86_64 x86_64_regs;
   EXPECT_EQ(ARCH_X86_64, x86_64_regs.Arch());
-
-  RegsMips mips_regs;
-  EXPECT_EQ(ARCH_MIPS, mips_regs.Arch());
-
-  RegsMips64 mips64_regs;
-  EXPECT_EQ(ARCH_MIPS64, mips64_regs.Arch());
 }
 
 template <typename RegisterType>
@@ -309,8 +255,6 @@ TEST_F(RegsTest, clone) {
   regs.emplace_back(new RegsArm64());
   regs.emplace_back(new RegsX86());
   regs.emplace_back(new RegsX86_64());
-  regs.emplace_back(new RegsMips());
-  regs.emplace_back(new RegsMips64());
 
   for (auto& r : regs) {
     if (r->Is32Bit()) {
