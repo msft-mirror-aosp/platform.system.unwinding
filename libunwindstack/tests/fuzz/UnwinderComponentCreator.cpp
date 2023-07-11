@@ -39,14 +39,6 @@ std::unique_ptr<Regs> GetRegisters(ArchEnum arch) {
       std::unique_ptr<unwindstack::RegsX86_64> regs = std::make_unique<unwindstack::RegsX86_64>();
       return regs;
     }
-    case unwindstack::ARCH_MIPS: {
-      std::unique_ptr<unwindstack::RegsMips> regs = std::make_unique<unwindstack::RegsMips>();
-      return regs;
-    }
-    case unwindstack::ARCH_MIPS64: {
-      std::unique_ptr<unwindstack::RegsMips64> regs = std::make_unique<unwindstack::RegsMips64>();
-      return regs;
-    }
     case unwindstack::ARCH_UNKNOWN:
     default: {
       std::unique_ptr<unwindstack::RegsX86_64> regs = std::make_unique<unwindstack::RegsX86_64>();

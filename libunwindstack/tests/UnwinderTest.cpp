@@ -31,8 +31,6 @@
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsMips.h>
-#include <unwindstack/RegsMips64.h>
 #include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
@@ -1557,16 +1555,6 @@ TEST_F(UnwinderTest, format_frame_by_arch) {
   x86_64->set_sp(0x10000);
   reg_list.push_back(x86_64);
 
-  RegsMips* mips = new RegsMips;
-  mips->set_pc(0x2300);
-  mips->set_sp(0x10000);
-  reg_list.push_back(mips);
-
-  RegsMips64* mips64 = new RegsMips64;
-  mips64->set_pc(0x2300);
-  mips64->set_sp(0x10000);
-  reg_list.push_back(mips64);
-
   for (auto regs : reg_list) {
     ElfInterfaceFake::FakePushFunctionData(FunctionData("Frame0", 10));
 
@@ -1578,12 +1566,10 @@ TEST_F(UnwinderTest, format_frame_by_arch) {
     switch (regs->Arch()) {
       case ARCH_ARM:
       case ARCH_X86:
-      case ARCH_MIPS:
         expected = "  #00 pc 00001300  /system/fake/libc.so (Frame0+10)";
         break;
       case ARCH_ARM64:
       case ARCH_X86_64:
-      case ARCH_MIPS64:
       case ARCH_RISCV64:
         expected = "  #00 pc 0000000000001300  /system/fake/libc.so (Frame0+10)";
         break;
