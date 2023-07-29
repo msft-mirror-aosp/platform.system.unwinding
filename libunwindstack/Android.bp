@@ -135,6 +135,7 @@ cc_defaults {
 
 cc_library {
     name: "libunwindstack",
+    ramdisk_available: true,
     vendor_available: true,
     product_available: true,
     recovery_available: true,
@@ -174,6 +175,12 @@ cc_library {
             exclude_runtime_libs: ["libdexfile"],
         },
         vendor_ramdisk: {
+            cflags: ["-UDEXFILE_SUPPORT"],
+            exclude_srcs: ["DexFile.cpp"],
+            exclude_static_libs: ["libdexfile_support"],
+            exclude_runtime_libs: ["libdexfile"],
+        },
+        ramdisk: {
             cflags: ["-UDEXFILE_SUPPORT"],
             exclude_srcs: ["DexFile.cpp"],
             exclude_static_libs: ["libdexfile_support"],
