@@ -199,18 +199,6 @@ TEST_F(ElfTest, elf_arm) {
   ASSERT_TRUE(elf.interface() != nullptr);
 }
 
-TEST_F(ElfTest, elf_mips) {
-  Elf elf(memory_);
-
-  InitElf32(EM_MIPS);
-
-  ASSERT_TRUE(elf.Init());
-  ASSERT_TRUE(elf.valid());
-  ASSERT_EQ(static_cast<uint32_t>(EM_MIPS), elf.machine_type());
-  ASSERT_EQ(ELFCLASS32, elf.class_type());
-  ASSERT_TRUE(elf.interface() != nullptr);
-}
-
 TEST_F(ElfTest, elf_x86) {
   Elf elf(memory_);
 
@@ -255,18 +243,6 @@ TEST_F(ElfTest, elf_x86_64) {
   ASSERT_TRUE(elf.Init());
   ASSERT_TRUE(elf.valid());
   ASSERT_EQ(static_cast<uint32_t>(EM_X86_64), elf.machine_type());
-  ASSERT_EQ(ELFCLASS64, elf.class_type());
-  ASSERT_TRUE(elf.interface() != nullptr);
-}
-
-TEST_F(ElfTest, elf_mips64) {
-  Elf elf(memory_);
-
-  InitElf64(EM_MIPS);
-
-  ASSERT_TRUE(elf.Init());
-  ASSERT_TRUE(elf.valid());
-  ASSERT_EQ(static_cast<uint32_t>(EM_MIPS), elf.machine_type());
   ASSERT_EQ(ELFCLASS64, elf.class_type());
   ASSERT_TRUE(elf.interface() != nullptr);
 }
