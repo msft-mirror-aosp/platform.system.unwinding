@@ -49,7 +49,7 @@ using unwindstack::MemoryFake;
 using unwindstack::Regs;
 using unwindstack::StepData;
 
-static constexpr uint8_t kArchCount = 6;
+static constexpr uint8_t kArchCount = 5;
 
 static constexpr uint8_t kMaxSoNameLen = 150;
 
