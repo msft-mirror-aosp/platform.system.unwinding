@@ -39,6 +39,7 @@ cc_defaults {
         "-Wall",
         "-Werror",
         "-Wextra",
+        "-Wno-deprecated-volatile",
         // Disable this warning, it doesn't provide any useful data.
         "-Wno-reorder-init-list"
     ],
