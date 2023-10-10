@@ -101,6 +101,13 @@ TEST_F(RegsTest, rel_pc) {
   EXPECT_EQ(0U, GetPcAdjustment(0x1, elf_.get(), ARCH_ARM64));
   EXPECT_EQ(0U, GetPcAdjustment(0x0, elf_.get(), ARCH_ARM64));
 
+  EXPECT_EQ(4U, GetPcAdjustment(0x10, elf_.get(), ARCH_RISCV64));
+  EXPECT_EQ(4U, GetPcAdjustment(0x4, elf_.get(), ARCH_RISCV64));
+  EXPECT_EQ(0U, GetPcAdjustment(0x3, elf_.get(), ARCH_RISCV64));
+  EXPECT_EQ(0U, GetPcAdjustment(0x2, elf_.get(), ARCH_RISCV64));
+  EXPECT_EQ(0U, GetPcAdjustment(0x1, elf_.get(), ARCH_RISCV64));
+  EXPECT_EQ(0U, GetPcAdjustment(0x0, elf_.get(), ARCH_RISCV64));
+
   EXPECT_EQ(1U, GetPcAdjustment(0x100, elf_.get(), ARCH_X86));
   EXPECT_EQ(1U, GetPcAdjustment(0x2, elf_.get(), ARCH_X86));
   EXPECT_EQ(1U, GetPcAdjustment(0x1, elf_.get(), ARCH_X86));
@@ -159,6 +166,9 @@ TEST_F(RegsTest, elf_invalid) {
   EXPECT_EQ(0x600U, invalid_elf->GetRelPc(0x1600, map_info.get()));
   EXPECT_EQ(4U, GetPcAdjustment(0x600U, invalid_elf, ARCH_ARM64));
 
+  EXPECT_EQ(0x600U, invalid_elf->GetRelPc(0x1600, map_info.get()));
+  EXPECT_EQ(4U, GetPcAdjustment(0x600U, invalid_elf, ARCH_RISCV64));
+
   EXPECT_EQ(0x700U, invalid_elf->GetRelPc(0x1700, map_info.get()));
   EXPECT_EQ(1U, GetPcAdjustment(0x700U, invalid_elf, ARCH_X86));
 
@@ -182,6 +192,15 @@ TEST_F(RegsTest, arm64_verify_sp_pc) {
   regs[32] = 0xc200000000ULL;
   EXPECT_EQ(0xb100000000U, arm64.sp());
   EXPECT_EQ(0xc200000000U, arm64.pc());
+}
+
+TEST_F(RegsTest, riscv64_verify_sp_pc) {
+  RegsRiscv64 riscv64;
+  uint64_t* regs = reinterpret_cast<uint64_t*>(riscv64.RawData());
+  regs[2] = 0x212340000ULL;
+  regs[0] = 0x1abcd0000ULL;
+  EXPECT_EQ(0x212340000U, riscv64.sp());
+  EXPECT_EQ(0x1abcd0000U, riscv64.pc());
 }
 
 TEST_F(RegsTest, x86_verify_sp_pc) {
@@ -225,6 +244,9 @@ TEST_F(RegsTest, machine_type) {
   RegsArm64 arm64_regs;
   EXPECT_EQ(ARCH_ARM64, arm64_regs.Arch());
 
+  RegsRiscv64 riscv64_regs;
+  EXPECT_EQ(ARCH_RISCV64, riscv64_regs.Arch());
+
   RegsX86 x86_regs;
   EXPECT_EQ(ARCH_X86, x86_regs.Arch());
 
@@ -253,6 +275,7 @@ TEST_F(RegsTest, clone) {
   std::vector<std::unique_ptr<Regs>> regs;
   regs.emplace_back(new RegsArm());
   regs.emplace_back(new RegsArm64());
+  regs.emplace_back(new RegsRiscv64());
   regs.emplace_back(new RegsX86());
   regs.emplace_back(new RegsX86_64());
 
