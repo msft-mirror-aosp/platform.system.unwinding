@@ -1518,6 +1518,8 @@ static std::string ArchToString(ArchEnum arch) {
     return "Arm";
   } else if (arch == ARCH_ARM64) {
     return "Arm64";
+  } else if (arch == ARCH_RISCV64) {
+    return "Riscv64";
   } else if (arch == ARCH_X86) {
     return "X86";
   } else if (arch == ARCH_X86_64) {
