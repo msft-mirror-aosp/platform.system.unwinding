@@ -31,8 +31,8 @@ std::unique_ptr<Regs> GetRegisters(ArchEnum arch) {
       std::unique_ptr<unwindstack::RegsArm64> regs = std::make_unique<unwindstack::RegsArm64>();
       return regs;
     }
-    case unwindstack::ARCH_X86: {
-      std::unique_ptr<unwindstack::RegsX86> regs = std::make_unique<unwindstack::RegsX86>();
+    case unwindstack::ARCH_RISCV64: {
+      std::unique_ptr<unwindstack::RegsRiscv64> regs = std::make_unique<unwindstack::RegsRiscv64>();
       return regs;
     }
     case unwindstack::ARCH_X86_64: {
