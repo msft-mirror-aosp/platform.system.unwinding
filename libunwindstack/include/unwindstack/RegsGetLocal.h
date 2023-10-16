@@ -34,9 +34,11 @@ namespace unwindstack {
 
 inline __attribute__((__always_inline__)) void AsmGetRegs(void* reg_data) {
   asm volatile(
+#if defined(__thumb__)
       ".align 2\n"
       "bx pc\n"
       "nop\n"
+#endif
       ".code 32\n"
       "stmia %[base], {r0-r12}\n"
       "add r2, %[base], #52\n"
@@ -44,9 +46,11 @@ inline __attribute__((__always_inline__)) void AsmGetRegs(void* reg_data) {
       "mov r4, r14\n"
       "mov r5, r15\n"
       "stmia r2, {r3-r5}\n"
+#if defined(__thumb__)
       "orr %[base], pc, #1\n"
       "bx %[base]\n"
-      : [ base ] "+r"(reg_data)
+#endif
+      : [base] "+r"(reg_data)
       :
       : "r2", "r3", "r4", "r5", "memory");
 }
