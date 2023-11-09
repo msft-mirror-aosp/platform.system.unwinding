@@ -665,10 +665,8 @@ template <typename ElfType>
 void ElfInterfaceTest::InitHeadersEhFrameTest() {
   ElfType elf(&memory_);
 
-  elf.FakeSetEhFrameOffset(0x10000);
-  elf.FakeSetEhFrameSize(0);
-  elf.FakeSetDebugFrameOffset(0);
-  elf.FakeSetDebugFrameSize(0);
+  elf.FakeSetEhFrameInfo(SectionInfo{.offset = 0x10000});
+  elf.FakeSetDebugFrameInfo(SectionInfo{});
 
   memory_.SetMemory(0x10000,
                     std::vector<uint8_t>{0x1, DW_EH_PE_udata2, DW_EH_PE_udata2, DW_EH_PE_udata2});
@@ -693,10 +691,8 @@ template <typename ElfType>
 void ElfInterfaceTest::InitHeadersDebugFrame() {
   ElfType elf(&memory_);
 
-  elf.FakeSetEhFrameOffset(0);
-  elf.FakeSetEhFrameSize(0);
-  elf.FakeSetDebugFrameOffset(0x5000);
-  elf.FakeSetDebugFrameSize(0x200);
+  elf.FakeSetEhFrameInfo(SectionInfo{});
+  elf.FakeSetDebugFrameInfo(SectionInfo{.offset = 0x5000, .size = 0x200});
 
   memory_.SetData32(0x5000, 0xfc);
   memory_.SetData32(0x5004, 0xffffffff);
@@ -822,8 +818,8 @@ void ElfInterfaceTest::InitSectionHeadersMalformedSymData() {
   int64_t load_bias = 0;
   ASSERT_TRUE(elf->Init(&load_bias));
   EXPECT_EQ(0, load_bias);
-  EXPECT_EQ(0U, elf->debug_frame_offset());
-  EXPECT_EQ(0U, elf->debug_frame_size());
+  EXPECT_EQ(0U, elf->debug_frame_info().offset);
+  EXPECT_EQ(0U, elf->debug_frame_info().size);
   EXPECT_EQ(0U, elf->gnu_debugdata_offset());
   EXPECT_EQ(0U, elf->gnu_debugdata_size());
 
@@ -894,8 +890,8 @@ void ElfInterfaceTest::InitSectionHeaders(uint64_t entry_size) {
   int64_t load_bias = 0;
   ASSERT_TRUE(elf->Init(&load_bias));
   EXPECT_EQ(0, load_bias);
-  EXPECT_EQ(0U, elf->debug_frame_offset());
-  EXPECT_EQ(0U, elf->debug_frame_size());
+  EXPECT_EQ(0U, elf->debug_frame_info().offset);
+  EXPECT_EQ(0U, elf->debug_frame_info().size);
   EXPECT_EQ(0U, elf->gnu_debugdata_offset());
   EXPECT_EQ(0U, elf->gnu_debugdata_size());
 
@@ -1011,20 +1007,23 @@ void ElfInterfaceTest::InitSectionHeadersOffsets() {
   int64_t load_bias = 0;
   ASSERT_TRUE(elf->Init(&load_bias));
   EXPECT_EQ(0, load_bias);
-  EXPECT_EQ(0x6000U, elf->debug_frame_offset());
-  EXPECT_EQ(0, elf->debug_frame_section_bias());
-  EXPECT_EQ(0x500U, elf->debug_frame_size());
+  EXPECT_EQ(0x6000U, elf->debug_frame_info().offset);
+  EXPECT_EQ(0, elf->debug_frame_info().bias);
+  EXPECT_EQ(0x500U, elf->debug_frame_info().size);
+  EXPECT_EQ(0U, elf->debug_frame_info().flags);
 
   EXPECT_EQ(0x5000U, elf->gnu_debugdata_offset());
   EXPECT_EQ(0x800U, elf->gnu_debugdata_size());
 
-  EXPECT_EQ(0x7000U, elf->eh_frame_offset());
-  EXPECT_EQ(0, elf->eh_frame_section_bias());
-  EXPECT_EQ(0x800U, elf->eh_frame_size());
+  EXPECT_EQ(0x7000U, elf->eh_frame_info().offset);
+  EXPECT_EQ(0, elf->eh_frame_info().bias);
+  EXPECT_EQ(0x800U, elf->eh_frame_info().size);
+  EXPECT_EQ(0U, elf->eh_frame_info().flags);
 
-  EXPECT_EQ(0xa000U, elf->eh_frame_hdr_offset());
-  EXPECT_EQ(0, elf->eh_frame_hdr_section_bias());
-  EXPECT_EQ(0xf00U, elf->eh_frame_hdr_size());
+  EXPECT_EQ(0xa000U, elf->eh_frame_hdr_info().offset);
+  EXPECT_EQ(0, elf->eh_frame_hdr_info().bias);
+  EXPECT_EQ(0xf00U, elf->eh_frame_hdr_info().size);
+  EXPECT_EQ(0U, elf->eh_frame_hdr_info().flags);
 
   EXPECT_EQ(0xb000U, elf->gnu_build_id_offset());
   EXPECT_EQ(0xf00U, elf->gnu_build_id_size());
@@ -1090,13 +1089,15 @@ void ElfInterfaceTest::InitSectionHeadersOffsetsEhFrameSectionBias(uint64_t addr
   int64_t load_bias = 0;
   ASSERT_TRUE(elf->Init(&load_bias));
   EXPECT_EQ(0, load_bias);
-  EXPECT_EQ(offset, elf->eh_frame_offset());
-  EXPECT_EQ(expected_bias, elf->eh_frame_section_bias());
-  EXPECT_EQ(0x500U, elf->eh_frame_size());
+  EXPECT_EQ(offset, elf->eh_frame_info().offset);
+  EXPECT_EQ(expected_bias, elf->eh_frame_info().bias);
+  EXPECT_EQ(0x500U, elf->eh_frame_info().size);
+  EXPECT_EQ(0U, elf->eh_frame_info().flags);
 
-  EXPECT_EQ(0x8000U, elf->eh_frame_hdr_offset());
-  EXPECT_EQ(0, elf->eh_frame_hdr_section_bias());
-  EXPECT_EQ(0x800U, elf->eh_frame_hdr_size());
+  EXPECT_EQ(0x8000U, elf->eh_frame_hdr_info().offset);
+  EXPECT_EQ(0, elf->eh_frame_hdr_info().bias);
+  EXPECT_EQ(0x800U, elf->eh_frame_hdr_info().size);
+  EXPECT_EQ(0U, elf->eh_frame_hdr_info().flags);
 }
 
 TEST_F(ElfInterfaceTest, init_section_headers_offsets_eh_frame_section_bias_zero_32) {
@@ -1182,12 +1183,14 @@ void ElfInterfaceTest::InitSectionHeadersOffsetsEhFrameHdrSectionBias(uint64_t a
   int64_t load_bias = 0;
   ASSERT_TRUE(elf->Init(&load_bias));
   EXPECT_EQ(0, load_bias);
-  EXPECT_EQ(0x5000U, elf->eh_frame_offset());
-  EXPECT_EQ(0, elf->eh_frame_section_bias());
-  EXPECT_EQ(0x500U, elf->eh_frame_size());
-  EXPECT_EQ(offset, elf->eh_frame_hdr_offset());
-  EXPECT_EQ(expected_bias, elf->eh_frame_hdr_section_bias());
-  EXPECT_EQ(0x800U, elf->eh_frame_hdr_size());
+  EXPECT_EQ(0x5000U, elf->eh_frame_info().offset);
+  EXPECT_EQ(0, elf->eh_frame_info().bias);
+  EXPECT_EQ(0x500U, elf->eh_frame_info().size);
+  EXPECT_EQ(0U, elf->eh_frame_info().flags);
+  EXPECT_EQ(offset, elf->eh_frame_hdr_info().offset);
+  EXPECT_EQ(expected_bias, elf->eh_frame_hdr_info().bias);
+  EXPECT_EQ(0x800U, elf->eh_frame_hdr_info().size);
+  EXPECT_EQ(0U, elf->eh_frame_hdr_info().flags);
 }
 
 TEST_F(ElfInterfaceTest, init_section_headers_offsets_eh_frame_hdr_section_bias_zero_32) {
@@ -1261,9 +1264,9 @@ void ElfInterfaceTest::InitSectionHeadersOffsetsDebugFrameSectionBias(uint64_t a
   int64_t load_bias = 0;
   ASSERT_TRUE(elf->Init(&load_bias));
   EXPECT_EQ(0, load_bias);
-  EXPECT_EQ(offset, elf->debug_frame_offset());
-  EXPECT_EQ(expected_bias, elf->debug_frame_section_bias());
-  EXPECT_EQ(0x800U, elf->debug_frame_size());
+  EXPECT_EQ(offset, elf->debug_frame_info().offset);
+  EXPECT_EQ(expected_bias, elf->debug_frame_info().bias);
+  EXPECT_EQ(0x800U, elf->debug_frame_info().size);
 }
 
 TEST_F(ElfInterfaceTest, init_section_headers_offsets_debug_frame_section_bias_zero_32) {
@@ -1325,7 +1328,7 @@ void ElfInterfaceTest::CheckGnuEhFrame(uint64_t addr, uint64_t offset, int64_t e
   int64_t load_bias = 0;
   ASSERT_TRUE(elf->Init(&load_bias));
   EXPECT_EQ(0, load_bias);
-  EXPECT_EQ(expected_bias, elf->eh_frame_hdr_section_bias());
+  EXPECT_EQ(expected_bias, elf->eh_frame_hdr_info().bias);
 }
 
 TEST_F(ElfInterfaceTest, eh_frame_zero_section_bias_32) {
