@@ -35,6 +35,7 @@ class Memory;
 class Regs;
 template <typename AddressType>
 struct RegsInfo;
+struct SectionInfo;
 
 class DwarfSection {
  public:
@@ -92,7 +93,7 @@ class DwarfSection {
   DwarfErrorCode LastErrorCode() { return last_error_.code; }
   uint64_t LastErrorAddress() { return last_error_.address; }
 
-  virtual bool Init(uint64_t offset, uint64_t size, int64_t section_bias) = 0;
+  virtual bool Init(const SectionInfo& info) = 0;
 
   virtual bool Eval(const DwarfCie*, Memory*, const DwarfLocations&, Regs*, bool*) = 0;
 
@@ -132,7 +133,7 @@ class DwarfSectionImpl : public DwarfSection {
   DwarfSectionImpl(Memory* memory) : DwarfSection(memory) {}
   virtual ~DwarfSectionImpl() = default;
 
-  bool Init(uint64_t offset, uint64_t size, int64_t section_bias) override;
+  bool Init(const SectionInfo& info) override;
 
   const DwarfCie* GetCieFromOffset(uint64_t offset);
 
