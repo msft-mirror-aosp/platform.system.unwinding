@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include <deque>
+#include <memory>
 #include <string>
 #include <unordered_map>
 
@@ -48,7 +49,7 @@ struct FunctionData {
 
 class ElfFake : public Elf {
  public:
-  ElfFake(Memory* memory) : Elf(memory) { valid_ = true; }
+  ElfFake(std::shared_ptr<Memory>& memory) : Elf(memory) { valid_ = true; }
   virtual ~ElfFake() = default;
 
   void FakeSetValid(bool valid) { valid_ = valid; }
@@ -65,7 +66,7 @@ class ElfFake : public Elf {
 
 class ElfInterfaceFake : public ElfInterface {
  public:
-  ElfInterfaceFake(Memory* memory) : ElfInterface(memory) {}
+  ElfInterfaceFake(std::shared_ptr<Memory>& memory) : ElfInterface(memory) {}
   virtual ~ElfInterfaceFake() = default;
 
   bool Init(int64_t*) override { return false; }
@@ -121,7 +122,7 @@ class ElfInterfaceFake : public ElfInterface {
 
 class ElfInterface32Fake : public ElfInterface32 {
  public:
-  ElfInterface32Fake(Memory* memory) : ElfInterface32(memory) {}
+  ElfInterface32Fake(std::shared_ptr<Memory>& memory) : ElfInterface32(memory) {}
   virtual ~ElfInterface32Fake() = default;
 
   void FakeSetEhFrameInfo(const SectionInfo& info) { eh_frame_info_ = info; }
@@ -130,7 +131,7 @@ class ElfInterface32Fake : public ElfInterface32 {
 
 class ElfInterface64Fake : public ElfInterface64 {
  public:
-  ElfInterface64Fake(Memory* memory) : ElfInterface64(memory) {}
+  ElfInterface64Fake(std::shared_ptr<Memory>& memory) : ElfInterface64(memory) {}
   virtual ~ElfInterface64Fake() = default;
 
   void FakeSetEhFrameInfo(const SectionInfo& info) { eh_frame_info_ = info; }
@@ -139,7 +140,7 @@ class ElfInterface64Fake : public ElfInterface64 {
 
 class ElfInterfaceArmFake : public ElfInterfaceArm {
  public:
-  ElfInterfaceArmFake(Memory* memory) : ElfInterfaceArm(memory) {}
+  ElfInterfaceArmFake(std::shared_ptr<Memory>& memory) : ElfInterfaceArm(memory) {}
   virtual ~ElfInterfaceArmFake() = default;
 
   void FakeSetStartOffset(uint64_t offset) { start_offset_ = offset; }

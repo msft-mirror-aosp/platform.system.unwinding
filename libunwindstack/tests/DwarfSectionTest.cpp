@@ -16,6 +16,9 @@
 
 #include <stdint.h>
 
+#include <memory>
+#include <vector>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -30,7 +33,7 @@ namespace unwindstack {
 
 class MockDwarfSection : public DwarfSection {
  public:
-  MockDwarfSection(Memory* memory) : DwarfSection(memory) {}
+  MockDwarfSection(std::shared_ptr<Memory>& memory) : DwarfSection(memory) {}
   virtual ~MockDwarfSection() = default;
 
   MOCK_METHOD(bool, Init, (const SectionInfo&), (override));
@@ -56,9 +59,11 @@ class MockDwarfSection : public DwarfSection {
 
 class DwarfSectionTest : public ::testing::Test {
  protected:
-  void SetUp() override { section_.reset(new MockDwarfSection(&memory_)); }
+  void SetUp() override {
+    std::shared_ptr<Memory> memory(new MemoryFake);
+    section_.reset(new MockDwarfSection(memory));
+  }
 
-  MemoryFake memory_;
   std::unique_ptr<MockDwarfSection> section_;
   static RegsFake regs_;
 };

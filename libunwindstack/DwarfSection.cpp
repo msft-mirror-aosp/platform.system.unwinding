@@ -41,7 +41,7 @@
 
 namespace unwindstack {
 
-DwarfSection::DwarfSection(Memory* memory) : memory_(memory) {}
+DwarfSection::DwarfSection(std::shared_ptr<Memory>& memory) : memory_(memory) {}
 
 bool DwarfSection::Step(uint64_t pc, Regs* regs, Memory* process_memory, bool* finished,
                         bool* is_signal_frame) {
