@@ -21,6 +21,7 @@
 
 #include <unwindstack/DwarfSection.h>
 #include <unwindstack/Elf.h>
+#include <unwindstack/ElfInterface.h>
 
 #include "RegsFake.h"
 #include "utils/MemoryFake.h"
@@ -32,7 +33,7 @@ class MockDwarfSection : public DwarfSection {
   MockDwarfSection(Memory* memory) : DwarfSection(memory) {}
   virtual ~MockDwarfSection() = default;
 
-  MOCK_METHOD(bool, Init, (uint64_t, uint64_t, int64_t), (override));
+  MOCK_METHOD(bool, Init, (const SectionInfo&), (override));
 
   MOCK_METHOD(bool, Eval, (const DwarfCie*, Memory*, const DwarfLocations&, Regs*, bool*),
               (override));
