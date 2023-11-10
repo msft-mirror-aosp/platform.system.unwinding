@@ -21,6 +21,8 @@
 #include <gtest/gtest.h>
 
 #include <unwindstack/DwarfError.h>
+#include <unwindstack/Elf.h>
+#include <unwindstack/ElfInterface.h>
 
 #include "DwarfDebugFrame.h"
 #include "DwarfEncoding.h"
@@ -119,9 +121,15 @@ static void SetFourFdes32(MemoryFake* memory) {
   SetFde32(memory, 0x5500, 0xfc, 0x300, 0x4500, 0x500);
 }
 
+TYPED_TEST_P(DwarfDebugFrameTest, Init_compressed) {
+  SetFourFdes32(&this->memory_);
+  ASSERT_FALSE(this->debug_frame_->Init(
+      SectionInfo{.offset = 0x5000, .size = 0x600, .flags = SHF_COMPRESSED}));
+}
+
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdes32) {
   SetFourFdes32(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x600, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x600}));
 
   std::vector<const DwarfFde*> fdes;
   this->debug_frame_->GetFdes(&fdes);
@@ -163,7 +171,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdes32) {
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdes32_after_GetFdeFromPc) {
   SetFourFdes32(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x600, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x600}));
 
   const DwarfFde* fde = this->debug_frame_->GetFdeFromPc(0x3600);
   ASSERT_TRUE(fde != nullptr);
@@ -187,7 +195,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdes32_after_GetFdeFromPc) {
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdes32_not_in_section) {
   SetFourFdes32(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x500, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x500}));
 
   std::vector<const DwarfFde*> fdes;
   this->debug_frame_->GetFdes(&fdes);
@@ -198,7 +206,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdes32_not_in_section) {
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdes32_big_function_address) {
   SetCie32(&this->memory_, 0x5000, 0xfc, std::vector<uint8_t>{1, '\0', 0, 0, 1});
   SetFde32(&this->memory_, 0x5100, 0xfc, 0, 0xe9ad9b1f, 0x200);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x200, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x200}));
 
   std::vector<const DwarfFde*> fdes;
   this->debug_frame_->GetFdes(&fdes);
@@ -216,7 +224,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdes32_big_function_address) {
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc32) {
   SetFourFdes32(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x600, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x600}));
 
   const DwarfFde* fde = this->debug_frame_->GetFdeFromPc(0x1600);
   ASSERT_TRUE(fde != nullptr);
@@ -240,7 +248,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc32) {
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc32_reverse) {
   SetFourFdes32(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x600, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x600}));
 
   const DwarfFde* fde = this->debug_frame_->GetFdeFromPc(0x4600);
   ASSERT_TRUE(fde != nullptr);
@@ -264,7 +272,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc32_reverse) {
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc32_not_in_section) {
   SetFourFdes32(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x500, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x500}));
 
   const DwarfFde* fde = this->debug_frame_->GetFdeFromPc(0x4600);
   ASSERT_TRUE(fde == nullptr);
@@ -288,7 +296,7 @@ static void SetFourFdes64(MemoryFake* memory) {
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdes64) {
   SetFourFdes64(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x600, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x600}));
 
   std::vector<const DwarfFde*> fdes;
   this->debug_frame_->GetFdes(&fdes);
@@ -330,7 +338,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdes64) {
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdes64_after_GetFdeFromPc) {
   SetFourFdes64(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x600, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x600}));
 
   const DwarfFde* fde = this->debug_frame_->GetFdeFromPc(0x2600);
   ASSERT_TRUE(fde != nullptr);
@@ -354,7 +362,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdes64_after_GetFdeFromPc) {
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdes64_not_in_section) {
   SetFourFdes64(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x500, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x500}));
 
   std::vector<const DwarfFde*> fdes;
   this->debug_frame_->GetFdes(&fdes);
@@ -364,7 +372,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdes64_not_in_section) {
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc64) {
   SetFourFdes64(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x600, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x600}));
 
   const DwarfFde* fde = this->debug_frame_->GetFdeFromPc(0x1600);
   ASSERT_TRUE(fde != nullptr);
@@ -388,7 +396,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc64) {
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc64_reverse) {
   SetFourFdes64(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x600, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x600}));
 
   const DwarfFde* fde = this->debug_frame_->GetFdeFromPc(0x4600);
   ASSERT_TRUE(fde != nullptr);
@@ -412,7 +420,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc64_reverse) {
 
 TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc64_not_in_section) {
   SetFourFdes64(&this->memory_);
-  ASSERT_TRUE(this->debug_frame_->Init(0x5000, 0x500, 0));
+  ASSERT_TRUE(this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x500}));
 
   const DwarfFde* fde = this->debug_frame_->GetFdeFromPc(0x4600);
   ASSERT_TRUE(fde == nullptr);
@@ -794,7 +802,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc_interleaved) {
   // FDE 6 (0x0 - 0x50)
   SetFde32(&this->memory_, 0x5700, 0xfc, 0, 0, 0x50);
 
-  this->debug_frame_->Init(0x5000, 0x800, 0);
+  this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x800});
 
   // Force reading all entries so no entries are found.
   const DwarfFde* fde = this->debug_frame_->GetFdeFromPc(0xfffff);
@@ -865,7 +873,7 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc_overlap) {
   // FDE 2 (0x00 - 0x800)
   SetFde32(&this->memory_, 0x5300, 0xfc, 0, 0x0, 0x800);
 
-  this->debug_frame_->Init(0x5000, 0x400, 0);
+  this->debug_frame_->Init(SectionInfo{.offset = 0x5000, .size = 0x400});
 
   // Force reading all entries so no entries are found.
   const DwarfFde* fde = this->debug_frame_->GetFdeFromPc(0xfffff);
@@ -906,9 +914,9 @@ TYPED_TEST_P(DwarfDebugFrameTest, GetFdeFromPc_overlap) {
 }
 
 REGISTER_TYPED_TEST_SUITE_P(
-    DwarfDebugFrameTest, GetFdes32, GetFdes32_after_GetFdeFromPc, GetFdes32_not_in_section,
-    GetFdes32_big_function_address, GetFdeFromPc32, GetFdeFromPc32_reverse,
-    GetFdeFromPc32_not_in_section, GetFdes64, GetFdes64_after_GetFdeFromPc,
+    DwarfDebugFrameTest, Init_compressed, GetFdes32, GetFdes32_after_GetFdeFromPc,
+    GetFdes32_not_in_section, GetFdes32_big_function_address, GetFdeFromPc32,
+    GetFdeFromPc32_reverse, GetFdeFromPc32_not_in_section, GetFdes64, GetFdes64_after_GetFdeFromPc,
     GetFdes64_not_in_section, GetFdeFromPc64, GetFdeFromPc64_reverse, GetFdeFromPc64_not_in_section,
     GetCieFde32, GetCieFde64, GetCieFromOffset32_cie_cached, GetCieFromOffset64_cie_cached,
     GetCieFromOffset32_version1, GetCieFromOffset64_version1, GetCieFromOffset32_version3,
