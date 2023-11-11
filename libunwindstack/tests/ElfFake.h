@@ -124,10 +124,8 @@ class ElfInterface32Fake : public ElfInterface32 {
   ElfInterface32Fake(Memory* memory) : ElfInterface32(memory) {}
   virtual ~ElfInterface32Fake() = default;
 
-  void FakeSetEhFrameOffset(uint64_t offset) { eh_frame_offset_ = offset; }
-  void FakeSetEhFrameSize(uint64_t size) { eh_frame_size_ = size; }
-  void FakeSetDebugFrameOffset(uint64_t offset) { debug_frame_offset_ = offset; }
-  void FakeSetDebugFrameSize(uint64_t size) { debug_frame_size_ = size; }
+  void FakeSetEhFrameInfo(const SectionInfo& info) { eh_frame_info_ = info; }
+  void FakeSetDebugFrameInfo(const SectionInfo& info) { debug_frame_info_ = info; }
 };
 
 class ElfInterface64Fake : public ElfInterface64 {
@@ -135,10 +133,8 @@ class ElfInterface64Fake : public ElfInterface64 {
   ElfInterface64Fake(Memory* memory) : ElfInterface64(memory) {}
   virtual ~ElfInterface64Fake() = default;
 
-  void FakeSetEhFrameOffset(uint64_t offset) { eh_frame_offset_ = offset; }
-  void FakeSetEhFrameSize(uint64_t size) { eh_frame_size_ = size; }
-  void FakeSetDebugFrameOffset(uint64_t offset) { debug_frame_offset_ = offset; }
-  void FakeSetDebugFrameSize(uint64_t size) { debug_frame_size_ = size; }
+  void FakeSetEhFrameInfo(const SectionInfo& info) { eh_frame_info_ = info; }
+  void FakeSetDebugFrameInfo(const SectionInfo& info) { debug_frame_info_ = info; }
 };
 
 class ElfInterfaceArmFake : public ElfInterfaceArm {
