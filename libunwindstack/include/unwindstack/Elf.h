@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <elf.h>
 #include <stddef.h>
 
 #include <memory>
@@ -35,6 +36,10 @@
 
 #if !defined(EM_RISCV)
 #define EM_RISCV 243
+#endif
+
+#if !defined(SHF_COMPRESSED)
+#define SHF_COMPRESSED 0x800
 #endif
 
 namespace unwindstack {
