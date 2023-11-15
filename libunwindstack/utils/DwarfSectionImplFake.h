@@ -17,6 +17,7 @@
 #pragma once
 
 #include <unwindstack/DwarfSection.h>
+#include <unwindstack/ElfInterface.h>
 #include <unwindstack/Memory.h>
 
 namespace unwindstack {
@@ -27,7 +28,7 @@ class DwarfSectionImplFake : public DwarfSectionImpl<TypeParam> {
   DwarfSectionImplFake(Memory* memory) : DwarfSectionImpl<TypeParam>(memory) {}
   virtual ~DwarfSectionImplFake() = default;
 
-  bool Init(uint64_t, uint64_t, int64_t) override { return false; }
+  bool Init(const SectionInfo&) override { return false; }
 
   void GetFdes(std::vector<const DwarfFde*>*) override {}
 
