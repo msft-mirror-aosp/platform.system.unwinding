@@ -38,7 +38,8 @@
 namespace unwindstack {
 
 static std::string DumpFrames(const UnwinderFromPid& unwinder) {
-  std::string unwind;
+  // Init this way so that the first frame of the backtrace starts on a new line.
+  std::string unwind("\n");
   for (size_t i = 0; i < unwinder.NumFrames(); i++) {
     unwind += unwinder.FormatFrame(i) + '\n';
   }
@@ -69,7 +70,8 @@ static DwarfLocationEnum GetReturnAddressLocation(uint64_t rel_pc, DwarfSection*
 static void VerifyReturnAddress(const FrameData& frame) {
   // Now go and find information about the register data and verify that the relative pc results in
   // an undefined register.
-  Elf elf(Memory::CreateFileMemory(frame.map_info->name(), 0).release());
+  auto file_memory = Memory::CreateFileMemory(frame.map_info->name(), 0);
+  Elf elf(file_memory);
   ASSERT_TRUE(frame.map_info != nullptr);
   ASSERT_TRUE(elf.Init()) << "Failed to init elf object from " << frame.map_info->name().c_str();
   ASSERT_TRUE(elf.valid()) << "Elf " << frame.map_info->name().c_str() << " is not valid.";

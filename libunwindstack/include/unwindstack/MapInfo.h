@@ -190,7 +190,7 @@ class MapInfo {
   // Otherwise, this function only returns the name of the map.
   std::string GetFullName();
 
-  Memory* CreateMemory(const std::shared_ptr<Memory>& process_memory);
+  std::shared_ptr<Memory> CreateMemory(const std::shared_ptr<Memory>& process_memory);
 
   bool GetFunctionName(uint64_t addr, SharedString* name, uint64_t* func_offset);
 
@@ -212,7 +212,7 @@ class MapInfo {
   MapInfo(const MapInfo&) = delete;
   void operator=(const MapInfo&) = delete;
 
-  Memory* GetFileMemory();
+  std::shared_ptr<Memory> CreateFileMemory();
   bool InitFileMemoryFromPreviousReadOnlyMap(MemoryFileAtOffset* memory);
 
   // Protect the creation of the elf object.
