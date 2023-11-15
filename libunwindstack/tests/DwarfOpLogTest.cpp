@@ -16,7 +16,8 @@
 
 #include <stdint.h>
 
-#include <ios>
+#include <memory>
+#include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -36,13 +37,14 @@ template <typename TypeParam>
 class DwarfOpLogTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    op_memory_.Clear();
+    op_memory_ = new MemoryFake;
+    std::shared_ptr<Memory> memory(op_memory_);
+    mem_.reset(new DwarfMemory(memory));
     regular_memory_.Clear();
-    mem_.reset(new DwarfMemory(&op_memory_));
     op_.reset(new DwarfOp<TypeParam>(mem_.get(), &regular_memory_));
   }
 
-  MemoryFake op_memory_;
+  MemoryFake* op_memory_;
   MemoryFake regular_memory_;
 
   std::unique_ptr<DwarfMemory> mem_;
@@ -55,7 +57,7 @@ TYPED_TEST_P(DwarfOpLogTest, multiple_ops) {
   std::vector<uint8_t> opcode_buffer = {
       0x0a, 0x20, 0x10, 0x08, 0x03, 0x12, 0x27,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   std::vector<std::string> lines;
   this->op_->GetLogInfo(0, opcode_buffer.size(), &lines);

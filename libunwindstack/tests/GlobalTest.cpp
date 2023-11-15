@@ -73,12 +73,13 @@ class GlobalTest : public ::testing::Test {
     ASSERT_TRUE(maps_->Parse());
     ASSERT_EQ(11U, maps_->Total());
 
-    elf_fakes_.push_back(new ElfInterfaceFake(nullptr));
-    elf_fakes_.push_back(new ElfInterfaceFake(nullptr));
-    elf_fakes_.push_back(new ElfInterfaceFake(nullptr));
-    elf_fakes_.push_back(new ElfInterfaceFake(nullptr));
+    std::shared_ptr<Memory> empty;
+    elf_fakes_.push_back(new ElfInterfaceFake(empty));
+    elf_fakes_.push_back(new ElfInterfaceFake(empty));
+    elf_fakes_.push_back(new ElfInterfaceFake(empty));
+    elf_fakes_.push_back(new ElfInterfaceFake(empty));
 
-    ElfFake* elf_fake = new ElfFake(nullptr);
+    ElfFake* elf_fake = new ElfFake(empty);
     elf_fake->FakeSetValid(true);
     elf_fake->FakeSetInterface(elf_fakes_[0]);
     elf_fakes_[0]->FakeSetDataVaddrStart(0x2000);
@@ -87,7 +88,7 @@ class GlobalTest : public ::testing::Test {
     auto map_info = maps_->Find(0x10000);
     map_info->GetElfFields().elf_.reset(elf_fake);
 
-    elf_fake = new ElfFake(nullptr);
+    elf_fake = new ElfFake(empty);
     elf_fake->FakeSetValid(true);
     elf_fake->FakeSetInterface(elf_fakes_[1]);
     elf_fakes_[1]->FakeSetDataVaddrStart(0x2000);
@@ -96,7 +97,7 @@ class GlobalTest : public ::testing::Test {
     map_info = maps_->Find(0x20000);
     map_info->GetElfFields().elf_.reset(elf_fake);
 
-    elf_fake = new ElfFake(nullptr);
+    elf_fake = new ElfFake(empty);
     elf_fake->FakeSetValid(true);
     elf_fake->FakeSetInterface(elf_fakes_[2]);
     elf_fakes_[2]->FakeSetDataVaddrStart(0x2000);
@@ -105,7 +106,7 @@ class GlobalTest : public ::testing::Test {
     map_info = maps_->Find(0x30000);
     map_info->GetElfFields().elf_.reset(elf_fake);
 
-    elf_fake = new ElfFake(nullptr);
+    elf_fake = new ElfFake(empty);
     elf_fake->FakeSetValid(true);
     elf_fake->FakeSetInterface(elf_fakes_[3]);
     elf_fakes_[3]->FakeSetDataVaddrStart(00);
