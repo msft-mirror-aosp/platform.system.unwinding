@@ -75,13 +75,13 @@ bool ElfInterface::GetTextRange(uint64_t* addr, uint64_t* size) {
   return false;
 }
 
-std::unique_ptr<Memory> ElfInterface::CreateGnuDebugdataMemory() {
+std::shared_ptr<Memory> ElfInterface::CreateGnuDebugdataMemory() {
   if (gnu_debugdata_offset_ == 0 || gnu_debugdata_size_ == 0) {
     return nullptr;
   }
 
-  auto decompressed =
-      std::make_unique<MemoryXz>(memory_, gnu_debugdata_offset_, gnu_debugdata_size_, GetSoname());
+  auto decompressed = std::make_shared<MemoryXz>(memory_.get(), gnu_debugdata_offset_,
+                                                 gnu_debugdata_size_, GetSoname());
   if (!decompressed || !decompressed->Init()) {
     gnu_debugdata_offset_ = 0;
     gnu_debugdata_size_ = 0;
@@ -426,7 +426,7 @@ bool ElfInterfaceImpl<ElfTypes>::GetFunctionName(uint64_t addr, SharedString* na
   }
 
   for (const auto symbol : symbols_) {
-    if (symbol->template GetName<SymType>(addr, memory_, name, func_offset)) {
+    if (symbol->template GetName<SymType>(addr, memory_.get(), name, func_offset)) {
       return true;
     }
   }
@@ -441,7 +441,7 @@ bool ElfInterfaceImpl<ElfTypes>::GetGlobalVariable(const std::string& name,
   }
 
   for (const auto symbol : symbols_) {
-    if (symbol->template GetGlobal<SymType>(memory_, name, memory_address)) {
+    if (symbol->template GetGlobal<SymType>(memory_.get(), name, memory_address)) {
       return true;
     }
   }
