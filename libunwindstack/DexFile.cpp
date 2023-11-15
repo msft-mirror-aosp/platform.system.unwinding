@@ -67,7 +67,7 @@ std::shared_ptr<DexFile> DexFile::CreateFromDisk(uint64_t addr, uint64_t size, M
   }
 
   // Load the file from disk and cache it.
-  std::unique_ptr<Memory> memory = Memory::CreateFileMemory(map->name(), offset_in_file, size);
+  auto memory = Memory::CreateFileMemory(map->name(), offset_in_file, size);
   if (memory == nullptr) {
     return nullptr;  // failed to map the file.
   }
@@ -76,7 +76,7 @@ std::shared_ptr<DexFile> DexFile::CreateFromDisk(uint64_t addr, uint64_t size, M
   if (dex == nullptr) {
     return nullptr;  // invalid DEX file.
   }
-  dex_api.reset(new DexFileApi{std::move(dex), std::move(memory), std::mutex()});
+  dex_api.reset(new DexFileApi{std::move(dex), memory, std::mutex()});
   cache_entry = dex_api;
   return std::shared_ptr<DexFile>(new DexFile(addr, size, std::move(dex_api)));
 }

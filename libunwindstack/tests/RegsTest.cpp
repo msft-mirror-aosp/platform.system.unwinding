@@ -38,14 +38,15 @@ namespace unwindstack {
 class RegsTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    memory_ = new MemoryFake;
-    elf_.reset(new ElfFake(memory_));
-    elf_interface_ = new ElfInterfaceFake(elf_->memory());
+    fake_memory_ = new MemoryFake;
+    std::shared_ptr<Memory> memory(fake_memory_);
+    elf_.reset(new ElfFake(memory));
+    elf_interface_ = new ElfInterfaceFake(memory);
     elf_->FakeSetInterface(elf_interface_);
   }
 
   ElfInterfaceFake* elf_interface_;
-  MemoryFake* memory_;
+  MemoryFake* fake_memory_;
   std::unique_ptr<ElfFake> elf_;
 };
 
@@ -142,21 +143,22 @@ TEST_F(RegsTest, rel_pc_arm) {
 
   // Check thumb instructions handling.
   elf_->FakeSetLoadBias(0);
-  memory_->SetData32(0x2000, 0);
+  fake_memory_->SetData32(0x2000, 0);
   EXPECT_EQ(2U, GetPcAdjustment(0x2005, elf_.get(), ARCH_ARM));
-  memory_->SetData32(0x2000, 0xe000f000);
+  fake_memory_->SetData32(0x2000, 0xe000f000);
   EXPECT_EQ(4U, GetPcAdjustment(0x2005, elf_.get(), ARCH_ARM));
 
   elf_->FakeSetLoadBias(0x400);
-  memory_->SetData32(0x2100, 0);
+  fake_memory_->SetData32(0x2100, 0);
   EXPECT_EQ(2U, GetPcAdjustment(0x2505, elf_.get(), ARCH_ARM));
-  memory_->SetData32(0x2100, 0xf111f111);
+  fake_memory_->SetData32(0x2100, 0xf111f111);
   EXPECT_EQ(4U, GetPcAdjustment(0x2505, elf_.get(), ARCH_ARM));
 }
 
 TEST_F(RegsTest, elf_invalid) {
   auto map_info = MapInfo::Create(0x1000, 0x2000, 0, 0, "");
-  Elf* invalid_elf = new Elf(nullptr);
+  std::shared_ptr<Memory> empty;
+  Elf* invalid_elf = new Elf(empty);
   map_info->set_elf(invalid_elf);
 
   EXPECT_EQ(0x500U, invalid_elf->GetRelPc(0x1500, map_info.get()));

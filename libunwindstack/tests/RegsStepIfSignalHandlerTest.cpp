@@ -16,6 +16,8 @@
 
 #include <stdint.h>
 
+#include <memory>
+
 #include <gtest/gtest.h>
 
 #include <unwindstack/Elf.h>
@@ -37,14 +39,15 @@ namespace unwindstack {
 class RegsStepIfSignalHandlerTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    elf_memory_ = new MemoryFake;
-    elf_.reset(new Elf(elf_memory_));
+    fake_memory_ = new MemoryFake;
+    std::shared_ptr<Memory> memory(fake_memory_);
+    elf_.reset(new Elf(memory));
   }
 
   void ArmStepIfSignalHandlerNonRt(uint32_t pc_data);
   void ArmStepIfSignalHandlerRt(uint32_t pc_data);
 
-  MemoryFake* elf_memory_;
+  MemoryFake* fake_memory_;
   MemoryFake process_memory_;
   std::unique_ptr<Elf> elf_;
 };
@@ -55,7 +58,7 @@ void RegsStepIfSignalHandlerTest::ArmStepIfSignalHandlerNonRt(uint32_t pc_data) 
   regs[ARM_REG_PC] = 0x5000;
   regs[ARM_REG_SP] = addr;
 
-  elf_memory_->SetData32(0x5000, pc_data);
+  fake_memory_->SetData32(0x5000, pc_data);
 
   for (uint64_t index = 0; index <= 30; index++) {
     process_memory_.SetData32(addr + index * 4, index * 0x10);
@@ -85,7 +88,7 @@ void RegsStepIfSignalHandlerTest::ArmStepIfSignalHandlerRt(uint32_t pc_data) {
   regs[ARM_REG_PC] = 0x5000;
   regs[ARM_REG_SP] = addr;
 
-  elf_memory_->SetData32(0x5000, pc_data);
+  fake_memory_->SetData32(0x5000, pc_data);
 
   for (uint64_t index = 0; index <= 100; index++) {
     process_memory_.SetData32(addr + index * 4, index * 0x10);
@@ -115,7 +118,7 @@ TEST_F(RegsStepIfSignalHandlerTest, arm64_step_if_signal_handler) {
   regs[ARM64_REG_PC] = 0x8000;
   regs[ARM64_REG_SP] = addr;
 
-  elf_memory_->SetData64(0x8000, 0xd4000001d2801168ULL);
+  fake_memory_->SetData64(0x8000, 0xd4000001d2801168ULL);
 
   for (uint64_t index = 0; index <= 100; index++) {
     process_memory_.SetData64(addr + index * 8, index * 0x10);
@@ -134,7 +137,7 @@ TEST_F(RegsStepIfSignalHandlerTest, riscv64_step_if_signal_handler) {
   regs[RISCV64_REG_PC] = 0x8000;
   regs[RISCV64_REG_SP] = addr;
 
-  elf_memory_->SetData64(0x8000, 0x0000007308b00893ULL);
+  fake_memory_->SetData64(0x8000, 0x0000007308b00893ULL);
 
   for (uint64_t index = 0; index <= 100; index++) {
     process_memory_.SetData64(addr + index * 8, index * 0x10);
@@ -153,7 +156,7 @@ TEST_F(RegsStepIfSignalHandlerTest, x86_step_if_signal_handler_no_siginfo) {
   regs[X86_REG_EIP] = 0x4100;
   regs[X86_REG_ESP] = addr;
 
-  elf_memory_->SetData64(0x4100, 0x80cd00000077b858ULL);
+  fake_memory_->SetData64(0x4100, 0x80cd00000077b858ULL);
   for (uint64_t index = 0; index <= 25; index++) {
     process_memory_.SetData32(addr + index * 4, index * 0x10);
   }
@@ -176,7 +179,7 @@ TEST_F(RegsStepIfSignalHandlerTest, x86_step_if_signal_handler_siginfo) {
   regs[X86_REG_EIP] = 0x4100;
   regs[X86_REG_ESP] = addr;
 
-  elf_memory_->SetData64(0x4100, 0x0080cd000000adb8ULL);
+  fake_memory_->SetData64(0x4100, 0x0080cd000000adb8ULL);
   addr += 8;
   // Pointer to ucontext data.
   process_memory_.SetData32(addr, 0x8100);
@@ -204,8 +207,8 @@ TEST_F(RegsStepIfSignalHandlerTest, x86_64_step_if_signal_handler) {
   regs[X86_64_REG_RIP] = 0x7000;
   regs[X86_64_REG_RSP] = addr;
 
-  elf_memory_->SetData64(0x7000, 0x0f0000000fc0c748);
-  elf_memory_->SetData16(0x7008, 0x0f05);
+  fake_memory_->SetData64(0x7000, 0x0f0000000fc0c748);
+  fake_memory_->SetData16(0x7008, 0x0f05);
 
   for (uint64_t index = 0; index <= 30; index++) {
     process_memory_.SetData64(addr + index * 8, index * 0x10);
