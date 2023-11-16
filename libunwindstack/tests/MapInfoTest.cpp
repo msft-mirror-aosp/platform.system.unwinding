@@ -124,8 +124,9 @@ TEST(MapInfoTest, real_map_check) {
 }
 
 TEST(MapInfoTest, get_function_name) {
-  ElfFake* elf = new ElfFake(nullptr);
-  ElfInterfaceFake* interface = new ElfInterfaceFake(nullptr);
+  std::shared_ptr<Memory> empty;
+  ElfFake* elf = new ElfFake(empty);
+  ElfInterfaceFake* interface = new ElfInterfaceFake(empty);
   elf->FakeSetInterface(interface);
   interface->FakePushFunctionData(FunctionData("function", 1000));
 

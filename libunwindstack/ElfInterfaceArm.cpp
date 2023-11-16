@@ -124,7 +124,7 @@ bool ElfInterfaceArm::StepExidx(uint64_t pc, Regs* regs, Memory* process_memory,
     return false;
   }
 
-  ArmExidx arm(regs_arm, memory_, process_memory);
+  ArmExidx arm(regs_arm, memory_.get(), process_memory);
   arm.set_cfa(regs_arm->sp());
   bool return_value = false;
   if (arm.ExtractEntryData(entry_offset) && arm.Eval()) {

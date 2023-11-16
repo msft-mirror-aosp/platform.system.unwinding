@@ -16,6 +16,8 @@
 
 #include <stdint.h>
 
+#include <memory>
+
 #include <gtest/gtest.h>
 
 #include <unwindstack/DwarfError.h>
@@ -32,15 +34,14 @@ template <typename TypeParam>
 class DwarfEhFrameTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    memory_.Clear();
-    eh_frame_ = new DwarfEhFrame<TypeParam>(&memory_);
+    fake_memory_ = new MemoryFake;
+    std::shared_ptr<Memory> memory(fake_memory_);
+    eh_frame_.reset(new DwarfEhFrame<TypeParam>(memory));
     ResetLogs();
   }
 
-  void TearDown() override { delete eh_frame_; }
-
-  MemoryFake memory_;
-  DwarfEhFrame<TypeParam>* eh_frame_ = nullptr;
+  MemoryFake* fake_memory_;
+  std::unique_ptr<DwarfEhFrame<TypeParam>> eh_frame_;
 };
 TYPED_TEST_SUITE_P(DwarfEhFrameTest);
 
@@ -51,16 +52,16 @@ TYPED_TEST_SUITE_P(DwarfEhFrameTest);
 
 TYPED_TEST_P(DwarfEhFrameTest, GetFdeCieFromOffset32) {
   // CIE 32 information.
-  this->memory_.SetData32(0x5000, 0xfc);
+  this->fake_memory_->SetData32(0x5000, 0xfc);
   // Indicates this is a cie for eh_frame.
-  this->memory_.SetData32(0x5004, 0);
-  this->memory_.SetMemory(0x5008, std::vector<uint8_t>{1, '\0', 16, 32, 1});
+  this->fake_memory_->SetData32(0x5004, 0);
+  this->fake_memory_->SetMemory(0x5008, std::vector<uint8_t>{1, '\0', 16, 32, 1});
 
   // FDE 32 information.
-  this->memory_.SetData32(0x5100, 0xfc);
-  this->memory_.SetData32(0x5104, 0x104);
-  this->memory_.SetData32(0x5108, 0x1500);
-  this->memory_.SetData32(0x510c, 0x200);
+  this->fake_memory_->SetData32(0x5100, 0xfc);
+  this->fake_memory_->SetData32(0x5104, 0x104);
+  this->fake_memory_->SetData32(0x5108, 0x1500);
+  this->fake_memory_->SetData32(0x510c, 0x200);
 
   const DwarfFde* fde = this->eh_frame_->GetFdeFromOffset(0x5100);
   ASSERT_TRUE(fde != nullptr);
@@ -88,18 +89,18 @@ TYPED_TEST_P(DwarfEhFrameTest, GetFdeCieFromOffset32) {
 
 TYPED_TEST_P(DwarfEhFrameTest, GetFdeCieFromOffset64) {
   // CIE 64 information.
-  this->memory_.SetData32(0x5000, 0xffffffff);
-  this->memory_.SetData64(0x5004, 0xfc);
+  this->fake_memory_->SetData32(0x5000, 0xffffffff);
+  this->fake_memory_->SetData64(0x5004, 0xfc);
   // Indicates this is a cie for eh_frame.
-  this->memory_.SetData64(0x500c, 0);
-  this->memory_.SetMemory(0x5014, std::vector<uint8_t>{1, '\0', 16, 32, 1});
+  this->fake_memory_->SetData64(0x500c, 0);
+  this->fake_memory_->SetMemory(0x5014, std::vector<uint8_t>{1, '\0', 16, 32, 1});
 
   // FDE 64 information.
-  this->memory_.SetData32(0x5100, 0xffffffff);
-  this->memory_.SetData64(0x5104, 0xfc);
-  this->memory_.SetData64(0x510c, 0x10c);
-  this->memory_.SetData64(0x5114, 0x1500);
-  this->memory_.SetData64(0x511c, 0x200);
+  this->fake_memory_->SetData32(0x5100, 0xffffffff);
+  this->fake_memory_->SetData64(0x5104, 0xfc);
+  this->fake_memory_->SetData64(0x510c, 0x10c);
+  this->fake_memory_->SetData64(0x5114, 0x1500);
+  this->fake_memory_->SetData64(0x511c, 0x200);
 
   const DwarfFde* fde = this->eh_frame_->GetFdeFromOffset(0x5100);
   ASSERT_TRUE(fde != nullptr);
