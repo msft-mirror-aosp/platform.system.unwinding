@@ -16,11 +16,16 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
+#include <iterator>
 #include <map>
+#include <memory>
 #include <optional>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include <unwindstack/DwarfError.h>
 #include <unwindstack/DwarfLocation.h>
@@ -39,14 +44,14 @@ struct SectionInfo;
 
 class DwarfSection {
  public:
-  DwarfSection(Memory* memory);
+  DwarfSection(std::shared_ptr<Memory>& memory);
   virtual ~DwarfSection() = default;
 
   class iterator {
    public:
     using iterator_category = std::bidirectional_iterator_tag;
     using value_type = DwarfFde*;
-    using difference_type = std::ptrdiff_t;
+    using difference_type = ptrdiff_t;
     using pointer = DwarfFde**;
     using reference = DwarfFde*&;
 
@@ -130,7 +135,7 @@ class DwarfSection {
 template <typename AddressType>
 class DwarfSectionImpl : public DwarfSection {
  public:
-  DwarfSectionImpl(Memory* memory) : DwarfSection(memory) {}
+  DwarfSectionImpl(std::shared_ptr<Memory>& memory) : DwarfSection(memory) {}
   virtual ~DwarfSectionImpl() = default;
 
   bool Init(const SectionInfo& info) override;
