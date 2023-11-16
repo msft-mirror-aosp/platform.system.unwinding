@@ -18,7 +18,9 @@
 
 #include <stdint.h>
 
+#include <memory>
 #include <unordered_map>
+#include <vector>
 
 #include <unwindstack/DwarfSection.h>
 
@@ -41,7 +43,7 @@ class DwarfEhFrameWithHdr : public DwarfSectionImpl<AddressType> {
     uint64_t offset;
   };
 
-  DwarfEhFrameWithHdr(Memory* memory) : DwarfSectionImpl<AddressType>(memory) {}
+  DwarfEhFrameWithHdr(std::shared_ptr<Memory>& memory) : DwarfSectionImpl<AddressType>(memory) {}
   virtual ~DwarfEhFrameWithHdr() = default;
 
   uint64_t GetCieOffsetFromFde32(uint32_t pointer) override {

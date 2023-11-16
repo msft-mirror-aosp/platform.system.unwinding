@@ -17,6 +17,7 @@
 #include <stdint.h>
 
 #include <ios>
+#include <memory>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -36,13 +37,14 @@ template <typename TypeParam>
 class DwarfOpTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    op_memory_.Clear();
+    op_memory_ = new MemoryFake;
+    std::shared_ptr<Memory> op_memory(op_memory_);
+    mem_.reset(new DwarfMemory(op_memory));
     regular_memory_.Clear();
-    mem_.reset(new DwarfMemory(&op_memory_));
     op_.reset(new DwarfOp<TypeParam>(mem_.get(), &regular_memory_));
   }
 
-  MemoryFake op_memory_;
+  MemoryFake* op_memory_;
   MemoryFake regular_memory_;
 
   std::unique_ptr<DwarfMemory> mem_;
@@ -57,7 +59,7 @@ TYPED_TEST_P(DwarfOpTest, decode) {
   EXPECT_EQ(0U, this->op_->LastErrorAddress());
 
   // No error.
-  this->op_memory_.SetMemory(0, std::vector<uint8_t>{0x96});
+  this->op_memory_->SetMemory(0, std::vector<uint8_t>{0x96});
   this->mem_->set_cur_offset(0);
   ASSERT_TRUE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_NONE, this->op_->LastErrorCode());
@@ -73,7 +75,7 @@ TYPED_TEST_P(DwarfOpTest, eval) {
 
   // Register set.
   // Do this first, to verify that subsequent calls reset the value.
-  this->op_memory_.SetMemory(0, std::vector<uint8_t>{0x50});
+  this->op_memory_->SetMemory(0, std::vector<uint8_t>{0x50});
   ASSERT_TRUE(this->op_->Eval(0, 1));
   ASSERT_TRUE(this->op_->is_register());
   ASSERT_EQ(1U, this->mem_->cur_offset());
@@ -83,7 +85,7 @@ TYPED_TEST_P(DwarfOpTest, eval) {
   std::vector<uint8_t> opcode_buffer = {
       0x08, 0x04, 0x08, 0x03, 0x08, 0x02, 0x08, 0x01,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_TRUE(this->op_->Eval(0, 8));
   ASSERT_EQ(DWARF_ERROR_NONE, this->op_->LastErrorCode());
@@ -96,7 +98,7 @@ TYPED_TEST_P(DwarfOpTest, eval) {
   ASSERT_EQ(4U, this->op_->StackAt(3));
 
   // Infinite loop.
-  this->op_memory_.SetMemory(0, std::vector<uint8_t>{0x2f, 0xfd, 0xff});
+  this->op_memory_->SetMemory(0, std::vector<uint8_t>{0x2f, 0xfd, 0xff});
   ASSERT_FALSE(this->op_->Eval(0, 4));
   ASSERT_EQ(DWARF_ERROR_TOO_MANY_ITERATIONS, this->op_->LastErrorCode());
   ASSERT_FALSE(this->op_->is_register());
@@ -109,7 +111,7 @@ TYPED_TEST_P(DwarfOpTest, illegal_opcode) {
   for (size_t opcode = 0xa0; opcode < 256; opcode++) {
     opcode_buffer.push_back(opcode);
   }
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   for (size_t i = 0; i < opcode_buffer.size(); i++) {
     ASSERT_FALSE(this->op_->Decode());
@@ -149,7 +151,7 @@ TYPED_TEST_P(DwarfOpTest, not_implemented) {
       // stack_value
       0x9f,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   // Push the stack values.
   ASSERT_TRUE(this->op_->Decode());
@@ -170,7 +172,7 @@ TYPED_TEST_P(DwarfOpTest, op_addr) {
     opcode_buffer.push_back(0x78);
     opcode_buffer.push_back(0x89);
   }
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_TRUE(this->op_->Decode());
   ASSERT_EQ(0x03, this->op_->cur_op());
@@ -191,7 +193,7 @@ TYPED_TEST_P(DwarfOpTest, op_deref) {
       // Now do another dereference that should fail in memory.
       0x06,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
   TypeParam value = 0x12345678;
   this->regular_memory_.SetMemory(0x2010, &value, sizeof(value));
 
@@ -211,7 +213,7 @@ TYPED_TEST_P(DwarfOpTest, op_deref) {
 }
 
 TYPED_TEST_P(DwarfOpTest, op_deref_size) {
-  this->op_memory_.SetMemory(0, std::vector<uint8_t>{0x94});
+  this->op_memory_->SetMemory(0, std::vector<uint8_t>{0x94});
   TypeParam value = 0x12345678;
   this->regular_memory_.SetMemory(0x2010, &value, sizeof(value));
 
@@ -220,7 +222,7 @@ TYPED_TEST_P(DwarfOpTest, op_deref_size) {
 
   // Read all byte sizes up to the sizeof the type.
   for (size_t i = 1; i < sizeof(TypeParam); i++) {
-    this->op_memory_.SetMemory(
+    this->op_memory_->SetMemory(
         0, std::vector<uint8_t>{0x0a, 0x10, 0x20, 0x94, static_cast<uint8_t>(i)});
     ASSERT_TRUE(this->op_->Eval(0, 5)) << "Failed at size " << i;
     ASSERT_EQ(1U, this->op_->StackSize()) << "Failed at size " << i;
@@ -231,17 +233,18 @@ TYPED_TEST_P(DwarfOpTest, op_deref_size) {
   }
 
   // Zero byte read.
-  this->op_memory_.SetMemory(0, std::vector<uint8_t>{0x0a, 0x10, 0x20, 0x94, 0x00});
+  this->op_memory_->SetMemory(0, std::vector<uint8_t>{0x0a, 0x10, 0x20, 0x94, 0x00});
   ASSERT_FALSE(this->op_->Eval(0, 5));
   ASSERT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->op_->LastErrorCode());
 
   // Read too many bytes.
-  this->op_memory_.SetMemory(0, std::vector<uint8_t>{0x0a, 0x10, 0x20, 0x94, sizeof(TypeParam) + 1});
+  this->op_memory_->SetMemory(0,
+                              std::vector<uint8_t>{0x0a, 0x10, 0x20, 0x94, sizeof(TypeParam) + 1});
   ASSERT_FALSE(this->op_->Eval(0, 5));
   ASSERT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->op_->LastErrorCode());
 
   // Force bad memory read.
-  this->op_memory_.SetMemory(0, std::vector<uint8_t>{0x0a, 0x10, 0x40, 0x94, 0x01});
+  this->op_memory_->SetMemory(0, std::vector<uint8_t>{0x0a, 0x10, 0x40, 0x94, 0x01});
   ASSERT_FALSE(this->op_->Eval(0, 5));
   ASSERT_EQ(DWARF_ERROR_MEMORY_INVALID, this->op_->LastErrorCode());
   EXPECT_EQ(0x4010U, this->op_->LastErrorAddress());
@@ -259,7 +262,7 @@ TYPED_TEST_P(DwarfOpTest, const_unsigned) {
       0x0e, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x0e, 0x87, 0x98, 0xa9, 0xba, 0xcb,
       0xdc, 0xed, 0xfe,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   // const1u
   ASSERT_TRUE(this->op_->Decode());
@@ -326,7 +329,7 @@ TYPED_TEST_P(DwarfOpTest, const_signed) {
       0x0f, 0x89, 0x78, 0x67, 0x56, 0x45, 0x34, 0x23, 0x12, 0x0f, 0x04, 0x03, 0x02, 0x01, 0xef,
       0xef, 0xef, 0xff,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   // const1s
   ASSERT_TRUE(this->op_->Decode());
@@ -389,7 +392,7 @@ TYPED_TEST_P(DwarfOpTest, const_uleb) {
       0x10, 0xa2, 0x22, 0x10, 0xa2, 0x74, 0x10, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88,
       0x09, 0x10, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x79,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   // Single byte ULEB128
   ASSERT_TRUE(this->op_->Decode());
@@ -455,7 +458,7 @@ TYPED_TEST_P(DwarfOpTest, const_sleb) {
     opcode_buffer.push_back(0x88);
     opcode_buffer.push_back(0x79);
   }
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   // Single byte SLEB128
   ASSERT_TRUE(this->op_->Decode());
@@ -507,7 +510,7 @@ TYPED_TEST_P(DwarfOpTest, op_dup) {
       // Do it again.
       0x08, 0x23, 0x12,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(0x12, this->op_->cur_op());
@@ -541,7 +544,7 @@ TYPED_TEST_P(DwarfOpTest, op_drop) {
       // Attempt to drop empty stack.
       0x13,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_TRUE(this->op_->Decode());
   ASSERT_EQ(1U, this->op_->StackSize());
@@ -573,7 +576,7 @@ TYPED_TEST_P(DwarfOpTest, op_over) {
       // Provoke a failure with this opcode.
       0x14,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_TRUE(this->op_->Decode());
   ASSERT_EQ(1U, this->op_->StackSize());
@@ -619,7 +622,7 @@ TYPED_TEST_P(DwarfOpTest, op_pick) {
       0x15,
       0x10,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(0x15, this->op_->cur_op());
@@ -663,7 +666,7 @@ TYPED_TEST_P(DwarfOpTest, op_swap) {
       // Pop a value to cause a failure.
       0x13, 0x16,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_TRUE(this->op_->Decode());
   ASSERT_EQ(1U, this->op_->StackSize());
@@ -697,7 +700,7 @@ TYPED_TEST_P(DwarfOpTest, op_rot) {
       // Should rotate properly.
       0x17,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -747,7 +750,7 @@ TYPED_TEST_P(DwarfOpTest, op_abs) {
     opcode_buffer.push_back(0x01);
   }
   opcode_buffer.push_back(0x19);
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -799,7 +802,7 @@ TYPED_TEST_P(DwarfOpTest, op_and) {
       // Divide by zero.
       0x11, 0x10, 0x11, 0x00, 0x1b,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -865,7 +868,7 @@ TYPED_TEST_P(DwarfOpTest, op_div) {
       // Push another value.
       0x08, 0xf0, 0x1a,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -896,7 +899,7 @@ TYPED_TEST_P(DwarfOpTest, op_minus) {
       // Push another value.
       0x08, 0x04, 0x1c,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -929,7 +932,7 @@ TYPED_TEST_P(DwarfOpTest, op_mod) {
       // Try a mod of zero.
       0x08, 0x01, 0x08, 0x00, 0x1d,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -968,7 +971,7 @@ TYPED_TEST_P(DwarfOpTest, op_mul) {
       // Push another value.
       0x08, 0x04, 0x1e,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -997,7 +1000,7 @@ TYPED_TEST_P(DwarfOpTest, op_neg) {
       // Push a negative value.
       0x11, 0x7f, 0x1f,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -1028,7 +1031,7 @@ TYPED_TEST_P(DwarfOpTest, op_not) {
       // Push a negative value.
       0x11, 0x7c, 0x20,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -1061,7 +1064,7 @@ TYPED_TEST_P(DwarfOpTest, op_or) {
       // Push another value.
       0x08, 0xf4, 0x21,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -1092,7 +1095,7 @@ TYPED_TEST_P(DwarfOpTest, op_plus) {
       // Push another value.
       0x08, 0xf2, 0x22,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -1119,7 +1122,7 @@ TYPED_TEST_P(DwarfOpTest, op_plus_uconst) {
       // Push a single value.
       0x08, 0x50, 0x23, 0x80, 0x51,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -1144,7 +1147,7 @@ TYPED_TEST_P(DwarfOpTest, op_shl) {
       // Push another value.
       0x08, 0x03, 0x24,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -1175,7 +1178,7 @@ TYPED_TEST_P(DwarfOpTest, op_shr) {
       // Push another value.
       0x08, 0x03, 0x25,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -1210,7 +1213,7 @@ TYPED_TEST_P(DwarfOpTest, op_shra) {
       // Push another value.
       0x08, 0x03, 0x26,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -1241,7 +1244,7 @@ TYPED_TEST_P(DwarfOpTest, op_xor) {
       // Push another value.
       0x08, 0x41, 0x27,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -1274,7 +1277,7 @@ TYPED_TEST_P(DwarfOpTest, op_bra) {
       // Push on a zero value with a negative branch.
       0x08, 0x00, 0x28, 0xf0, 0xff,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_FALSE(this->op_->Decode());
   ASSERT_EQ(DWARF_ERROR_STACK_INDEX_NOT_VALID, this->op_->LastErrorCode());
@@ -1335,7 +1338,7 @@ TYPED_TEST_P(DwarfOpTest, compare_opcode_stack_error) {
   for (uint8_t opcode = 0x29; opcode <= 0x2e; opcode++) {
     opcode_buffer[0] = opcode;
     opcode_buffer[3] = opcode;
-    this->op_memory_.SetMemory(0, opcode_buffer);
+    this->op_memory_->SetMemory(0, opcode_buffer);
 
     ASSERT_FALSE(this->op_->Eval(0, 1));
     ASSERT_EQ(opcode, this->op_->cur_op());
@@ -1378,7 +1381,7 @@ TYPED_TEST_P(DwarfOpTest, compare_opcodes) {
     opcode_buffer[4] = expected[i];
     opcode_buffer[9] = expected[i];
     opcode_buffer[14] = expected[i];
-    this->op_memory_.SetMemory(0, opcode_buffer);
+    this->op_memory_->SetMemory(0, opcode_buffer);
 
     ASSERT_TRUE(this->op_->Eval(0, 15))
         << "Op: 0x" << std::hex << static_cast<uint32_t>(expected[i]) << " failed";
@@ -1397,7 +1400,7 @@ TYPED_TEST_P(DwarfOpTest, op_skip) {
       // Negative value.
       0x2f, 0xfd, 0xff,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   uint64_t offset = this->mem_->cur_offset() + 3;
   ASSERT_TRUE(this->op_->Decode());
@@ -1420,7 +1423,7 @@ TYPED_TEST_P(DwarfOpTest, op_lit) {
   for (uint8_t op = 0x30; op <= 0x4f; op++) {
     opcode_buffer.push_back(op);
   }
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   for (size_t i = 0; i < opcode_buffer.size(); i++) {
     uint32_t op = opcode_buffer[i];
@@ -1438,7 +1441,7 @@ TYPED_TEST_P(DwarfOpTest, op_reg) {
   for (uint8_t op = 0x50; op <= 0x6f; op++) {
     opcode_buffer.push_back(op);
   }
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   for (size_t i = 0; i < opcode_buffer.size(); i++) {
     uint32_t op = opcode_buffer[i];
@@ -1454,7 +1457,7 @@ TYPED_TEST_P(DwarfOpTest, op_regx) {
   std::vector<uint8_t> opcode_buffer = {
       0x90, 0x02, 0x90, 0x80, 0x15,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   ASSERT_TRUE(this->op_->Eval(0, 2));
   ASSERT_EQ(0x90, this->op_->cur_op());
@@ -1481,7 +1484,7 @@ TYPED_TEST_P(DwarfOpTest, op_breg) {
     opcode_buffer.push_back(op);
     opcode_buffer.push_back(0x7e);
   }
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   RegsImplFake<TypeParam> regs(32);
   for (size_t i = 0; i < 32; i++) {
@@ -1512,7 +1515,7 @@ TYPED_TEST_P(DwarfOpTest, op_breg_invalid_register) {
   std::vector<uint8_t> opcode_buffer = {
       0x7f, 0x12, 0x80, 0x12,
   };
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   RegsImplFake<TypeParam> regs(16);
   for (size_t i = 0; i < 16; i++) {
@@ -1539,7 +1542,7 @@ TYPED_TEST_P(DwarfOpTest, op_bregx) {
                                         0x92, 0x06, 0x80, 0x7e,
                                         // Illegal register.
                                         0x92, 0x80, 0x15, 0x80, 0x02};
-  this->op_memory_.SetMemory(0, opcode_buffer);
+  this->op_memory_->SetMemory(0, opcode_buffer);
 
   RegsImplFake<TypeParam> regs(10);
   regs[5] = 0x45;
@@ -1562,7 +1565,7 @@ TYPED_TEST_P(DwarfOpTest, op_bregx) {
 }
 
 TYPED_TEST_P(DwarfOpTest, op_nop) {
-  this->op_memory_.SetMemory(0, std::vector<uint8_t>{0x96});
+  this->op_memory_->SetMemory(0, std::vector<uint8_t>{0x96});
 
   ASSERT_TRUE(this->op_->Decode());
   ASSERT_EQ(0x96, this->op_->cur_op());
@@ -1571,7 +1574,7 @@ TYPED_TEST_P(DwarfOpTest, op_nop) {
 
 TYPED_TEST_P(DwarfOpTest, is_dex_pc) {
   // Special sequence that indicates this is a dex pc.
-  this->op_memory_.SetMemory(0, std::vector<uint8_t>{0x0c, 'D', 'E', 'X', '1', 0x13});
+  this->op_memory_->SetMemory(0, std::vector<uint8_t>{0x0c, 'D', 'E', 'X', '1', 0x13});
 
   ASSERT_TRUE(this->op_->Eval(0, 6));
   EXPECT_TRUE(this->op_->dex_pc_set());
@@ -1581,7 +1584,7 @@ TYPED_TEST_P(DwarfOpTest, is_dex_pc) {
   EXPECT_FALSE(this->op_->dex_pc_set());
 
   // Change the constant.
-  this->op_memory_.SetMemory(0, std::vector<uint8_t>{0x0c, 'D', 'E', 'X', '2', 0x13});
+  this->op_memory_->SetMemory(0, std::vector<uint8_t>{0x0c, 'D', 'E', 'X', '2', 0x13});
   ASSERT_TRUE(this->op_->Eval(0, 6));
   EXPECT_FALSE(this->op_->dex_pc_set());
 }

@@ -39,10 +39,10 @@ class DexFilesTest : public ::testing::Test {
  protected:
   void CreateFakeElf(MapInfo* map_info, uint64_t global_offset, uint64_t data_offset,
                      uint64_t data_vaddr, uint64_t data_size) {
-    MemoryFake* memory = new MemoryFake;
-    ElfFake* elf = new ElfFake(memory);
+    std::shared_ptr<Memory> fake_memory(new MemoryFake);
+    ElfFake* elf = new ElfFake(fake_memory);
     elf->FakeSetValid(true);
-    ElfInterfaceFake* interface = new ElfInterfaceFake(memory);
+    ElfInterfaceFake* interface = new ElfInterfaceFake(fake_memory);
     elf->FakeSetInterface(interface);
 
     interface->FakeSetGlobalVariable("__dex_debug_descriptor", global_offset);
