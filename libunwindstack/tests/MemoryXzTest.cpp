@@ -32,8 +32,8 @@ class MemoryXzTest : public ::testing::Test {
     std::string data;  // NB: It is actually binary data.
     EXPECT_TRUE(android::base::ReadFileToString(dir + filename, &data)) << filename;
     EXPECT_GT(data.size(), 0u);
-    auto memory = std::make_unique<MemoryBuffer>();
-    EXPECT_TRUE(memory->Resize(data.size()));
+    auto memory = std::make_unique<MemoryBuffer>(data.size());
+    EXPECT_EQ(data.size(), memory->Size());
     memcpy(memory->GetPtr(0), data.data(), data.size());
     return memory;
   }
