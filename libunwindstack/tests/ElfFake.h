@@ -126,6 +126,7 @@ class ElfInterface32Fake : public ElfInterface32 {
   virtual ~ElfInterface32Fake() = default;
 
   void FakeSetEhFrameInfo(const SectionInfo& info) { eh_frame_info_ = info; }
+  void FakeSetEhFrameHdrInfo(const SectionInfo& info) { eh_frame_hdr_info_ = info; }
   void FakeSetDebugFrameInfo(const SectionInfo& info) { debug_frame_info_ = info; }
 };
 
@@ -135,6 +136,7 @@ class ElfInterface64Fake : public ElfInterface64 {
   virtual ~ElfInterface64Fake() = default;
 
   void FakeSetEhFrameInfo(const SectionInfo& info) { eh_frame_info_ = info; }
+  void FakeSetEhFrameHdrInfo(const SectionInfo& info) { eh_frame_hdr_info_ = info; }
   void FakeSetDebugFrameInfo(const SectionInfo& info) { debug_frame_info_ = info; }
 };
 
