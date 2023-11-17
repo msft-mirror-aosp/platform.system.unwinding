@@ -108,11 +108,9 @@ std::shared_ptr<DexFile> DexFile::Create(uint64_t base_addr, uint64_t file_size,
   }
 
   // Fallback: make copy in local buffer.
-  std::unique_ptr<MemoryBuffer> copy(new MemoryBuffer);
-  if (!copy->Resize(file_size)) {
-    return nullptr;
-  }
-  if (!memory->ReadFully(base_addr, copy->GetPtr(0), file_size)) {
+  std::unique_ptr<MemoryBuffer> copy(new MemoryBuffer(file_size));
+  uint8_t* dst_ptr = copy->GetPtr(0);
+  if (dst_ptr == nullptr || !memory->ReadFully(base_addr, dst_ptr, file_size)) {
     return nullptr;
   }
   std::unique_ptr<art_api::dex::DexFile> dex;
