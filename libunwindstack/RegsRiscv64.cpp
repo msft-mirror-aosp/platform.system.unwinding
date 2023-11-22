@@ -116,11 +116,10 @@ Regs* RegsRiscv64::CreateFromUcontext(void* ucontext) {
 }
 
 bool RegsRiscv64::StepIfSignalHandler(uint64_t elf_offset, Elf* elf, Memory* process_memory) {
-  uint64_t data;
-  Memory* elf_memory = elf->memory();
   // Read from elf memory since it is usually more expensive to read from
   // process memory.
-  if (!elf_memory->ReadFully(elf_offset, &data, sizeof(data))) {
+  uint64_t data;
+  if (!elf->memory()->ReadFully(elf_offset, &data, sizeof(data))) {
     return false;
   }
   // Look for the kernel sigreturn function.

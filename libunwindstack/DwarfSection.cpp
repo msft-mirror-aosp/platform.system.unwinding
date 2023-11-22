@@ -41,7 +41,7 @@
 
 namespace unwindstack {
 
-DwarfSection::DwarfSection(Memory* memory) : memory_(memory) {}
+DwarfSection::DwarfSection(std::shared_ptr<Memory>& memory) : memory_(memory) {}
 
 bool DwarfSection::Step(uint64_t pc, Regs* regs, Memory* process_memory, bool* finished,
                         bool* is_signal_frame) {
@@ -629,15 +629,18 @@ bool DwarfSectionImpl<AddressType>::Log(uint8_t indent, uint64_t pc, const Dwarf
 }
 
 template <typename AddressType>
-bool DwarfSectionImpl<AddressType>::Init(uint64_t offset, uint64_t size, int64_t section_bias) {
-  section_bias_ = section_bias;
-  entries_offset_ = offset;
-  entries_end_ = offset + size;
+bool DwarfSectionImpl<AddressType>::Init(const SectionInfo& info) {
+  if (info.flags & SHF_COMPRESSED) {
+    return false;
+  }
+  section_bias_ = info.bias;
+  entries_offset_ = info.offset;
+  entries_end_ = info.offset + info.size;
 
   memory_.clear_func_offset();
   memory_.clear_text_offset();
-  memory_.set_cur_offset(offset);
-  pc_offset_ = offset;
+  memory_.set_cur_offset(info.offset);
+  pc_offset_ = info.offset;
 
   return true;
 }

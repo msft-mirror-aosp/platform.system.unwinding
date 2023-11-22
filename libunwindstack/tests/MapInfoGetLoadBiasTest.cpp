@@ -48,7 +48,8 @@ class MapInfoGetLoadBiasTest : public ::testing::Test {
   void SetUp() override {
     memory_ = new MemoryFake;
     process_memory_.reset(memory_);
-    elf_ = new ElfFake(new MemoryFake);
+    std::shared_ptr<Memory> memory(new MemoryFake);
+    elf_ = new ElfFake(memory);
     elf_container_.reset(elf_);
     map_info_ = MapInfo::Create(0x1000, 0x20000, 0, PROT_READ | PROT_WRITE, "");
   }
