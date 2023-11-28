@@ -86,10 +86,12 @@ void ElfPushFakeStepData(FuzzedDataProvider* data_provider) {
 
 ElfFake* PopulateElfFake(FuzzedDataProvider* data_provider) {
   // This will be passed to a smart pointer in ElfAddMapInfo.
-  ElfFake* elf = new ElfFake(new MemoryFake);
+  std::shared_ptr<Memory> memory(new MemoryFake);
+  ElfFake* elf = new ElfFake(memory);
 
   // This will be handled by a smart pointer within Elf.
-  ElfInterfaceFake* interface_fake = new ElfInterfaceFake(nullptr);
+  std::shared_ptr<Memory> empty;
+  ElfInterfaceFake* interface_fake = new ElfInterfaceFake(empty);
   std::string build_id = data_provider->ConsumeRandomLengthString(kMaxBuildIdLen);
   interface_fake->FakeSetBuildID(build_id);
   std::string so_name = data_provider->ConsumeRandomLengthString(kMaxSoNameLen);

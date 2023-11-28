@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <memory>
+
 #include <unwindstack/DwarfSection.h>
 #include <unwindstack/ElfInterface.h>
 #include <unwindstack/Memory.h>
@@ -25,7 +27,7 @@ namespace unwindstack {
 template <typename TypeParam>
 class DwarfSectionImplFake : public DwarfSectionImpl<TypeParam> {
  public:
-  DwarfSectionImplFake(Memory* memory) : DwarfSectionImpl<TypeParam>(memory) {}
+  DwarfSectionImplFake(std::shared_ptr<Memory>& memory) : DwarfSectionImpl<TypeParam>(memory) {}
   virtual ~DwarfSectionImplFake() = default;
 
   bool Init(const SectionInfo&) override { return false; }
