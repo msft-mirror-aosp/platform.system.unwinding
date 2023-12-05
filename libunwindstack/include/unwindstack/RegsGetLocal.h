@@ -129,7 +129,7 @@ inline __attribute__((__always_inline__)) void AsmGetRegs(void* reg_data) {
 
 #elif defined(__i386__) || defined(__x86_64__)
 
-extern "C" void AsmGetRegs(void* regs);
+void AsmGetRegs(void* regs);
 
 #endif
 
