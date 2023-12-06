@@ -196,9 +196,11 @@ cc_library {
         },
         android: {
             runtime_libs: ["libdexfile"], // libdexfile_support dependency
+            version_script: "exported.map",
         },
         linux: {
             runtime_libs: ["libdexfile"], // libdexfile_support dependency
+            version_script: "exported.map",
         },
     },
 

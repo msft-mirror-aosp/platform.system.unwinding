@@ -26,6 +26,9 @@
  * SUCH DAMAGE.
  */
 
+// Use the mangled name to make it easy to export functions.
+#define AsmGetRegs _ZN11unwindstack10AsmGetRegsEPv
+
   .text
   .global AsmGetRegs
   .balign 16
