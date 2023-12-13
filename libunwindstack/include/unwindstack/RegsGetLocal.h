@@ -129,6 +129,8 @@ inline __attribute__((__always_inline__)) void AsmGetRegs(void* reg_data) {
 
 #elif defined(__i386__) || defined(__x86_64__)
 
+// Do not change this, some libraries depend on this function existing on
+// these architectures.
 extern "C" void AsmGetRegs(void* regs);
 
 #endif
