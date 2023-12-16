@@ -202,6 +202,24 @@ cc_library {
         },
     },
 
+    arch: {
+        arm: {
+            version_script: "exported.map",
+        },
+        arm64: {
+            version_script: "exported.map",
+        },
+        riscv64: {
+            version_script: "exported.map",
+        },
+        x86: {
+            version_script: "exported_x86.map",
+        },
+        x86_64: {
+            version_script: "exported_x86.map",
+        },
+    },
+
     apex_available: [
         "//apex_available:platform",
         "com.android.art",
