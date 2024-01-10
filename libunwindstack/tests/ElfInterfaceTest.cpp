@@ -15,17 +15,24 @@
  */
 
 #include <elf.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 
 #include <memory>
+#include <vector>
 
+#include <android-base/unique_fd.h>
 #include <gtest/gtest.h>
 
 #include <unwindstack/ElfInterface.h>
 
 #include "DwarfEncoding.h"
 #include "ElfInterfaceArm.h"
+#include "MemoryRange.h"
 
 #include "ElfFake.h"
+#include "ElfTestUtils.h"
 #include "utils/MemoryFake.h"
 
 #if !defined(PT_ARM_EXIDX)
@@ -1975,6 +1982,159 @@ TEST_F(ElfInterfaceTest, huge_gnu_debugdata_size) {
   interface.FakeSetGnuDebugdataSize(0x33333334);
 #endif
   ASSERT_TRUE(interface.CreateGnuDebugdataMemory() == nullptr);
+}
+
+TEST_F(ElfInterfaceTest, compressed_eh_frames) {
+  SectionInfo eh_hdr_info = {.offset = 0x1000};
+  uint8_t data[5] = {/*version*/ 1, /*ptr_encoding DW_EH_PE_omit*/ 0xff,
+                     /*fde_count_encoding DW_EH_PE_udata1*/ 0xd,
+                     /*table_encoding DW_EH_PE_absptr*/ 0, /*fde_count*/ 1};
+  fake_memory_->SetMemory(0x1000, data, sizeof(data));
+  SectionInfo eh_info = {.offset = 0x2000};
+
+  // Verify that the eh_frame and eh_frame_hdr are created properly.
+  ElfInterface32Fake interface(memory_);
+  eh_hdr_info.flags = 0;
+  interface.FakeSetEhFrameHdrInfo(eh_hdr_info);
+  eh_info.flags = 0;
+  interface.FakeSetEhFrameInfo(eh_info);
+  interface.InitHeaders();
+  EXPECT_NE(0U, interface.eh_frame_hdr_info().offset);
+  EXPECT_NE(0U, interface.eh_frame_info().offset);
+  EXPECT_TRUE(interface.eh_frame() != nullptr);
+
+  // Init setting SHF_COMPRESSED for both sections, both should fail to init.
+  ElfInterface32Fake interface_both(memory_);
+  eh_hdr_info.flags = 0x800;
+  interface_both.FakeSetEhFrameHdrInfo(eh_hdr_info);
+  eh_info.flags = 0x800;
+  interface_both.FakeSetEhFrameInfo(eh_info);
+  interface_both.InitHeaders();
+  EXPECT_EQ(0U, interface_both.eh_frame_hdr_info().offset);
+  EXPECT_EQ(0U, interface_both.eh_frame_info().offset);
+  EXPECT_TRUE(interface_both.eh_frame() == nullptr);
+
+  // Init setting SHF_COMPRESSED for only the eh_frame_hdr, eh_frame should init.
+  ElfInterface32Fake interface_hdr(memory_);
+  eh_hdr_info.flags = 0x800;
+  interface_hdr.FakeSetEhFrameHdrInfo(eh_hdr_info);
+  eh_info.flags = 0;
+  interface_hdr.FakeSetEhFrameInfo(eh_info);
+  interface_hdr.InitHeaders();
+  EXPECT_EQ(0U, interface_hdr.eh_frame_hdr_info().offset);
+  EXPECT_NE(0U, interface_hdr.eh_frame_info().offset);
+  EXPECT_TRUE(interface_hdr.eh_frame() != nullptr);
+
+  // Init setting SHF_COMPRESSED for only the eh_frame, both should fail to init.
+  ElfInterface32Fake interface_eh(memory_);
+  eh_hdr_info.flags = 0;
+  interface_eh.FakeSetEhFrameHdrInfo(eh_hdr_info);
+  eh_info.flags = 0x800;
+  interface_eh.FakeSetEhFrameInfo(eh_info);
+  interface_eh.InitHeaders();
+  EXPECT_EQ(0U, interface_eh.eh_frame_hdr_info().offset);
+  EXPECT_EQ(0U, interface_eh.eh_frame_info().offset);
+  EXPECT_TRUE(interface_eh.eh_frame() == nullptr);
+}
+
+TEST_F(ElfInterfaceTest, compressed_debug_frame_fde_verify) {
+  std::string lib_dir = TestGetFileDirectory() + "libs/";
+  auto elf_memory = Memory::CreateFileMemory(lib_dir + "libc.so", 0);
+  Elf elf(elf_memory);
+  ASSERT_TRUE(elf.Init());
+  ASSERT_TRUE(elf.valid());
+  auto section = elf.interface()->debug_frame();
+  ASSERT_TRUE(section != nullptr);
+
+  elf_memory = Memory::CreateFileMemory(lib_dir + "libc_zlib.so", 0);
+  Elf elf_zlib(elf_memory);
+  ASSERT_TRUE(elf_zlib.Init());
+  ASSERT_TRUE(elf_zlib.valid());
+  auto section_zlib = elf_zlib.interface()->debug_frame();
+  ASSERT_TRUE(section_zlib != nullptr);
+
+  elf_memory = Memory::CreateFileMemory(lib_dir + "libc_zstd.so", 0);
+  Elf elf_zstd(elf_memory);
+  ASSERT_TRUE(elf_zstd.Init());
+  ASSERT_TRUE(elf_zstd.valid());
+  auto section_zstd = elf_zstd.interface()->debug_frame();
+  ASSERT_TRUE(section_zstd != nullptr);
+
+  auto iter = section->begin();
+  auto iter_zlib = section_zlib->begin();
+  auto iter_zstd = section_zstd->begin();
+
+  // Check that all of the fdes are in the same order, and contain the same data.
+  size_t total_fdes = 0;
+  while (iter != section->end() && iter_zlib != section_zlib->end() &&
+         iter_zstd != section_zstd->end()) {
+    ASSERT_TRUE(iter != section->end());
+    ASSERT_TRUE(iter_zlib != section_zlib->end());
+    ASSERT_TRUE(iter_zstd != section_zstd->end());
+    auto fde = *iter;
+    auto fde_zlib = *iter_zlib;
+    auto fde_zstd = *iter_zstd;
+    EXPECT_EQ(fde->cie_offset, fde_zlib->cie_offset);
+    EXPECT_EQ(fde->cie_offset, fde_zstd->cie_offset);
+    EXPECT_EQ(fde->cfa_instructions_offset, fde_zlib->cfa_instructions_offset);
+    EXPECT_EQ(fde->cfa_instructions_offset, fde_zstd->cfa_instructions_offset);
+    EXPECT_EQ(fde->cfa_instructions_end, fde_zlib->cfa_instructions_end);
+    EXPECT_EQ(fde->cfa_instructions_end, fde_zstd->cfa_instructions_end);
+    EXPECT_EQ(fde->pc_start, fde_zlib->pc_start);
+    EXPECT_EQ(fde->pc_start, fde_zstd->pc_start);
+    EXPECT_EQ(fde->pc_end, fde_zlib->pc_end);
+    EXPECT_EQ(fde->pc_end, fde_zstd->pc_end);
+    EXPECT_EQ(fde->lsda_address, fde_zlib->lsda_address);
+    EXPECT_EQ(fde->lsda_address, fde_zstd->lsda_address);
+    ++iter;
+    ++iter_zlib;
+    ++iter_zstd;
+    ++total_fdes;
+  }
+  EXPECT_EQ(2320U, total_fdes);
+}
+
+TEST_F(ElfInterfaceTest, compressed_debug_frame_from_memory) {
+  std::string lib_dir = TestGetFileDirectory() + "libs/";
+  android::base::unique_fd fd(
+      TEMP_FAILURE_RETRY(open((lib_dir + "libc_zstd.so").c_str(), O_RDONLY | O_CLOEXEC)));
+  ASSERT_NE(-1, fd);
+  struct stat buf;
+  ASSERT_NE(-1, fstat(fd, &buf));
+  void* map_addr = mmap(nullptr, buf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  ASSERT_NE(MAP_FAILED, map_addr);
+  auto process_memory = Memory::CreateProcessMemory(getpid());
+  std::shared_ptr<Memory> elf_memory(
+      new MemoryRange(process_memory, reinterpret_cast<uint64_t>(map_addr), buf.st_size, 0));
+
+  Elf elf(elf_memory);
+  ASSERT_TRUE(elf.Init());
+  ASSERT_TRUE(elf.valid());
+  auto section = elf.interface()->debug_frame();
+  ASSERT_TRUE(section != nullptr);
+
+  // Don't check all of the fdes, just verify the first one.
+  std::vector<const DwarfFde*> fdes;
+  section->GetFdes(&fdes);
+  EXPECT_EQ(0x9309cU, fdes[0]->cie_offset);
+  EXPECT_EQ(0x930c0U, fdes[0]->cfa_instructions_offset);
+  EXPECT_EQ(0x930c0U, fdes[0]->cfa_instructions_end);
+  EXPECT_EQ(0U, fdes[0]->pc_start);
+  EXPECT_EQ(2U, fdes[0]->pc_end);
+  EXPECT_EQ(0U, fdes[0]->lsda_address);
+  EXPECT_EQ(2320U, fdes.size());
+
+  munmap(map_addr, buf.st_size);
+}
+
+TEST_F(ElfInterfaceTest, bad_compressed_debug_frame) {
+  std::string lib_dir = TestGetFileDirectory() + "libs/";
+  auto elf_memory = Memory::CreateFileMemory(TestGetFileDirectory() + "libs/elf_bad_compress", 0);
+  Elf elf(elf_memory);
+  ASSERT_TRUE(elf.Init());
+  ASSERT_TRUE(elf.valid());
+  // This elf file has a compressed debug frame, but it's bad compress data.
+  ASSERT_TRUE(elf.interface()->debug_frame() == nullptr);
 }
 
 }  // namespace unwindstack

@@ -36,6 +36,7 @@ class MemoryBuffer : public Memory {
 
   uint8_t* GetPtr(size_t offset) override;
 
+  uint8_t* Data() { return raw_.data(); }
   uint64_t Size() { return raw_.size(); }
 
  private:
