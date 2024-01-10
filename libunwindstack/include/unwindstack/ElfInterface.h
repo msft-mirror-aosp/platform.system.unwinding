@@ -57,6 +57,7 @@ enum : uint8_t {
 
 struct ElfTypes32 {
   using AddressType = uint32_t;
+  using Chdr = Elf32_Chdr;
   using Dyn = Elf32_Dyn;
   using Ehdr = Elf32_Ehdr;
   using Nhdr = Elf32_Nhdr;
@@ -67,6 +68,7 @@ struct ElfTypes32 {
 
 struct ElfTypes64 {
   using AddressType = uint64_t;
+  using Chdr = Elf64_Chdr;
   using Dyn = Elf64_Dyn;
   using Ehdr = Elf64_Ehdr;
   using Nhdr = Elf64_Nhdr;
@@ -184,6 +186,7 @@ template <typename ElfTypes>
 class ElfInterfaceImpl : public ElfInterface {
  public:
   using AddressType = typename ElfTypes::AddressType;
+  using ChdrType = typename ElfTypes::Chdr;
   using DynType = typename ElfTypes::Dyn;
   using EhdrType = typename ElfTypes::Ehdr;
   using NhdrType = typename ElfTypes::Nhdr;
