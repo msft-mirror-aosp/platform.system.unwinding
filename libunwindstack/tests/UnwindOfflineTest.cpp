@@ -1689,5 +1689,77 @@ TEST_F(UnwindOfflineTest, apk_soname_at_end_arm64) {
   EXPECT_EQ(0x7ff9ec4c10ULL, unwinder.frames()[2].sp);
 }
 
+// Unwind through libraries with debug_frames compressed with zstd.
+TEST_F(UnwindOfflineTest, zstd_compress_arm) {
+  std::string error_msg;
+  if (!offline_utils_.Init({.offline_files_dir = "zstd_compress_arm/", .arch = ARCH_ARM},
+                           &error_msg))
+    FAIL() << error_msg;
+
+  Regs* regs = offline_utils_.GetRegs();
+  std::unique_ptr<Regs> regs_copy(regs->Clone());
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, offline_utils_.GetProcessMemory());
+  unwinder.Unwind();
+
+  size_t expected_num_frames;
+  if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg)) FAIL() << error_msg;
+  std::string expected_frame_info;
+  if (!GetExpectedSamplesFrameInfo(&expected_frame_info, &error_msg)) FAIL() << error_msg;
+
+  std::string frame_info(DumpFrames(unwinder));
+  ASSERT_EQ(expected_num_frames, unwinder.NumFrames()) << "Unwind:\n" << frame_info;
+  EXPECT_EQ(expected_frame_info, frame_info);
+  EXPECT_EQ(0xf7868324ULL, unwinder.frames()[0].pc);
+  EXPECT_EQ(0xf779eae0ULL, unwinder.frames()[0].sp);
+  EXPECT_EQ(0xf77dd1e3ULL, unwinder.frames()[1].pc);
+  EXPECT_EQ(0xf779eaf0ULL, unwinder.frames()[1].sp);
+  EXPECT_EQ(0xf786dc40ULL, unwinder.frames()[2].pc);
+  EXPECT_EQ(0xf779ec90ULL, unwinder.frames()[2].sp);
+  EXPECT_EQ(0xf6ebeeaeULL, unwinder.frames()[3].pc);
+  EXPECT_EQ(0xff7fa398ULL, unwinder.frames()[3].sp);
+  EXPECT_EQ(0xbafff4fULL, unwinder.frames()[4].pc);
+  EXPECT_EQ(0xff7fa468ULL, unwinder.frames()[4].sp);
+  EXPECT_EQ(0xbb00337ULL, unwinder.frames()[5].pc);
+  EXPECT_EQ(0xff7fa478ULL, unwinder.frames()[5].sp);
+  EXPECT_EQ(0xbb01191ULL, unwinder.frames()[6].pc);
+  EXPECT_EQ(0xff7fa568ULL, unwinder.frames()[6].sp);
+}
+
+// Unwind through libraries with debug_frames compressed with zlib.
+TEST_F(UnwindOfflineTest, zlib_compress_arm) {
+  std::string error_msg;
+  if (!offline_utils_.Init({.offline_files_dir = "zlib_compress_arm/", .arch = ARCH_ARM},
+                           &error_msg))
+    FAIL() << error_msg;
+
+  Regs* regs = offline_utils_.GetRegs();
+  std::unique_ptr<Regs> regs_copy(regs->Clone());
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, offline_utils_.GetProcessMemory());
+  unwinder.Unwind();
+
+  size_t expected_num_frames;
+  if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg)) FAIL() << error_msg;
+  std::string expected_frame_info;
+  if (!GetExpectedSamplesFrameInfo(&expected_frame_info, &error_msg)) FAIL() << error_msg;
+
+  std::string frame_info(DumpFrames(unwinder));
+  ASSERT_EQ(expected_num_frames, unwinder.NumFrames()) << "Unwind:\n" << frame_info;
+  EXPECT_EQ(expected_frame_info, frame_info);
+  EXPECT_EQ(0xed8dc324ULL, unwinder.frames()[0].pc);
+  EXPECT_EQ(0xed812ae0ULL, unwinder.frames()[0].sp);
+  EXPECT_EQ(0xed8511f5ULL, unwinder.frames()[1].pc);
+  EXPECT_EQ(0xed812af0ULL, unwinder.frames()[1].sp);
+  EXPECT_EQ(0xed8e1c40ULL, unwinder.frames()[2].pc);
+  EXPECT_EQ(0xed812c90ULL, unwinder.frames()[2].sp);
+  EXPECT_EQ(0xecfc2eaeULL, unwinder.frames()[3].pc);
+  EXPECT_EQ(0xff96c328ULL, unwinder.frames()[3].sp);
+  EXPECT_EQ(0x2d72f4fULL, unwinder.frames()[4].pc);
+  EXPECT_EQ(0xff96c3f8ULL, unwinder.frames()[4].sp);
+  EXPECT_EQ(0x2d73337ULL, unwinder.frames()[5].pc);
+  EXPECT_EQ(0xff96c408ULL, unwinder.frames()[5].sp);
+  EXPECT_EQ(0x2d74191ULL, unwinder.frames()[6].pc);
+  EXPECT_EQ(0xff96c4f8ULL, unwinder.frames()[6].sp);
+}
+
 }  // namespace
 }  // namespace unwindstack
