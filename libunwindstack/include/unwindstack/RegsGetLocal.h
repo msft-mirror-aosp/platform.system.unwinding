@@ -120,6 +120,8 @@ inline __attribute__((__always_inline__)) void AsmGetRegs(void* reg_data) {
       "sd t4, 232(%[base])\n"
       "sd t5, 240(%[base])\n"
       "sd t6, 248(%[base])\n"
+      "csrr t1, 0xc22\n"
+      "sd t1, 256(%[base])\n"
       "la t1, 1b\n"
       "sd t1, 0(%[base])\n"
       : [base] "+r"(reg_data)
