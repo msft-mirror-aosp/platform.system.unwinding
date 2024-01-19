@@ -127,7 +127,6 @@ cc_defaults {
 
     whole_static_libs: [
         "librustc_demangle_static",
-        "libz_static",
         "libzstd",
     ],
 
@@ -135,6 +134,7 @@ cc_defaults {
         "libbase",
         "liblog",
         "liblzma",
+        "libz",
     ],
 }
 
