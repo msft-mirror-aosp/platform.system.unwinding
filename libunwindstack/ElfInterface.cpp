@@ -21,10 +21,14 @@
 #include <string>
 #include <utility>
 
+#include <zlib.h>
+#include <zstd.h>
+
 #include <unwindstack/DwarfError.h>
 #include <unwindstack/DwarfSection.h>
 #include <unwindstack/ElfInterface.h>
 #include <unwindstack/Log.h>
+#include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
 
 #include "DwarfDebugFrame.h"
@@ -90,12 +94,75 @@ std::shared_ptr<Memory> ElfInterface::CreateGnuDebugdataMemory() {
   return decompressed;
 }
 
+static bool ZlibDecompress(uint8_t* compressed_data, size_t compressed_size, MemoryBuffer* memory) {
+  z_stream stream;
+  stream.zalloc = Z_NULL;
+  stream.zfree = Z_NULL;
+  stream.opaque = Z_NULL;
+  if (inflateInit(&stream) != Z_OK) {
+    return false;
+  }
+  stream.next_in = compressed_data;
+  stream.avail_in = compressed_size;
+  stream.next_out = memory->Data();
+  stream.avail_out = memory->Size();
+  int ret = inflate(&stream, Z_FINISH);
+  if (inflateEnd(&stream) != Z_OK) {
+    return false;
+  }
+  return ret == Z_STREAM_END;
+}
+
+static bool ZstdDecompress(uint8_t* compressed_data, size_t compressed_size, MemoryBuffer* memory) {
+  size_t decompress_size =
+      ZSTD_decompress(memory->Data(), memory->Size(), compressed_data, compressed_size);
+  return memory->Size() == decompress_size;
+}
+
+template <typename ChdrType>
+std::shared_ptr<Memory> CreateMemoryFromCompressedSection(SectionInfo& info,
+                                                          std::shared_ptr<Memory>& elf_memory) {
+  if (info.size < sizeof(ChdrType)) {
+    return nullptr;
+  }
+
+  uint8_t* compressed_data = elf_memory->GetPtr(info.offset);
+  std::vector<uint8_t> compressed;
+  if (compressed_data == nullptr || elf_memory->GetPtr(info.offset + info.size - 1) == nullptr) {
+    compressed.resize(info.size);
+    if (!elf_memory->ReadFully(info.offset, compressed.data(), info.size)) {
+      return nullptr;
+    }
+    compressed_data = compressed.data();
+  }
+
+  ChdrType* chdr = reinterpret_cast<ChdrType*>(compressed_data);
+  std::shared_ptr<MemoryBuffer> memory(new MemoryBuffer(chdr->ch_size, info.offset));
+
+  bool ret = false;
+  if (chdr->ch_type == ELFCOMPRESS_ZLIB) {
+    ret = ZlibDecompress(&compressed_data[sizeof(ChdrType)], info.size - sizeof(ChdrType),
+                         memory.get());
+  } else if (chdr->ch_type == ELFCOMPRESS_ZSTD) {
+    ret = ZstdDecompress(&compressed_data[sizeof(ChdrType)], info.size - sizeof(ChdrType),
+                         memory.get());
+  }
+  if (!ret) {
+    return nullptr;
+  }
+  // Set the section info to match the uncompressed section data.
+  info.size = chdr->ch_size;
+  info.flags &= ~SHF_COMPRESSED;
+  return memory;
+}
+
 template <typename ElfTypes>
 void ElfInterfaceImpl<ElfTypes>::InitHeaders() {
   if (eh_frame_hdr_info_.offset != 0) {
     DwarfEhFrameWithHdr<AddressType>* eh_frame_hdr = new DwarfEhFrameWithHdr<AddressType>(memory_);
     eh_frame_.reset(eh_frame_hdr);
     if (!eh_frame_hdr->EhFrameInit(eh_frame_info_) || !eh_frame_->Init(eh_frame_hdr_info_)) {
+      eh_frame_hdr_info_ = {};
       eh_frame_.reset(nullptr);
     }
   }
@@ -105,17 +172,17 @@ void ElfInterfaceImpl<ElfTypes>::InitHeaders() {
     // or using the frame hdr object failed to init.
     eh_frame_.reset(new DwarfEhFrame<AddressType>(memory_));
     if (!eh_frame_->Init(eh_frame_info_)) {
+      eh_frame_info_ = {};
       eh_frame_.reset(nullptr);
     }
   }
 
-  if (eh_frame_.get() == nullptr) {
-    eh_frame_hdr_info_ = {};
-    eh_frame_info_ = {};
-  }
-
   if (debug_frame_info_.offset != 0) {
-    debug_frame_.reset(new DwarfDebugFrame<AddressType>(memory_));
+    std::shared_ptr<Memory> debug_memory = memory_;
+    if (debug_frame_info_.flags & SHF_COMPRESSED) {
+      debug_memory = CreateMemoryFromCompressedSection<ChdrType>(debug_frame_info_, memory_);
+    }
+    debug_frame_.reset(new DwarfDebugFrame<AddressType>(debug_memory));
     if (!debug_frame_->Init(debug_frame_info_)) {
       debug_frame_.reset(nullptr);
       debug_frame_info_ = {};
