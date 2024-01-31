@@ -40,6 +40,7 @@
 #include "MemoryCache.h"
 #include "MemoryFileAtOffset.h"
 #include "MemoryLocal.h"
+#include "MemoryLocalUnsafe.h"
 #include "MemoryOffline.h"
 #include "MemoryOfflineBuffer.h"
 #include "MemoryRange.h"
@@ -199,6 +200,10 @@ std::shared_ptr<Memory> Memory::CreateFileMemory(const std::string& path, uint64
   }
 
   return nullptr;
+}
+
+std::shared_ptr<Memory> Memory::CreateProcessMemoryLocalUnsafe() {
+  return std::shared_ptr<Memory>(new MemoryLocalUnsafe());
 }
 
 std::shared_ptr<Memory> Memory::CreateProcessMemory(pid_t pid) {
@@ -579,6 +584,12 @@ void MemoryThreadCache::Clear() {
     delete cache;
     pthread_setspecific(*thread_cache_, nullptr);
   }
+}
+
+size_t MemoryLocalUnsafe::Read(uint64_t addr, void* dst, size_t size) {
+  void* raw_ptr = reinterpret_cast<void*>(addr);
+  memcpy(dst, raw_ptr, size);
+  return size;
 }
 
 }  // namespace unwindstack
