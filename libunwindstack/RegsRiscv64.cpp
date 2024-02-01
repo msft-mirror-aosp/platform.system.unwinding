@@ -97,8 +97,8 @@ void RegsRiscv64::IterateRegisters(std::function<void(const char*, uint64_t)> fn
   fn("a7", regs_[RISCV64_REG_A7]);
 }
 
-Regs* RegsRiscv64::Read(void* remote_data) {
-  riscv64_user_regs* user = reinterpret_cast<riscv64_user_regs*>(remote_data);
+Regs* RegsRiscv64::Read(const void* remote_data) {
+  const riscv64_user_regs* user = reinterpret_cast<const riscv64_user_regs*>(remote_data);
 
   RegsRiscv64* regs = new RegsRiscv64();
   memcpy(regs->RawData(), &user->regs[0], RISCV64_REG_MAX * sizeof(uint64_t));
