@@ -80,8 +80,8 @@ void RegsArm::IterateRegisters(std::function<void(const char*, uint64_t)> fn) {
   fn("pc", regs_[ARM_REG_PC]);
 }
 
-Regs* RegsArm::Read(void* remote_data) {
-  arm_user_regs* user = reinterpret_cast<arm_user_regs*>(remote_data);
+Regs* RegsArm::Read(const void* remote_data) {
+  const arm_user_regs* user = reinterpret_cast<const arm_user_regs*>(remote_data);
 
   RegsArm* regs = new RegsArm();
   memcpy(regs->RawData(), &user->regs[0], ARM_REG_LAST * sizeof(uint32_t));

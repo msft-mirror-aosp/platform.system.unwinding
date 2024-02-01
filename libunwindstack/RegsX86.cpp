@@ -74,8 +74,8 @@ void RegsX86::IterateRegisters(std::function<void(const char*, uint64_t)> fn) {
   fn("eip", regs_[X86_REG_EIP]);
 }
 
-Regs* RegsX86::Read(void* user_data) {
-  x86_user_regs* user = reinterpret_cast<x86_user_regs*>(user_data);
+Regs* RegsX86::Read(const void* user_data) {
+  const x86_user_regs* user = reinterpret_cast<const x86_user_regs*>(user_data);
 
   RegsX86* regs = new RegsX86();
   (*regs)[X86_REG_EAX] = user->eax;
