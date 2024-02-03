@@ -127,6 +127,8 @@ cc_defaults {
 
     whole_static_libs: [
         "librustc_demangle_static",
+        "libz_static",
+        "libzstd",
     ],
 
     shared_libs: [
@@ -202,10 +204,29 @@ cc_library {
         },
     },
 
+    arch: {
+        arm: {
+            version_script: "exported.map",
+        },
+        arm64: {
+            version_script: "exported.map",
+        },
+        riscv64: {
+            version_script: "exported.map",
+        },
+        x86: {
+            version_script: "exported_x86.map",
+        },
+        x86_64: {
+            version_script: "exported_x86.map",
+        },
+    },
+
     apex_available: [
         "//apex_available:platform",
         "com.android.art",
         "com.android.art.debug",
+        "com.android.runtime",
     ],
     min_sdk_version: "29",
 }
@@ -326,6 +347,7 @@ cc_defaults {
         "tests/MemoryCacheTest.cpp",
         "tests/MemoryFileTest.cpp",
         "tests/MemoryLocalTest.cpp",
+        "tests/MemoryLocalUnsafeTest.cpp",
         "tests/MemoryOfflineBufferTest.cpp",
         "tests/MemoryOfflineTest.cpp",
         "tests/MemoryRangeTest.cpp",
@@ -376,6 +398,7 @@ cc_defaults {
         "tests/files/boot_arm.oat.gnu_debugdata.xz.one-block",
         "tests/files/elf32.xz",
         "tests/files/elf64.xz",
+        "tests/files/libs/*",
         "offline_files/common/*",
         "offline_files/apk_rorx_arm64/*",
         "offline_files/apk_rorx_unreadable_arm64/*",
@@ -418,6 +441,8 @@ cc_defaults {
         "offline_files/maps_compiled_arm64/28648/*",
         "offline_files/maps_compiled_arm64/28656_oat_odex_jar/*",
         "offline_files/maps_compiled_arm64/28667/*",
+        "offline_files/zlib_compress_arm/*",
+        "offline_files/zstd_compress_arm/*",
     ],
 
     target: {
