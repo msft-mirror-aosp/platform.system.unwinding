@@ -202,6 +202,9 @@ cc_library {
         linux: {
             runtime_libs: ["libdexfile"], // libdexfile_support dependency
         },
+        musl: {
+            cflags: ["-DNT_RISCV_VECTOR=0x901"],
+        },
     },
 
     arch: {
@@ -441,6 +444,7 @@ cc_defaults {
         "offline_files/maps_compiled_arm64/28648/*",
         "offline_files/maps_compiled_arm64/28656_oat_odex_jar/*",
         "offline_files/maps_compiled_arm64/28667/*",
+        "offline_files/vlenb_riscv64/*",
         "offline_files/zlib_compress_arm/*",
         "offline_files/zstd_compress_arm/*",
     ],

@@ -22,6 +22,7 @@
 
 #include <unwindstack/Elf.h>
 #include <unwindstack/ElfInterface.h>
+#include <unwindstack/MachineRiscv64.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
@@ -178,6 +179,21 @@ TEST_F(RegsTest, elf_invalid) {
   EXPECT_EQ(1U, GetPcAdjustment(0x800U, invalid_elf, ARCH_X86_64));
 }
 
+TEST_F(RegsTest, regs_convert) {
+  RegsArm arm;
+  EXPECT_EQ(0, arm.Convert(0));
+  EXPECT_EQ(0x1c22, arm.Convert(0x1c22));
+  RegsArm64 arm64;
+  EXPECT_EQ(0, arm64.Convert(0));
+  EXPECT_EQ(0x1c22, arm64.Convert(0x1c22));
+  RegsX86 x86;
+  EXPECT_EQ(0, x86.Convert(0));
+  EXPECT_EQ(0x1c22, x86.Convert(0x1c22));
+  RegsX86_64 x86_64;
+  EXPECT_EQ(0, x86_64.Convert(0));
+  EXPECT_EQ(0x1c22, x86_64.Convert(0x1c22));
+}
+
 TEST_F(RegsTest, arm_verify_sp_pc) {
   RegsArm arm;
   uint32_t* regs = reinterpret_cast<uint32_t*>(arm.RawData());
@@ -203,6 +219,14 @@ TEST_F(RegsTest, riscv64_verify_sp_pc) {
   regs[0] = 0x1abcd0000ULL;
   EXPECT_EQ(0x212340000U, riscv64.sp());
   EXPECT_EQ(0x1abcd0000U, riscv64.pc());
+}
+
+TEST_F(RegsTest, riscv_convert) {
+  RegsRiscv64 regs;
+  EXPECT_EQ(0, regs.Convert(0));
+  EXPECT_EQ(RISCV64_REG_REAL_COUNT - 1, regs.Convert(RISCV64_REG_REAL_COUNT - 1));
+  EXPECT_EQ(RISCV64_REG_VLENB, regs.Convert(0x1c22));
+  EXPECT_EQ(RISCV64_REG_COUNT, regs.Convert(RISCV64_REG_VLENB));
 }
 
 TEST_F(RegsTest, x86_verify_sp_pc) {
