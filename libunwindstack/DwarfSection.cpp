@@ -450,7 +450,7 @@ bool DwarfSectionImpl<AddressType>::EvalRegister(const DwarfLocation* loc, uint3
       *reg_ptr = eval_info->cfa + loc->values[0];
       break;
     case DWARF_LOCATION_REGISTER: {
-      uint32_t cur_reg = loc->values[0];
+      uint16_t cur_reg = eval_info->regs_info.regs->Convert(loc->values[0]);
       if (cur_reg >= eval_info->regs_info.Total()) {
         last_error_.code = DWARF_ERROR_ILLEGAL_VALUE;
         return false;
