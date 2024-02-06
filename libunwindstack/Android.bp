@@ -15,6 +15,7 @@
 //
 
 package {
+    default_team: "trendy_team_native_tools_libraries",
     default_applicable_licenses: [
         "Android-Apache-2.0",
         "system_unwinding_libunwindstack_license",
@@ -41,7 +42,7 @@ cc_defaults {
         "-Wextra",
         "-Wno-deprecated-volatile",
         // Disable this warning, it doesn't provide any useful data.
-        "-Wno-reorder-init-list"
+        "-Wno-reorder-init-list",
     ],
 
     target: {
