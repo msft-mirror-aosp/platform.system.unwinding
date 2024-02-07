@@ -1761,5 +1761,43 @@ TEST_F(UnwindOfflineTest, zlib_compress_arm) {
   EXPECT_EQ(0xff96c4f8ULL, unwinder.frames()[6].sp);
 }
 
+// Make sure that an unwind using vlenb works properly.
+TEST_F(UnwindOfflineTest, vlenb_riscv64) {
+  std::string error_msg;
+  if (!offline_utils_.Init({.offline_files_dir = "vlenb_riscv64/", .arch = ARCH_RISCV64},
+                           &error_msg))
+    FAIL() << error_msg;
+
+  Regs* regs = offline_utils_.GetRegs();
+  std::unique_ptr<Regs> regs_copy(regs->Clone());
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, offline_utils_.GetProcessMemory());
+  unwinder.Unwind();
+
+  size_t expected_num_frames;
+  if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg)) FAIL() << error_msg;
+  std::string expected_frame_info;
+  if (!GetExpectedSamplesFrameInfo(&expected_frame_info, &error_msg)) FAIL() << error_msg;
+
+  std::string frame_info(DumpFrames(unwinder));
+  ASSERT_EQ(expected_num_frames, unwinder.NumFrames()) << "Unwind:\n" << frame_info;
+  EXPECT_EQ(expected_frame_info, frame_info);
+  EXPECT_EQ(0x555c440735dcULL, unwinder.frames()[0].pc);
+  EXPECT_EQ(0x7fffe388a680ULL, unwinder.frames()[0].sp);
+  EXPECT_EQ(0x555c4408bdfcULL, unwinder.frames()[1].pc);
+  EXPECT_EQ(0x7fffe388a6a0ULL, unwinder.frames()[1].sp);
+  EXPECT_EQ(0x555c4408cc76ULL, unwinder.frames()[2].pc);
+  EXPECT_EQ(0x7fffe388a6e0ULL, unwinder.frames()[2].sp);
+  EXPECT_EQ(0x555c4408d604ULL, unwinder.frames()[3].pc);
+  EXPECT_EQ(0x7fffe388a730ULL, unwinder.frames()[3].sp);
+  EXPECT_EQ(0x555c44099cd2ULL, unwinder.frames()[4].pc);
+  EXPECT_EQ(0x7fffe388a7b0ULL, unwinder.frames()[4].sp);
+  EXPECT_EQ(0x555c4409939eULL, unwinder.frames()[5].pc);
+  EXPECT_EQ(0x7fffe388a930ULL, unwinder.frames()[5].sp);
+  EXPECT_EQ(0x555c440a2c7cULL, unwinder.frames()[6].pc);
+  EXPECT_EQ(0x7fffe388a970ULL, unwinder.frames()[6].sp);
+  EXPECT_EQ(0x7ff2fdf27394ULL, unwinder.frames()[7].pc);
+  EXPECT_EQ(0x7fffe388bb20ULL, unwinder.frames()[7].sp);
+}
+
 }  // namespace
 }  // namespace unwindstack

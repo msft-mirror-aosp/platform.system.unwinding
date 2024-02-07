@@ -24,12 +24,12 @@
 
 #include <gtest/gtest.h>
 
+#include <unwindstack/AndroidUnwinder.h>
 #include <unwindstack/DwarfSection.h>
 #include <unwindstack/Elf.h>
 #include <unwindstack/ElfInterface.h>
-#include <unwindstack/Regs.h>
-#include <unwindstack/RegsGetLocal.h>
-#include <unwindstack/Unwinder.h>
+
+#include "ForkTest.h"
 
 // This test is specific to bionic to verify that __libc_init is
 // properly setting the return address to undefined so that the
@@ -37,11 +37,13 @@
 
 namespace unwindstack {
 
-static std::string DumpFrames(const UnwinderFromPid& unwinder) {
+using VerifyBionicTermination = ForkTest;
+
+static std::string DumpFrames(const AndroidUnwinderData& data, AndroidUnwinder& unwinder) {
   // Init this way so that the first frame of the backtrace starts on a new line.
   std::string unwind("\n");
-  for (size_t i = 0; i < unwinder.NumFrames(); i++) {
-    unwind += unwinder.FormatFrame(i) + '\n';
+  for (auto& frame : data.frames) {
+    unwind += unwinder.FormatFrame(frame) + '\n';
   }
   return unwind;
 }
@@ -90,36 +92,42 @@ static void VerifyReturnAddress(const FrameData& frame) {
   ASSERT_EQ(DWARF_LOCATION_UNDEFINED, location);
 }
 
-// This test assumes that it starts from the main thread, and that the
+// This assumes that the function starts from the main thread, and that the
 // libc.so on device will include symbols so that function names can
 // be resolved.
-TEST(VerifyBionicTermination, local_terminate) {
-  std::unique_ptr<Regs> regs(Regs::CreateFromLocal());
+static void VerifyLibcInitTerminate(AndroidUnwinder& unwinder) {
+  AndroidUnwinderData data;
+  ASSERT_TRUE(unwinder.Unwind(data));
 
-  UnwinderFromPid unwinder(512, getpid());
-  unwinder.SetRegs(regs.get());
-
-  RegsGetLocal(regs.get());
-  unwinder.Unwind();
-  ASSERT_LT(0U, unwinder.NumFrames());
-
-  SCOPED_TRACE(DumpFrames(unwinder));
+  SCOPED_TRACE(DumpFrames(data, unwinder));
 
   // Look for the frame that includes __libc_init, there should only
   // be one and it should be the last.
   bool found = false;
-  const std::vector<FrameData>& frames = unwinder.frames();
-  for (size_t i = 0; i < unwinder.NumFrames(); i++) {
+  const std::vector<FrameData>& frames = data.frames;
+  for (size_t i = 0; i < frames.size(); i++) {
     const FrameData& frame = frames[i];
     if (frame.function_name == "__libc_init" && frame.map_info != nullptr &&
         !frame.map_info->name().empty() &&
         std::string("libc.so") == basename(frame.map_info->name().c_str())) {
-      ASSERT_EQ(unwinder.NumFrames(), i + 1) << "__libc_init is not last frame.";
+      ASSERT_EQ(frames.size(), i + 1) << "__libc_init is not last frame.";
       ASSERT_NO_FATAL_FAILURE(VerifyReturnAddress(frame));
       found = true;
     }
   }
   ASSERT_TRUE(found) << "Unable to find libc.so:__libc_init frame\n";
+}
+
+TEST_F(VerifyBionicTermination, local_terminate) {
+  AndroidLocalUnwinder unwinder;
+  VerifyLibcInitTerminate(unwinder);
+}
+
+TEST_F(VerifyBionicTermination, remote_terminate) {
+  ASSERT_NO_FATAL_FAILURE(Fork());
+
+  AndroidRemoteUnwinder unwinder(pid_);
+  VerifyLibcInitTerminate(unwinder);
 }
 
 }  // namespace unwindstack
