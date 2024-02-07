@@ -189,6 +189,7 @@ std::vector<Register> ExpectedRegisters<RegsRiscv64>() {
   result.push_back({"a5", RISCV64_REG_A5});
   result.push_back({"a6", RISCV64_REG_A6});
   result.push_back({"a7", RISCV64_REG_A7});
+  result.push_back({"vlenb", RISCV64_REG_VLENB});
 
   return result;
 }

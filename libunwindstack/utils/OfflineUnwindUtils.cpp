@@ -384,20 +384,16 @@ bool ReadRegs(RegsImpl<AddressType>* regs,
   while (!feof(fp)) {
     uint64_t value;
     char reg_name[100];
-    if (fscanf(fp, "%s %" SCNx64 "\n", reg_name, &value) != 2) {
+    if (fscanf(fp, "%[^:]: %" SCNx64 "\n", reg_name, &value) != 2) {
       err_stream << "Failed to read in register name/values from '" << offline_files_path
                  << "regs.txt'.";
       *error_msg = err_stream.str();
       return false;
     }
     std::string name(reg_name);
-    if (!name.empty()) {
-      // Remove the : from the end.
-      name.resize(name.size() - 1);
-    }
     auto entry = name_to_reg.find(name);
     if (entry == name_to_reg.end()) {
-      err_stream << "Unknown register named " << reg_name;
+      err_stream << "Unknown register named " << name;
       *error_msg = err_stream.str();
       return false;
     }
@@ -513,7 +509,7 @@ std::unordered_map<std::string, uint32_t> OfflineUnwindUtils::riscv64_regs_ = {
     {"s8", RISCV64_REG_S8},   {"s9", RISCV64_REG_S9}, {"s10", RISCV64_REG_S10},
     {"s11", RISCV64_REG_S11}, {"t0", RISCV64_REG_T0}, {"t1", RISCV64_REG_T1},
     {"t2", RISCV64_REG_T2},   {"t3", RISCV64_REG_T3}, {"t4", RISCV64_REG_T4},
-    {"t5", RISCV64_REG_T5},   {"t6", RISCV64_REG_T6},
+    {"t5", RISCV64_REG_T5},   {"t6", RISCV64_REG_T6}, {"vlenb", RISCV64_REG_VLENB},
 };
 
 std::unordered_map<std::string, uint32_t> OfflineUnwindUtils::x86_regs_ = {
