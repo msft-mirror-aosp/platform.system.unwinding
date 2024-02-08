@@ -262,7 +262,7 @@ TEST_F(AndroidUnwinderTest, verify_all_unwind_functions) {
           reinterpret_cast<riscv64_ucontext_t*>(malloc(sizeof(riscv64_ucontext_t)));
       ucontext = riscv64_ucontext;
       memcpy(&riscv64_ucontext->uc_mcontext.__gregs, regs->RawData(),
-             RISCV64_REG_MAX * sizeof(uint64_t));
+             RISCV64_REG_REAL_COUNT * sizeof(uint64_t));
     } break;
     default:
       ucontext = nullptr;

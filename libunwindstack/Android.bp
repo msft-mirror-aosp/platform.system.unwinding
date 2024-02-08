@@ -15,6 +15,7 @@
 //
 
 package {
+    default_team: "trendy_team_native_tools_libraries",
     default_applicable_licenses: [
         "Android-Apache-2.0",
         "system_unwinding_libunwindstack_license",
@@ -41,7 +42,7 @@ cc_defaults {
         "-Wextra",
         "-Wno-deprecated-volatile",
         // Disable this warning, it doesn't provide any useful data.
-        "-Wno-reorder-init-list"
+        "-Wno-reorder-init-list",
     ],
 
     target: {
@@ -201,6 +202,9 @@ cc_library {
         },
         linux: {
             runtime_libs: ["libdexfile"], // libdexfile_support dependency
+        },
+        musl: {
+            cflags: ["-DNT_RISCV_VECTOR=0x901"],
         },
     },
 
@@ -441,6 +445,7 @@ cc_defaults {
         "offline_files/maps_compiled_arm64/28648/*",
         "offline_files/maps_compiled_arm64/28656_oat_odex_jar/*",
         "offline_files/maps_compiled_arm64/28667/*",
+        "offline_files/vlenb_riscv64/*",
         "offline_files/zlib_compress_arm/*",
         "offline_files/zstd_compress_arm/*",
     ],
