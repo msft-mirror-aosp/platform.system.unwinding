@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <ios>
+#include <memory>
 #include <sstream>
 
 #include <benchmark/benchmark.h>
@@ -41,11 +42,10 @@ template <typename AddresssType>
 class EvalBenchmark : public benchmark::Fixture {
  public:
   EvalBenchmark() {
-    memory_.Clear();
-    section_ = std::make_unique<DwarfSectionImplFake<AddresssType>>(&memory_);
+    fake_memory_ = new MemoryFake;
+    std::shared_ptr<Memory> memory(fake_memory_);
+    section_ = std::make_unique<DwarfSectionImplFake<AddresssType>>(memory);
   }
-
-  void TearDown(benchmark::State& state) override { mem_tracker_.SetBenchmarkCounters(state); }
 
   // Benchmarks DwarfSectionImpl::Eval given the DwarfLocation object, loc_regs, initialized in each
   // individual benchmark macro/function.
@@ -67,10 +67,14 @@ class EvalBenchmark : public benchmark::Fixture {
     regs.set_pc(0x1000);
     regs.set_sp(0x3500);
     regs[0] = 0x10000000;
-    mem_tracker_.StartTrackingAllocations();
-    for (auto _ : state) {
+    MemoryTracker mem_tracker;
+    for (const auto& _ : state) {
+      state.PauseTiming();
+      mem_tracker.StartTrackingAllocations();
+      state.ResumeTiming();
+
       std::stringstream err_stream;
-      if (!section_->Eval(&cie, &memory_, loc_regs, &regs, &finished)) {
+      if (!section_->Eval(&cie, fake_memory_, loc_regs, &regs, &finished)) {
         err_stream << "Eval() failed at address " << section_->LastErrorAddress();
         state.SkipWithError(err_stream.str().c_str());
         return;
@@ -84,14 +88,16 @@ class EvalBenchmark : public benchmark::Fixture {
         state.SkipWithError(err_stream.str().c_str());
         return;
       }
+      state.PauseTiming();
+      mem_tracker.StopTrackingAllocations();
+      state.ResumeTiming();
     }
-    mem_tracker_.StopTrackingAllocations();
+    mem_tracker.SetBenchmarkCounters(state);
   }
 
  protected:
-  MemoryFake memory_;
+  MemoryFake* fake_memory_;
   std::unique_ptr<DwarfSectionImplFake<AddresssType>> section_;
-  MemoryTracker mem_tracker_;
 };
 
 // Benchmarks exercising Eval with the DWARF_LOCATION_REGISTER evaluation method.
@@ -133,7 +139,7 @@ BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_val_offset_many_regs, uint64_t)
 // Benchmarks exercising Eval with the DWARF_LOCATION_OFFSET evaluation method.
 BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_offset_few_regs, uint64_t)
 (benchmark::State& state) {
-  memory_.SetData64(0x20000000, 0x60000000);
+  fake_memory_->SetData64(0x20000000, 0x60000000);
   DwarfLocations loc_regs;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
   loc_regs[kReturnAddressReg] = DwarfLocation{DWARF_LOCATION_OFFSET, {0x10000000, 0}};
@@ -142,8 +148,8 @@ BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_offset_few_regs, uint64_t)
 
 BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_offset_many_regs, uint64_t)
 (benchmark::State& state) {
-  memory_.SetData64(0x20000000, 0x60000000);
-  memory_.SetData64(0x30000000, 0x10000000);
+  fake_memory_->SetData64(0x20000000, 0x60000000);
+  fake_memory_->SetData64(0x30000000, 0x10000000);
   DwarfLocations loc_regs;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
   for (uint64_t i = 1; i < 64; i++) {
@@ -159,9 +165,9 @@ BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_offset_many_regs, uint64_t)
 // The dwarf op-code used for the expression benchmarks are OP_const4u (see DwarfOp::Eval).
 BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_expression_few_regs, uint64_t)
 (benchmark::State& state) {
-  memory_.SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
+  fake_memory_->SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
   uint64_t pc_value = 0x60000000;
-  memory_.SetMemory(0x80000000, &pc_value, sizeof(pc_value));
+  fake_memory_->SetMemory(0x80000000, &pc_value, sizeof(pc_value));
   DwarfLocations loc_regs;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
   loc_regs[kReturnAddressReg] = DwarfLocation{DWARF_LOCATION_EXPRESSION, {0x4, 0x5004}};
@@ -170,13 +176,13 @@ BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_expression_few_regs, uint64_t)
 
 BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_expression_many_regs, uint64_t)
 (benchmark::State& state) {
-  memory_.SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
+  fake_memory_->SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
   uint64_t pc_value = 0x60000000;
-  memory_.SetMemory(0x80000000, &pc_value, sizeof(pc_value));
+  fake_memory_->SetMemory(0x80000000, &pc_value, sizeof(pc_value));
 
-  memory_.SetMemory(0x6000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x90});
+  fake_memory_->SetMemory(0x6000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x90});
   uint64_t sp_value = 0x10000000;
-  memory_.SetMemory(0x90000000, &sp_value, sizeof(sp_value));
+  fake_memory_->SetMemory(0x90000000, &sp_value, sizeof(sp_value));
 
   DwarfLocations loc_regs;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
@@ -193,7 +199,7 @@ BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_expression_many_regs, uint64_t)
 // The dwarf op-code used for the value expression benchmarks are OP_const4u (see DwarfOp::Eval).
 BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_val_expression_few_regs, uint64_t)
 (benchmark::State& state) {
-  memory_.SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x60});
+  fake_memory_->SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x60});
   DwarfLocations loc_regs;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
   loc_regs[kReturnAddressReg] = DwarfLocation{DWARF_LOCATION_VAL_EXPRESSION, {0x4, 0x5004}};
@@ -202,8 +208,8 @@ BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_val_expression_few_regs, uint64_t)
 
 BENCHMARK_TEMPLATE_F(EvalBenchmark, BM_eval_val_expression_many_regs, uint64_t)
 (benchmark::State& state) {
-  memory_.SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x60});
-  memory_.SetMemory(0x6000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x10});
+  fake_memory_->SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x60});
+  fake_memory_->SetMemory(0x6000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x10});
   DwarfLocations loc_regs;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {0, 0}};
   for (uint64_t i = 1; i < 64; i++) {

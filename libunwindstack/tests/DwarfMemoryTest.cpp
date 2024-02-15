@@ -17,6 +17,7 @@
 #include <stdint.h>
 
 #include <ios>
+#include <memory>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -30,8 +31,9 @@ namespace unwindstack {
 class DwarfMemoryTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    memory_.Clear();
-    dwarf_mem_.reset(new DwarfMemory(&memory_));
+    fake_memory_ = new MemoryFake;
+    std::shared_ptr<Memory> memory(fake_memory_);
+    dwarf_mem_.reset(new DwarfMemory(memory));
   }
 
   template <typename AddressType>
@@ -57,12 +59,12 @@ class DwarfMemoryTest : public ::testing::Test {
   template <typename AddressType>
   void ReadEncodedValue_all();
 
-  MemoryFake memory_;
+  MemoryFake* fake_memory_;
   std::unique_ptr<DwarfMemory> dwarf_mem_;
 };
 
 TEST_F(DwarfMemoryTest, ReadBytes) {
-  memory_.SetMemory(0, std::vector<uint8_t>{0x10, 0x18, 0xff, 0xfe});
+  fake_memory_->SetMemory(0, std::vector<uint8_t>{0x10, 0x18, 0xff, 0xfe});
 
   uint8_t byte;
   ASSERT_TRUE(dwarf_mem_->ReadBytes(&byte, 1));
@@ -85,16 +87,16 @@ TEST_F(DwarfMemoryTest, ReadSigned_check) {
   uint64_t value;
 
   // Signed 8 byte reads.
-  memory_.SetData8(0, static_cast<uint8_t>(-10));
-  memory_.SetData8(1, 200);
+  fake_memory_->SetData8(0, static_cast<uint8_t>(-10));
+  fake_memory_->SetData8(1, 200);
   ASSERT_TRUE(dwarf_mem_->ReadSigned<int8_t>(&value));
   ASSERT_EQ(static_cast<int8_t>(-10), static_cast<int8_t>(value));
   ASSERT_TRUE(dwarf_mem_->ReadSigned<int8_t>(&value));
   ASSERT_EQ(static_cast<int8_t>(200), static_cast<int8_t>(value));
 
   // Signed 16 byte reads.
-  memory_.SetData16(0x10, static_cast<uint16_t>(-1000));
-  memory_.SetData16(0x12, 50100);
+  fake_memory_->SetData16(0x10, static_cast<uint16_t>(-1000));
+  fake_memory_->SetData16(0x12, 50100);
   dwarf_mem_->set_cur_offset(0x10);
   ASSERT_TRUE(dwarf_mem_->ReadSigned<int16_t>(&value));
   ASSERT_EQ(static_cast<int16_t>(-1000), static_cast<int16_t>(value));
@@ -102,8 +104,8 @@ TEST_F(DwarfMemoryTest, ReadSigned_check) {
   ASSERT_EQ(static_cast<int16_t>(50100), static_cast<int16_t>(value));
 
   // Signed 32 byte reads.
-  memory_.SetData32(0x100, static_cast<uint32_t>(-1000000000));
-  memory_.SetData32(0x104, 3000000000);
+  fake_memory_->SetData32(0x100, static_cast<uint32_t>(-1000000000));
+  fake_memory_->SetData32(0x104, 3000000000);
   dwarf_mem_->set_cur_offset(0x100);
   ASSERT_TRUE(dwarf_mem_->ReadSigned<int32_t>(&value));
   ASSERT_EQ(static_cast<int32_t>(-1000000000), static_cast<int32_t>(value));
@@ -111,8 +113,8 @@ TEST_F(DwarfMemoryTest, ReadSigned_check) {
   ASSERT_EQ(static_cast<int32_t>(3000000000), static_cast<int32_t>(value));
 
   // Signed 64 byte reads.
-  memory_.SetData64(0x200, static_cast<uint64_t>(-2000000000000LL));
-  memory_.SetData64(0x208, 5000000000000LL);
+  fake_memory_->SetData64(0x200, static_cast<uint64_t>(-2000000000000LL));
+  fake_memory_->SetData64(0x208, 5000000000000LL);
   dwarf_mem_->set_cur_offset(0x200);
   ASSERT_TRUE(dwarf_mem_->ReadSigned<int64_t>(&value));
   ASSERT_EQ(static_cast<int64_t>(-2000000000000), static_cast<int64_t>(value));
@@ -121,7 +123,7 @@ TEST_F(DwarfMemoryTest, ReadSigned_check) {
 }
 
 TEST_F(DwarfMemoryTest, ReadULEB128) {
-  memory_.SetMemory(0, std::vector<uint8_t>{0x01, 0x80, 0x24, 0xff, 0xc3, 0xff, 0x7f});
+  fake_memory_->SetMemory(0, std::vector<uint8_t>{0x01, 0x80, 0x24, 0xff, 0xc3, 0xff, 0x7f});
 
   uint64_t value;
   ASSERT_TRUE(dwarf_mem_->ReadULEB128(&value));
@@ -138,8 +140,8 @@ TEST_F(DwarfMemoryTest, ReadULEB128) {
 }
 
 TEST_F(DwarfMemoryTest, ReadSLEB128) {
-  memory_.SetMemory(0, std::vector<uint8_t>{0x06, 0x40, 0x82, 0x34, 0x89, 0x64, 0xf9, 0xc3, 0x8f,
-                                            0x2f, 0xbf, 0xc3, 0xf7, 0x5f});
+  fake_memory_->SetMemory(0, std::vector<uint8_t>{0x06, 0x40, 0x82, 0x34, 0x89, 0x64, 0xf9, 0xc3,
+                                                  0x8f, 0x2f, 0xbf, 0xc3, 0xf7, 0x5f});
 
   int64_t value;
   ASSERT_TRUE(dwarf_mem_->ReadSLEB128(&value));
@@ -255,7 +257,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_absptr_uint32_t) {
   uint64_t value = 100;
   ASSERT_FALSE(dwarf_mem_->ReadEncodedValue<uint32_t>(0x00, &value));
 
-  memory_.SetData32(0, 0x12345678);
+  fake_memory_->SetData32(0, 0x12345678);
 
   ASSERT_TRUE(dwarf_mem_->ReadEncodedValue<uint32_t>(0x00, &value));
   ASSERT_EQ(4U, dwarf_mem_->cur_offset());
@@ -266,7 +268,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_absptr_uint64_t) {
   uint64_t value = 100;
   ASSERT_FALSE(dwarf_mem_->ReadEncodedValue<uint64_t>(0x00, &value));
 
-  memory_.SetData64(0, 0x12345678f1f2f3f4ULL);
+  fake_memory_->SetData64(0, 0x12345678f1f2f3f4ULL);
 
   ASSERT_TRUE(dwarf_mem_->ReadEncodedValue<uint64_t>(0x00, &value));
   ASSERT_EQ(8U, dwarf_mem_->cur_offset());
@@ -278,7 +280,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_aligned_uint32_t) {
   dwarf_mem_->set_cur_offset(1);
   ASSERT_FALSE(dwarf_mem_->ReadEncodedValue<uint32_t>(0x50, &value));
 
-  memory_.SetData32(4, 0x12345678);
+  fake_memory_->SetData32(4, 0x12345678);
 
   ASSERT_TRUE(dwarf_mem_->ReadEncodedValue<uint32_t>(0x50, &value));
   ASSERT_EQ(8U, dwarf_mem_->cur_offset());
@@ -290,7 +292,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_aligned_uint64_t) {
   dwarf_mem_->set_cur_offset(1);
   ASSERT_FALSE(dwarf_mem_->ReadEncodedValue<uint64_t>(0x50, &value));
 
-  memory_.SetData64(8, 0x12345678f1f2f3f4ULL);
+  fake_memory_->SetData64(8, 0x12345678f1f2f3f4ULL);
 
   ASSERT_TRUE(dwarf_mem_->ReadEncodedValue<uint64_t>(0x50, &value));
   ASSERT_EQ(16U, dwarf_mem_->cur_offset());
@@ -299,7 +301,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_aligned_uint64_t) {
 
 template <typename AddressType>
 void DwarfMemoryTest::ReadEncodedValue_leb128() {
-  memory_.SetMemory(0, std::vector<uint8_t>{0x80, 0x42});
+  fake_memory_->SetMemory(0, std::vector<uint8_t>{0x80, 0x42});
 
   uint64_t value = 100;
   // uleb128
@@ -322,7 +324,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_leb128_uint64_t) {
 
 template <typename AddressType>
 void DwarfMemoryTest::ReadEncodedValue_data1() {
-  memory_.SetData8(0, 0xe0);
+  fake_memory_->SetData8(0, 0xe0);
 
   uint64_t value = 0;
   ASSERT_TRUE(dwarf_mem_->ReadEncodedValue<AddressType>(0x0d, &value));
@@ -343,7 +345,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_data1_uint64_t) {
 
 template <typename AddressType>
 void DwarfMemoryTest::ReadEncodedValue_data2() {
-  memory_.SetData16(0, 0xe000);
+  fake_memory_->SetData16(0, 0xe000);
 
   uint64_t value = 0;
   ASSERT_TRUE(dwarf_mem_->ReadEncodedValue<AddressType>(0x02, &value));
@@ -364,7 +366,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_data2_uint64_t) {
 
 template <typename AddressType>
 void DwarfMemoryTest::ReadEncodedValue_data4() {
-  memory_.SetData32(0, 0xe0000000);
+  fake_memory_->SetData32(0, 0xe0000000);
 
   uint64_t value = 0;
   ASSERT_TRUE(dwarf_mem_->ReadEncodedValue<AddressType>(0x03, &value));
@@ -385,7 +387,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_data4_uint64_t) {
 
 template <typename AddressType>
 void DwarfMemoryTest::ReadEncodedValue_data8() {
-  memory_.SetData64(0, 0xe000000000000000ULL);
+  fake_memory_->SetData64(0, 0xe000000000000000ULL);
 
   uint64_t value = 0;
   ASSERT_TRUE(dwarf_mem_->ReadEncodedValue<AddressType>(0x04, &value));
@@ -406,7 +408,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_data8_uint64_t) {
 
 template <typename AddressType>
 void DwarfMemoryTest::ReadEncodedValue_non_zero_adjust() {
-  memory_.SetData64(0, 0xe000000000000000ULL);
+  fake_memory_->SetData64(0, 0xe000000000000000ULL);
 
   uint64_t value = 0;
   dwarf_mem_->set_pc_offset(0x2000);
@@ -424,7 +426,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_non_zero_adjust_uint64_t) {
 
 template <typename AddressType>
 void DwarfMemoryTest::ReadEncodedValue_overflow() {
-  memory_.SetData64(0, 0);
+  fake_memory_->SetData64(0, 0);
 
   uint64_t value = 0;
   dwarf_mem_->set_cur_offset(UINT64_MAX);
@@ -442,7 +444,7 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_overflow_uint64_t) {
 template <typename AddressType>
 void DwarfMemoryTest::ReadEncodedValue_high_bit_set() {
   uint64_t value;
-  memory_.SetData32(0, 0x15234);
+  fake_memory_->SetData32(0, 0x15234);
   ASSERT_FALSE(dwarf_mem_->ReadEncodedValue<AddressType>(0xc3, &value));
 
   dwarf_mem_->set_func_offset(0x60000);
@@ -461,8 +463,8 @@ TEST_F(DwarfMemoryTest, ReadEncodedValue_high_bit_set_uint64_t) {
 
 template <typename AddressType>
 void DwarfMemoryTest::ReadEncodedValue_all() {
-  MemoryFakeAlwaysReadZero memory;
-  DwarfMemory dwarf_mem(&memory);
+  std::shared_ptr<Memory> memory(new MemoryFakeAlwaysReadZero);
+  DwarfMemory dwarf_mem(memory);
 
   for (size_t i = 0; i <= 0xff; i++) {
     uint64_t value;

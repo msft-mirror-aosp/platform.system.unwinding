@@ -15,6 +15,7 @@
 //
 
 package {
+    default_team: "trendy_team_native_tools_libraries",
     default_applicable_licenses: [
         "Android-Apache-2.0",
         "system_unwinding_libunwindstack_license",
@@ -39,6 +40,9 @@ cc_defaults {
         "-Wall",
         "-Werror",
         "-Wextra",
+        "-Wno-deprecated-volatile",
+        // Disable this warning, it doesn't provide any useful data.
+        "-Wno-reorder-init-list",
     ],
 
     target: {
@@ -77,8 +81,6 @@ libunwindstack_common_src_files = [
     "RegsX86.cpp",
     "RegsX86_64.cpp",
     "RegsRiscv64.cpp",
-    "RegsMips.cpp",
-    "RegsMips64.cpp",
     "Symbols.cpp",
     "ThreadEntry.cpp",
     "ThreadUnwinder.cpp",
@@ -126,6 +128,8 @@ cc_defaults {
 
     whole_static_libs: [
         "librustc_demangle_static",
+        "libz_static",
+        "libzstd",
     ],
 
     shared_libs: [
@@ -137,6 +141,7 @@ cc_defaults {
 
 cc_library {
     name: "libunwindstack",
+    ramdisk_available: true,
     vendor_available: true,
     product_available: true,
     recovery_available: true,
@@ -154,7 +159,6 @@ cc_library {
     ],
     cflags: ["-DDEXFILE_SUPPORT"],
     static_libs: ["libdexfile_support"],
-    runtime_libs: ["libdexfile"], // libdexfile_support dependency
 
     target: {
         vendor: {
@@ -181,11 +185,44 @@ cc_library {
             exclude_static_libs: ["libdexfile_support"],
             exclude_runtime_libs: ["libdexfile"],
         },
+        ramdisk: {
+            cflags: ["-UDEXFILE_SUPPORT"],
+            exclude_srcs: ["DexFile.cpp"],
+            exclude_static_libs: ["libdexfile_support"],
+            exclude_runtime_libs: ["libdexfile"],
+        },
         native_bridge: {
             cflags: ["-UDEXFILE_SUPPORT"],
             exclude_srcs: ["DexFile.cpp"],
             exclude_static_libs: ["libdexfile_support"],
             exclude_runtime_libs: ["libdexfile"],
+        },
+        android: {
+            runtime_libs: ["libdexfile"], // libdexfile_support dependency
+        },
+        linux: {
+            runtime_libs: ["libdexfile"], // libdexfile_support dependency
+        },
+        musl: {
+            cflags: ["-DNT_RISCV_VECTOR=0x901"],
+        },
+    },
+
+    arch: {
+        arm: {
+            version_script: "exported.map",
+        },
+        arm64: {
+            version_script: "exported.map",
+        },
+        riscv64: {
+            version_script: "exported.map",
+        },
+        x86: {
+            version_script: "exported_x86.map",
+        },
+        x86_64: {
+            version_script: "exported_x86.map",
         },
     },
 
@@ -193,6 +230,7 @@ cc_library {
         "//apex_available:platform",
         "com.android.art",
         "com.android.art.debug",
+        "com.android.runtime",
     ],
     min_sdk_version: "29",
 }
@@ -313,6 +351,7 @@ cc_defaults {
         "tests/MemoryCacheTest.cpp",
         "tests/MemoryFileTest.cpp",
         "tests/MemoryLocalTest.cpp",
+        "tests/MemoryLocalUnsafeTest.cpp",
         "tests/MemoryOfflineBufferTest.cpp",
         "tests/MemoryOfflineTest.cpp",
         "tests/MemoryRangeTest.cpp",
@@ -363,6 +402,7 @@ cc_defaults {
         "tests/files/boot_arm.oat.gnu_debugdata.xz.one-block",
         "tests/files/elf32.xz",
         "tests/files/elf64.xz",
+        "tests/files/libs/*",
         "offline_files/common/*",
         "offline_files/apk_rorx_arm64/*",
         "offline_files/apk_rorx_unreadable_arm64/*",
@@ -405,6 +445,9 @@ cc_defaults {
         "offline_files/maps_compiled_arm64/28648/*",
         "offline_files/maps_compiled_arm64/28656_oat_odex_jar/*",
         "offline_files/maps_compiled_arm64/28667/*",
+        "offline_files/vlenb_riscv64/*",
+        "offline_files/zlib_compress_arm/*",
+        "offline_files/zstd_compress_arm/*",
     ],
 
     target: {

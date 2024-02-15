@@ -51,9 +51,9 @@ static constexpr size_t kMaxUserRegsSize = std::max(
 Regs* Regs::RemoteGet(pid_t pid, ErrorCode* error_code) {
   // Make the buffer large enough to contain the largest registers type.
   std::vector<uint64_t> buffer(kMaxUserRegsSize / sizeof(uint64_t));
-  struct iovec io;
-  io.iov_base = buffer.data();
-  io.iov_len = buffer.size() * sizeof(uint64_t);
+  struct iovec io {
+    .iov_base = buffer.data(), .iov_len = buffer.size() * sizeof(uint64_t)
+  };
 
   if (ptrace(PTRACE_GETREGSET, pid, NT_PRSTATUS, reinterpret_cast<void*>(&io)) == -1) {
     Log::Error("PTRACE_GETREGSET failed for pid %d: %s", pid, strerror(errno));
@@ -74,7 +74,7 @@ Regs* Regs::RemoteGet(pid_t pid, ErrorCode* error_code) {
   case sizeof(arm64_user_regs):
     return RegsArm64::Read(buffer.data());
   case sizeof(riscv64_user_regs):
-    return RegsRiscv64::Read(buffer.data());
+    return RegsRiscv64::Read(buffer.data(), pid);
   }
 
   Log::Error("No matching size of user regs structure for pid %d: size %zu", pid, io.iov_len);
@@ -109,6 +109,8 @@ ArchEnum Regs::RemoteGetArch(pid_t pid, ErrorCode* error_code) {
       return ARCH_ARM;
     case sizeof(arm64_user_regs):
       return ARCH_ARM64;
+    case sizeof(riscv64_user_regs):
+      return ARCH_RISCV64;
   }
 
   Log::Error("No matching size of user regs structure for pid %d: size %zu", pid, io.iov_len);
@@ -209,14 +211,6 @@ uint64_t GetPcAdjustment(uint64_t rel_pc, Elf* elf, ArchEnum arch) {
       }
       return 4;
     }
-  case ARCH_MIPS:
-  case ARCH_MIPS64: {
-    if (rel_pc < 8) {
-      return 0;
-    }
-    // For now, just assume no compact branches
-    return 8;
-  }
   case ARCH_X86:
   case ARCH_X86_64: {
     if (rel_pc == 0) {

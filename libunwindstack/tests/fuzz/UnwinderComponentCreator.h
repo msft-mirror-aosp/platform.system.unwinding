@@ -29,8 +29,7 @@
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsMips.h>
-#include <unwindstack/RegsMips64.h>
+#include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
 
@@ -51,7 +50,7 @@ using unwindstack::MemoryFake;
 using unwindstack::Regs;
 using unwindstack::StepData;
 
-static constexpr uint8_t kArchCount = 6;
+static constexpr uint8_t kArchCount = 5;
 
 static constexpr uint8_t kMaxSoNameLen = 150;
 

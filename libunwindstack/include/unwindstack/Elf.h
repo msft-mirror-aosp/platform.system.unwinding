@@ -16,13 +16,13 @@
 
 #pragma once
 
+#include <elf.h>
 #include <stddef.h>
 
 #include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
-#include <utility>
 
 #include <unwindstack/Arch.h>
 #include <unwindstack/ElfInterface.h>
@@ -37,6 +37,10 @@
 #define EM_RISCV 243
 #endif
 
+#if !defined(SHF_COMPRESSED)
+#define SHF_COMPRESSED 0x800
+#endif
+
 namespace unwindstack {
 
 // Forward declaration.
@@ -45,7 +49,7 @@ class Regs;
 
 class Elf {
  public:
-  Elf(Memory* memory) : memory_(memory) {}
+  Elf(std::shared_ptr<Memory>& memory) : memory_(memory) {}
   virtual ~Elf() = default;
 
   bool Init();
@@ -67,7 +71,7 @@ class Elf {
   bool Step(uint64_t rel_pc, Regs* regs, Memory* process_memory, bool* finished,
             bool* is_signal_frame);
 
-  ElfInterface* CreateInterfaceFromMemory(Memory* memory);
+  ElfInterface* CreateInterfaceFromMemory(std::shared_ptr<Memory>& memory);
 
   std::string GetBuildID();
 
@@ -91,7 +95,7 @@ class Elf {
 
   ArchEnum arch() { return arch_; }
 
-  Memory* memory() { return memory_.get(); }
+  std::shared_ptr<Memory> memory() { return memory_; }
 
   ElfInterface* interface() { return interface_.get(); }
 
@@ -124,14 +128,13 @@ class Elf {
   bool valid_ = false;
   int64_t load_bias_ = 0;
   std::unique_ptr<ElfInterface> interface_;
-  std::unique_ptr<Memory> memory_;
+  std::shared_ptr<Memory> memory_;
   uint32_t machine_type_;
   uint8_t class_type_;
   ArchEnum arch_;
   // Protect calls that can modify internal state of the interface object.
   std::mutex lock_;
 
-  std::unique_ptr<Memory> gnu_debugdata_memory_;
   std::unique_ptr<ElfInterface> gnu_debugdata_interface_;
 
   static bool cache_enabled_;

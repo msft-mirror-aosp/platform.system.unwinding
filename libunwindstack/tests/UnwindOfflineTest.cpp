@@ -561,6 +561,10 @@ static void OfflineUnwind(void* data) {
 }
 
 TEST_F(UnwindOfflineTest, unwind_offline_check_for_leaks) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   std::string error_msg;
   if (!offline_utils_.Init({.offline_files_dir = "jit_debug_arm/",
                             .arch = ARCH_ARM,
@@ -1683,6 +1687,116 @@ TEST_F(UnwindOfflineTest, apk_soname_at_end_arm64) {
   EXPECT_EQ(0x7ff9ec4bb0ULL, unwinder.frames()[1].sp);
   EXPECT_EQ(0x7e908c9cc8ULL, unwinder.frames()[2].pc);
   EXPECT_EQ(0x7ff9ec4c10ULL, unwinder.frames()[2].sp);
+}
+
+// Unwind through libraries with debug_frames compressed with zstd.
+TEST_F(UnwindOfflineTest, zstd_compress_arm) {
+  std::string error_msg;
+  if (!offline_utils_.Init({.offline_files_dir = "zstd_compress_arm/", .arch = ARCH_ARM},
+                           &error_msg))
+    FAIL() << error_msg;
+
+  Regs* regs = offline_utils_.GetRegs();
+  std::unique_ptr<Regs> regs_copy(regs->Clone());
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, offline_utils_.GetProcessMemory());
+  unwinder.Unwind();
+
+  size_t expected_num_frames;
+  if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg)) FAIL() << error_msg;
+  std::string expected_frame_info;
+  if (!GetExpectedSamplesFrameInfo(&expected_frame_info, &error_msg)) FAIL() << error_msg;
+
+  std::string frame_info(DumpFrames(unwinder));
+  ASSERT_EQ(expected_num_frames, unwinder.NumFrames()) << "Unwind:\n" << frame_info;
+  EXPECT_EQ(expected_frame_info, frame_info);
+  EXPECT_EQ(0xf7868324ULL, unwinder.frames()[0].pc);
+  EXPECT_EQ(0xf779eae0ULL, unwinder.frames()[0].sp);
+  EXPECT_EQ(0xf77dd1e3ULL, unwinder.frames()[1].pc);
+  EXPECT_EQ(0xf779eaf0ULL, unwinder.frames()[1].sp);
+  EXPECT_EQ(0xf786dc40ULL, unwinder.frames()[2].pc);
+  EXPECT_EQ(0xf779ec90ULL, unwinder.frames()[2].sp);
+  EXPECT_EQ(0xf6ebeeaeULL, unwinder.frames()[3].pc);
+  EXPECT_EQ(0xff7fa398ULL, unwinder.frames()[3].sp);
+  EXPECT_EQ(0xbafff4fULL, unwinder.frames()[4].pc);
+  EXPECT_EQ(0xff7fa468ULL, unwinder.frames()[4].sp);
+  EXPECT_EQ(0xbb00337ULL, unwinder.frames()[5].pc);
+  EXPECT_EQ(0xff7fa478ULL, unwinder.frames()[5].sp);
+  EXPECT_EQ(0xbb01191ULL, unwinder.frames()[6].pc);
+  EXPECT_EQ(0xff7fa568ULL, unwinder.frames()[6].sp);
+}
+
+// Unwind through libraries with debug_frames compressed with zlib.
+TEST_F(UnwindOfflineTest, zlib_compress_arm) {
+  std::string error_msg;
+  if (!offline_utils_.Init({.offline_files_dir = "zlib_compress_arm/", .arch = ARCH_ARM},
+                           &error_msg))
+    FAIL() << error_msg;
+
+  Regs* regs = offline_utils_.GetRegs();
+  std::unique_ptr<Regs> regs_copy(regs->Clone());
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, offline_utils_.GetProcessMemory());
+  unwinder.Unwind();
+
+  size_t expected_num_frames;
+  if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg)) FAIL() << error_msg;
+  std::string expected_frame_info;
+  if (!GetExpectedSamplesFrameInfo(&expected_frame_info, &error_msg)) FAIL() << error_msg;
+
+  std::string frame_info(DumpFrames(unwinder));
+  ASSERT_EQ(expected_num_frames, unwinder.NumFrames()) << "Unwind:\n" << frame_info;
+  EXPECT_EQ(expected_frame_info, frame_info);
+  EXPECT_EQ(0xed8dc324ULL, unwinder.frames()[0].pc);
+  EXPECT_EQ(0xed812ae0ULL, unwinder.frames()[0].sp);
+  EXPECT_EQ(0xed8511f5ULL, unwinder.frames()[1].pc);
+  EXPECT_EQ(0xed812af0ULL, unwinder.frames()[1].sp);
+  EXPECT_EQ(0xed8e1c40ULL, unwinder.frames()[2].pc);
+  EXPECT_EQ(0xed812c90ULL, unwinder.frames()[2].sp);
+  EXPECT_EQ(0xecfc2eaeULL, unwinder.frames()[3].pc);
+  EXPECT_EQ(0xff96c328ULL, unwinder.frames()[3].sp);
+  EXPECT_EQ(0x2d72f4fULL, unwinder.frames()[4].pc);
+  EXPECT_EQ(0xff96c3f8ULL, unwinder.frames()[4].sp);
+  EXPECT_EQ(0x2d73337ULL, unwinder.frames()[5].pc);
+  EXPECT_EQ(0xff96c408ULL, unwinder.frames()[5].sp);
+  EXPECT_EQ(0x2d74191ULL, unwinder.frames()[6].pc);
+  EXPECT_EQ(0xff96c4f8ULL, unwinder.frames()[6].sp);
+}
+
+// Make sure that an unwind using vlenb works properly.
+TEST_F(UnwindOfflineTest, vlenb_riscv64) {
+  std::string error_msg;
+  if (!offline_utils_.Init({.offline_files_dir = "vlenb_riscv64/", .arch = ARCH_RISCV64},
+                           &error_msg))
+    FAIL() << error_msg;
+
+  Regs* regs = offline_utils_.GetRegs();
+  std::unique_ptr<Regs> regs_copy(regs->Clone());
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, offline_utils_.GetProcessMemory());
+  unwinder.Unwind();
+
+  size_t expected_num_frames;
+  if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg)) FAIL() << error_msg;
+  std::string expected_frame_info;
+  if (!GetExpectedSamplesFrameInfo(&expected_frame_info, &error_msg)) FAIL() << error_msg;
+
+  std::string frame_info(DumpFrames(unwinder));
+  ASSERT_EQ(expected_num_frames, unwinder.NumFrames()) << "Unwind:\n" << frame_info;
+  EXPECT_EQ(expected_frame_info, frame_info);
+  EXPECT_EQ(0x555c440735dcULL, unwinder.frames()[0].pc);
+  EXPECT_EQ(0x7fffe388a680ULL, unwinder.frames()[0].sp);
+  EXPECT_EQ(0x555c4408bdfcULL, unwinder.frames()[1].pc);
+  EXPECT_EQ(0x7fffe388a6a0ULL, unwinder.frames()[1].sp);
+  EXPECT_EQ(0x555c4408cc76ULL, unwinder.frames()[2].pc);
+  EXPECT_EQ(0x7fffe388a6e0ULL, unwinder.frames()[2].sp);
+  EXPECT_EQ(0x555c4408d604ULL, unwinder.frames()[3].pc);
+  EXPECT_EQ(0x7fffe388a730ULL, unwinder.frames()[3].sp);
+  EXPECT_EQ(0x555c44099cd2ULL, unwinder.frames()[4].pc);
+  EXPECT_EQ(0x7fffe388a7b0ULL, unwinder.frames()[4].sp);
+  EXPECT_EQ(0x555c4409939eULL, unwinder.frames()[5].pc);
+  EXPECT_EQ(0x7fffe388a930ULL, unwinder.frames()[5].sp);
+  EXPECT_EQ(0x555c440a2c7cULL, unwinder.frames()[6].pc);
+  EXPECT_EQ(0x7fffe388a970ULL, unwinder.frames()[6].sp);
+  EXPECT_EQ(0x7ff2fdf27394ULL, unwinder.frames()[7].pc);
+  EXPECT_EQ(0x7fffe388bb20ULL, unwinder.frames()[7].sp);
 }
 
 }  // namespace

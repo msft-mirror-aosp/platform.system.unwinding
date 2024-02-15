@@ -39,6 +39,7 @@
 #include <unwindstack/RegsGetLocal.h>
 #include <unwindstack/Unwinder.h>
 
+#include "ForkTest.h"
 #include "MemoryRemote.h"
 #include "PidUtils.h"
 #include "TestUtils.h"
@@ -209,9 +210,78 @@ extern "C" void OuterFunction(TestTypeEnum test_type) {
   MiddleFunction(test_type);
 }
 
-class UnwindTest : public ::testing::Test {
+class UnwindTest : public ForkTest {
  public:
   void SetUp() override { ResetGlobals(); }
+
+  bool RemoteValueTrue(volatile bool* addr) {
+    MemoryRemote memory(pid_);
+
+    bool value;
+    if (memory.ReadFully(reinterpret_cast<uint64_t>(addr), &value, sizeof(value)) && value) {
+      return true;
+    }
+    return false;
+  }
+
+  void WaitForRemote(volatile bool* addr) {
+    ForkAndWaitForPidState([this, addr]() {
+      if (RemoteValueTrue(addr)) {
+        return PID_RUN_PASS;
+      }
+      return PID_RUN_KEEP_GOING;
+    });
+  }
+
+  void RemoteCheckForLeaks(void (*unwind_func)(void*)) {
+    SetForkFunc([]() { OuterFunction(TEST_TYPE_REMOTE); });
+    ASSERT_NO_FATAL_FAILURE(WaitForRemote(&g_ready_for_remote));
+
+    pid_t pid = pid_;
+    TestCheckForLeaks(unwind_func, &pid);
+  }
+
+  void RemoteThroughSignal(int signal, unsigned int sa_flags) {
+    SetForkFunc([signal, sa_flags]() {
+      struct sigaction act = {};
+      act.sa_sigaction = SignalCallerHandler;
+      act.sa_flags = SA_RESTART | SA_ONSTACK | sa_flags;
+      ASSERT_EQ(0, sigaction(signal, &act, nullptr));
+
+      OuterFunction(signal != SIGSEGV ? TEST_TYPE_REMOTE : TEST_TYPE_REMOTE_WITH_INVALID_CALL);
+    });
+
+    if (signal != SIGSEGV) {
+      // Wait for the remote process to set g_ready_for_remote, then send the
+      // given signal. After that, wait for g_signal_ready_for_remote to be set.
+      bool signal_sent = false;
+      volatile bool* remote_ready_addr = &g_ready_for_remote;
+      volatile bool* signal_ready_addr = &g_signal_ready_for_remote;
+      ASSERT_NO_FATAL_FAILURE(ForkAndWaitForPidState(
+          [this, &signal_sent, signal, remote_ready_addr, signal_ready_addr]() {
+            if (!signal_sent) {
+              if (RemoteValueTrue(remote_ready_addr)) {
+                kill(pid_, signal);
+                signal_sent = true;
+              }
+            } else if (RemoteValueTrue(signal_ready_addr)) {
+              return PID_RUN_PASS;
+            }
+            return PID_RUN_KEEP_GOING;
+          }));
+    } else {
+      // The process should be SIGSEGV'ing, so wait for the remote process
+      // to be in the signal function.
+      ASSERT_NO_FATAL_FAILURE(WaitForRemote(&g_signal_ready_for_remote));
+    }
+
+    RemoteMaps maps(pid_);
+    ASSERT_TRUE(maps.Parse());
+    std::unique_ptr<Regs> regs(Regs::RemoteGet(pid_));
+    ASSERT_TRUE(regs.get() != nullptr);
+
+    VerifyUnwind(pid_, &maps, regs.get(), kFunctionSignalOrder);
+  }
 };
 
 TEST_F(UnwindTest, local) {
@@ -228,83 +298,46 @@ static void LocalUnwind(void* data) {
 }
 
 TEST_F(UnwindTest, local_check_for_leak) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   TestTypeEnum test_type = TEST_TYPE_LOCAL_UNWINDER;
   TestCheckForLeaks(LocalUnwind, &test_type);
 }
 
 TEST_F(UnwindTest, local_use_from_pid_check_for_leak) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   TestTypeEnum test_type = TEST_TYPE_LOCAL_UNWINDER_FROM_PID;
   TestCheckForLeaks(LocalUnwind, &test_type);
 }
 
-static bool WaitForRemote(pid_t pid, bool leave_attached, uint64_t addr) {
-  MemoryRemote memory(pid);
-  return RunWhenQuiesced(pid, leave_attached, [addr, &memory]() {
-    bool value;
-    if (memory.ReadFully(addr, &value, sizeof(value)) && value) {
-      return PID_RUN_PASS;
-    }
-    return PID_RUN_KEEP_GOING;
-  });
-}
-
 TEST_F(UnwindTest, remote) {
-  pid_t pid;
-  if ((pid = fork()) == 0) {
-    OuterFunction(TEST_TYPE_REMOTE);
-    exit(0);
-  }
-  ASSERT_NE(-1, pid);
-  TestScopedPidReaper reap(pid);
+  SetForkFunc([]() { OuterFunction(TEST_TYPE_REMOTE); });
+  ASSERT_NO_FATAL_FAILURE(WaitForRemote(&g_ready_for_remote));
 
-  ASSERT_TRUE(WaitForRemote(pid, true, reinterpret_cast<uint64_t>(&g_ready_for_remote)));
-
-  RemoteMaps maps(pid);
+  RemoteMaps maps(pid_);
   ASSERT_TRUE(maps.Parse());
-  std::unique_ptr<Regs> regs(Regs::RemoteGet(pid));
+  std::unique_ptr<Regs> regs(Regs::RemoteGet(pid_));
   ASSERT_TRUE(regs.get() != nullptr);
 
-  VerifyUnwind(pid, &maps, regs.get(), kFunctionOrder);
-
-  ASSERT_TRUE(Detach(pid));
+  VerifyUnwind(pid_, &maps, regs.get(), kFunctionOrder);
 }
 
 TEST_F(UnwindTest, unwind_from_pid_remote) {
-  pid_t pid;
-  if ((pid = fork()) == 0) {
-    OuterFunction(TEST_TYPE_REMOTE);
-    exit(0);
-  }
-  ASSERT_NE(-1, pid);
-  TestScopedPidReaper reap(pid);
+  SetForkFunc([]() { OuterFunction(TEST_TYPE_REMOTE); });
+  ASSERT_NO_FATAL_FAILURE(WaitForRemote(&g_ready_for_remote));
 
-  ASSERT_TRUE(WaitForRemote(pid, true, reinterpret_cast<uint64_t>(&g_ready_for_remote)));
-
-  std::unique_ptr<Regs> regs(Regs::RemoteGet(pid));
+  std::unique_ptr<Regs> regs(Regs::RemoteGet(pid_));
   ASSERT_TRUE(regs.get() != nullptr);
 
-  UnwinderFromPid unwinder(512, pid);
+  UnwinderFromPid unwinder(512, pid_);
   unwinder.SetRegs(regs.get());
 
   VerifyUnwind(&unwinder, kFunctionOrder);
-
-  ASSERT_TRUE(Detach(pid));
-}
-
-static void RemoteCheckForLeaks(void (*unwind_func)(void*)) {
-  pid_t pid;
-  if ((pid = fork()) == 0) {
-    OuterFunction(TEST_TYPE_REMOTE);
-    exit(0);
-  }
-  ASSERT_NE(-1, pid);
-  TestScopedPidReaper reap(pid);
-
-  ASSERT_TRUE(WaitForRemote(pid, true, reinterpret_cast<uint64_t>(&g_ready_for_remote)));
-
-  TestCheckForLeaks(unwind_func, &pid);
-
-  ASSERT_TRUE(Detach(pid));
 }
 
 static void RemoteUnwind(void* data) {
@@ -319,6 +352,10 @@ static void RemoteUnwind(void* data) {
 }
 
 TEST_F(UnwindTest, remote_check_for_leaks) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   RemoteCheckForLeaks(RemoteUnwind);
 }
 
@@ -335,6 +372,10 @@ static void RemoteUnwindFromPid(void* data) {
 }
 
 TEST_F(UnwindTest, remote_unwind_for_pid_check_for_leaks) {
+#if !defined(__BIONIC__)
+  GTEST_SKIP() << "Leak checking depends on bionic.";
+#endif
+
   RemoteCheckForLeaks(RemoteUnwindFromPid);
 }
 
@@ -345,14 +386,14 @@ TEST_F(UnwindTest, from_context) {
     OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
   });
 
-  struct sigaction act, oldact;
-  memset(&act, 0, sizeof(act));
+  struct sigaction act = {};
   act.sa_sigaction = SignalHandler;
   act.sa_flags = SA_RESTART | SA_SIGINFO | SA_ONSTACK;
-  ASSERT_EQ(0, sigaction(SIGUSR1, &act, &oldact));
-  // Wait 20 seconds for the tid to get set.
+  ASSERT_EQ(0, sigaction(SIGUSR1, &act, nullptr));
+
+  // Wait 20 seconds for the thread to get be running in the right function.
   for (time_t start_time = time(nullptr); time(nullptr) - start_time < 20;) {
-    if (tid.load() != 0) {
+    if (g_waiters.load() == 1) {
       break;
     }
     usleep(1000);
@@ -377,41 +418,8 @@ TEST_F(UnwindTest, from_context) {
 
   VerifyUnwind(getpid(), &maps, regs.get(), kFunctionOrder);
 
-  ASSERT_EQ(0, sigaction(SIGUSR1, &oldact, nullptr));
-
   g_finish = true;
   thread.join();
-}
-
-static void RemoteThroughSignal(int signal, unsigned int sa_flags) {
-  pid_t pid;
-  if ((pid = fork()) == 0) {
-    struct sigaction act, oldact;
-    memset(&act, 0, sizeof(act));
-    act.sa_sigaction = SignalCallerHandler;
-    act.sa_flags = SA_RESTART | SA_ONSTACK | sa_flags;
-    ASSERT_EQ(0, sigaction(signal, &act, &oldact));
-
-    OuterFunction(signal != SIGSEGV ? TEST_TYPE_REMOTE : TEST_TYPE_REMOTE_WITH_INVALID_CALL);
-    exit(0);
-  }
-  ASSERT_NE(-1, pid);
-  TestScopedPidReaper reap(pid);
-
-  if (signal != SIGSEGV) {
-    ASSERT_TRUE(WaitForRemote(pid, false, reinterpret_cast<uint64_t>(&g_ready_for_remote)));
-    ASSERT_EQ(0, kill(pid, SIGUSR1));
-  }
-  ASSERT_TRUE(WaitForRemote(pid, true, reinterpret_cast<uint64_t>(&g_signal_ready_for_remote)));
-
-  RemoteMaps maps(pid);
-  ASSERT_TRUE(maps.Parse());
-  std::unique_ptr<Regs> regs(Regs::RemoteGet(pid));
-  ASSERT_TRUE(regs.get() != nullptr);
-
-  VerifyUnwind(pid, &maps, regs.get(), kFunctionSignalOrder);
-
-  ASSERT_TRUE(Detach(pid));
 }
 
 TEST_F(UnwindTest, remote_through_signal) {
@@ -466,15 +474,13 @@ TEST_F(UnwindTest, multiple_threads_unwind_same_map) {
 }
 
 TEST_F(UnwindTest, thread_unwind) {
-  ResetGlobals();
-
   std::atomic_int tid(0);
   std::thread thread([&tid]() {
     tid = android::base::GetThreadId();
     OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
   });
 
-  while (tid.load() == 0) {
+  while (g_waiters.load() != 1) {
   }
 
   ThreadUnwinder unwinder(512);
@@ -487,15 +493,13 @@ TEST_F(UnwindTest, thread_unwind) {
 }
 
 TEST_F(UnwindTest, thread_unwind_copy_regs) {
-  ResetGlobals();
-
   std::atomic_int tid(0);
   std::thread thread([&tid]() {
     tid = android::base::GetThreadId();
     OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
   });
 
-  while (tid.load() == 0) {
+  while (g_waiters.load() != 1) {
   }
 
   ThreadUnwinder unwinder(512);
@@ -515,15 +519,13 @@ TEST_F(UnwindTest, thread_unwind_copy_regs) {
 }
 
 TEST_F(UnwindTest, thread_unwind_with_external_maps) {
-  ResetGlobals();
-
   std::atomic_int tid(0);
   std::thread thread([&tid]() {
     tid = android::base::GetThreadId();
     OuterFunction(TEST_TYPE_LOCAL_WAIT_FOR_FINISH);
   });
 
-  while (tid.load() == 0) {
+  while (g_waiters.load() != 1) {
   }
 
   LocalMaps maps;
@@ -594,7 +596,6 @@ static std::thread* CreateUnwindThread(std::atomic_int& tid, ThreadUnwinder& unw
 
 TEST_F(UnwindTest, thread_unwind_same_thread_from_threads) {
   static constexpr size_t kNumThreads = 300;
-  ResetGlobals();
 
   std::atomic_int tid(0);
   std::thread thread([&tid]() {
@@ -630,7 +631,6 @@ TEST_F(UnwindTest, thread_unwind_same_thread_from_threads) {
 
 TEST_F(UnwindTest, thread_unwind_multiple_thread_from_threads) {
   static constexpr size_t kNumThreads = 100;
-  ResetGlobals();
 
   std::atomic_int tids[kNumThreads] = {};
   std::vector<std::thread*> threads;
@@ -674,7 +674,6 @@ TEST_F(UnwindTest, thread_unwind_multiple_thread_from_threads) {
 
 TEST_F(UnwindTest, thread_unwind_multiple_thread_from_threads_updatable_maps) {
   static constexpr size_t kNumThreads = 100;
-  ResetGlobals();
 
   // Do this before the threads are started so that the maps needed to
   // unwind are not created yet, and this verifies the dynamic nature

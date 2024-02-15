@@ -16,6 +16,9 @@
 
 #include <stdint.h>
 
+#include <memory>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 #include <unwindstack/DwarfError.h>
@@ -35,15 +38,14 @@ template <typename TypeParam>
 class DwarfSectionImplTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    memory_.Clear();
-    section_ = new DwarfSectionImplFake<TypeParam>(&memory_);
+    fake_memory_ = new MemoryFake;
+    std::shared_ptr<Memory> memory(fake_memory_);
+    section_.reset(new DwarfSectionImplFake<TypeParam>(memory));
     ResetLogs();
   }
 
-  void TearDown() override { delete section_; }
-
-  MemoryFake memory_;
-  DwarfSectionImplFake<TypeParam>* section_ = nullptr;
+  MemoryFake* fake_memory_;
+  std::unique_ptr<DwarfSectionImplFake<TypeParam>> section_;
 };
 TYPED_TEST_SUITE_P(DwarfSectionImplTest);
 
@@ -82,7 +84,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_cfa_expr_eval_fail) {
   regs[9] = 0x3000;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_VAL_EXPRESSION, {0x2, 0x5002}};
   bool finished;
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_MEMORY_INVALID, this->section_->LastErrorCode());
   EXPECT_EQ(0x5000U, this->section_->LastErrorAddress());
 }
@@ -96,10 +98,10 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_cfa_expr_no_stack) {
   regs.set_sp(0x2000);
   regs[5] = 0x20;
   regs[9] = 0x3000;
-  this->memory_.SetMemory(0x5000, std::vector<uint8_t>{0x96, 0x96, 0x96});
+  this->fake_memory_->SetMemory(0x5000, std::vector<uint8_t>{0x96, 0x96, 0x96});
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_VAL_EXPRESSION, {0x2, 0x5002}};
   bool finished;
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_STATE, this->section_->LastErrorCode());
 }
 
@@ -112,12 +114,12 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_cfa_expr) {
   regs.set_sp(0x2000);
   regs[5] = 0x20;
   regs[9] = 0x3000;
-  this->memory_.SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
+  this->fake_memory_->SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
   TypeParam cfa_value = 0x12345;
-  this->memory_.SetMemory(0x80000000, &cfa_value, sizeof(cfa_value));
+  this->fake_memory_->SetMemory(0x80000000, &cfa_value, sizeof(cfa_value));
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_EXPRESSION, {0x4, 0x5004}};
   bool finished;
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 }
 
@@ -130,10 +132,10 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_cfa_val_expr) {
   regs.set_sp(0x2000);
   regs[5] = 0x20;
   regs[9] = 0x3000;
-  this->memory_.SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
+  this->fake_memory_->SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_VAL_EXPRESSION, {0x4, 0x5004}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   ASSERT_FALSE(finished);
   EXPECT_EQ(0x80000000U, regs.sp());
   EXPECT_EQ(0x20U, regs.pc());
@@ -148,10 +150,10 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_cfa_expr_is_register) {
   regs.set_sp(0x2000);
   regs[5] = 0x20;
   regs[9] = 0x3000;
-  this->memory_.SetMemory(0x5000, std::vector<uint8_t>{0x50, 0x96, 0x96});
+  this->fake_memory_->SetMemory(0x5000, std::vector<uint8_t>{0x50, 0x96, 0x96});
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_VAL_EXPRESSION, {0x2, 0x5002}};
   bool finished;
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_NOT_IMPLEMENTED, this->section_->LastErrorCode());
 }
 
@@ -161,7 +163,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_bad_regs) {
   DwarfLocations loc_regs;
 
   bool finished;
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 }
 
@@ -171,7 +173,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_no_cfa) {
   DwarfLocations loc_regs;
 
   bool finished;
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_CFA_NOT_DEFINED, this->section_->LastErrorCode());
 }
 
@@ -182,25 +184,25 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_cfa_bad) {
 
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {20, 0}};
   bool finished;
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 
   this->section_->FakeClearError();
   loc_regs.erase(CFA_REG);
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_INVALID, {0, 0}};
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 
   this->section_->FakeClearError();
   loc_regs.erase(CFA_REG);
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_OFFSET, {0, 0}};
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 
   this->section_->FakeClearError();
   loc_regs.erase(CFA_REG);
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_VAL_OFFSET, {0, 0}};
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 }
 
@@ -215,7 +217,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_cfa_register_prev) {
   regs[9] = 0x3000;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {9, 0}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_FALSE(finished);
   EXPECT_EQ(0x20U, regs.pc());
   EXPECT_EQ(0x3000U, regs.sp());
@@ -233,7 +235,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_cfa_register_from_value) {
   regs[9] = 0x3000;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {6, 0}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_FALSE(finished);
   EXPECT_EQ(0x20U, regs.pc());
   EXPECT_EQ(0x4000U, regs.sp());
@@ -253,7 +255,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_double_indirection) {
   loc_regs[1] = DwarfLocation{DWARF_LOCATION_REGISTER, {3, 1}};
   loc_regs[9] = DwarfLocation{DWARF_LOCATION_REGISTER, {1, 2}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(0x301U, regs[1]);
   EXPECT_EQ(0x300U, regs[3]);
   EXPECT_EQ(0x10U, regs[8]);
@@ -281,7 +283,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_register_reference_chain) {
   loc_regs[4] = DwarfLocation{DWARF_LOCATION_REGISTER, {3, 4}};
   loc_regs[5] = DwarfLocation{DWARF_LOCATION_REGISTER, {4, 5}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(0x10U, regs[0]);
   EXPECT_EQ(0x11U, regs[1]);
   EXPECT_EQ(0x22U, regs[2]);
@@ -302,9 +304,10 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_dex_pc) {
   regs[8] = 0x20;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {8, 0}};
   loc_regs[1] = DwarfLocation{DWARF_LOCATION_VAL_EXPRESSION, {0x8, 0x5008}};
-  this->memory_.SetMemory(0x5000, std::vector<uint8_t>{0x0c, 'D', 'E', 'X', '1', 0x13, 0x08, 0x11});
+  this->fake_memory_->SetMemory(0x5000,
+                                std::vector<uint8_t>{0x0c, 'D', 'E', 'X', '1', 0x13, 0x08, 0x11});
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(0x10U, regs[0]);
   EXPECT_EQ(0x20U, regs[8]);
   EXPECT_EQ(0x11U, regs.dex_pc());
@@ -321,7 +324,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_invalid_register) {
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {8, 0}};
   loc_regs[1] = DwarfLocation{DWARF_LOCATION_REGISTER, {10, 0}};
   bool finished;
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 }
 
@@ -331,9 +334,9 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_different_reg_locations) {
   DwarfLocations loc_regs;
 
   if (sizeof(TypeParam) == sizeof(uint64_t)) {
-    this->memory_.SetData64(0x2150, 0x12345678abcdef00ULL);
+    this->fake_memory_->SetData64(0x2150, 0x12345678abcdef00ULL);
   } else {
-    this->memory_.SetData32(0x2150, 0x12345678);
+    this->fake_memory_->SetData32(0x2150, 0x12345678);
   }
 
   regs.set_pc(0x100);
@@ -346,7 +349,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_different_reg_locations) {
   loc_regs[2] = DwarfLocation{DWARF_LOCATION_OFFSET, {0x50, 0}};
   loc_regs[3] = DwarfLocation{DWARF_LOCATION_UNDEFINED, {0, 0}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_FALSE(finished);
   EXPECT_EQ(0x10U, regs.pc());
   EXPECT_EQ(0x2100U, regs.sp());
@@ -371,7 +374,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_return_address_undefined) {
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {8, 0}};
   loc_regs[5] = DwarfLocation{DWARF_LOCATION_UNDEFINED, {0, 0}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_TRUE(finished);
   EXPECT_EQ(0U, regs.pc());
   EXPECT_EQ(0x10U, regs.sp());
@@ -388,7 +391,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_pc_zero) {
   regs[8] = 0x10;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {8, 0}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_TRUE(finished);
   EXPECT_EQ(0U, regs.pc());
   EXPECT_EQ(0x10U, regs.sp());
@@ -405,7 +408,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_return_address) {
   regs[8] = 0x10;
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {8, 0}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_FALSE(finished);
   EXPECT_EQ(0x20U, regs.pc());
   EXPECT_EQ(0x10U, regs.sp());
@@ -424,7 +427,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_ignore_large_reg_loc) {
   // This should not result in any errors.
   loc_regs[20] = DwarfLocation{DWARF_LOCATION_REGISTER, {8, 0}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_FALSE(finished);
   EXPECT_EQ(0x20U, regs.pc());
   EXPECT_EQ(0x10U, regs.sp());
@@ -438,13 +441,13 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_reg_expr) {
   regs.set_pc(0x100);
   regs.set_sp(0x2000);
   regs[8] = 0x3000;
-  this->memory_.SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
+  this->fake_memory_->SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
   TypeParam cfa_value = 0x12345;
-  this->memory_.SetMemory(0x80000000, &cfa_value, sizeof(cfa_value));
+  this->fake_memory_->SetMemory(0x80000000, &cfa_value, sizeof(cfa_value));
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {8, 0}};
   loc_regs[5] = DwarfLocation{DWARF_LOCATION_EXPRESSION, {0x4, 0x5004}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_FALSE(finished);
   EXPECT_EQ(0x3000U, regs.sp());
   EXPECT_EQ(0x12345U, regs.pc());
@@ -458,11 +461,11 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_reg_val_expr) {
   regs.set_pc(0x100);
   regs.set_sp(0x2000);
   regs[8] = 0x3000;
-  this->memory_.SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
+  this->fake_memory_->SetMemory(0x5000, std::vector<uint8_t>{0x0c, 0x00, 0x00, 0x00, 0x80});
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {8, 0}};
   loc_regs[5] = DwarfLocation{DWARF_LOCATION_VAL_EXPRESSION, {0x4, 0x5004}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_FALSE(finished);
   EXPECT_EQ(0x3000U, regs.sp());
   EXPECT_EQ(0x80000000U, regs.pc());
@@ -477,13 +480,13 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_pseudo_register_invalid) {
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {8, 0}};
   loc_regs[1] = DwarfLocation{DWARF_LOCATION_PSEUDO_REGISTER, {20, 0}};
   bool finished;
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 
   loc_regs.clear();
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {8, 0}};
   loc_regs[12] = DwarfLocation{DWARF_LOCATION_PSEUDO_REGISTER, {20, 0}};
-  ASSERT_FALSE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_FALSE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   EXPECT_EQ(DWARF_ERROR_ILLEGAL_VALUE, this->section_->LastErrorCode());
 }
 
@@ -496,7 +499,7 @@ TYPED_TEST_P(DwarfSectionImplTest, Eval_pseudo_register) {
   loc_regs[CFA_REG] = DwarfLocation{DWARF_LOCATION_REGISTER, {8, 0}};
   loc_regs[11] = DwarfLocation{DWARF_LOCATION_PSEUDO_REGISTER, {20, 0}};
   bool finished;
-  ASSERT_TRUE(this->section_->Eval(&cie, &this->memory_, loc_regs, &regs, &finished));
+  ASSERT_TRUE(this->section_->Eval(&cie, this->fake_memory_, loc_regs, &regs, &finished));
   uint64_t pseudo_value = 0;
   ASSERT_TRUE(regs.GetPseudoRegister(11, &pseudo_value));
   EXPECT_EQ(20U, pseudo_value);
@@ -512,8 +515,8 @@ TYPED_TEST_P(DwarfSectionImplTest, GetCfaLocationInfo_cie_not_cached) {
   fde.cfa_instructions_offset = 0x6000;
   fde.cfa_instructions_end = 0x6002;
 
-  this->memory_.SetMemory(0x3000, std::vector<uint8_t>{0x09, 0x02, 0x01});
-  this->memory_.SetMemory(0x6000, std::vector<uint8_t>{0x09, 0x04, 0x03});
+  this->fake_memory_->SetMemory(0x3000, std::vector<uint8_t>{0x09, 0x02, 0x01});
+  this->fake_memory_->SetMemory(0x6000, std::vector<uint8_t>{0x09, 0x04, 0x03});
 
   DwarfLocations loc_regs;
   ASSERT_TRUE(this->section_->GetCfaLocationInfo(0x100, &fde, &loc_regs, ARCH_UNKNOWN));
@@ -543,7 +546,7 @@ TYPED_TEST_P(DwarfSectionImplTest, GetCfaLocationInfo_cie_cached) {
   DwarfLocations cie_loc_regs;
   cie_loc_regs[6] = DwarfLocation{DWARF_LOCATION_REGISTER, {4, 0}};
   this->section_->FakeSetCachedCieLocRegs(0x8000, cie_loc_regs);
-  this->memory_.SetMemory(0x6000, std::vector<uint8_t>{0x09, 0x04, 0x03});
+  this->fake_memory_->SetMemory(0x6000, std::vector<uint8_t>{0x09, 0x04, 0x03});
 
   DwarfLocations loc_regs;
   ASSERT_TRUE(this->section_->GetCfaLocationInfo(0x100, &fde, &loc_regs, ARCH_UNKNOWN));
@@ -569,8 +572,8 @@ TYPED_TEST_P(DwarfSectionImplTest, Log) {
   fde.cfa_instructions_offset = 0x6000;
   fde.cfa_instructions_end = 0x6001;
 
-  this->memory_.SetMemory(0x5000, std::vector<uint8_t>{0x00});
-  this->memory_.SetMemory(0x6000, std::vector<uint8_t>{0xc2});
+  this->fake_memory_->SetMemory(0x5000, std::vector<uint8_t>{0x00});
+  this->fake_memory_->SetMemory(0x6000, std::vector<uint8_t>{0xc2});
   ASSERT_TRUE(this->section_->Log(2, 0x1000, &fde, ARCH_UNKNOWN));
 
   ASSERT_EQ(

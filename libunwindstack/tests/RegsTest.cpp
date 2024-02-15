@@ -22,11 +22,10 @@
 
 #include <unwindstack/Elf.h>
 #include <unwindstack/ElfInterface.h>
+#include <unwindstack/MachineRiscv64.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsMips.h>
-#include <unwindstack/RegsMips64.h>
 #include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
@@ -40,14 +39,15 @@ namespace unwindstack {
 class RegsTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    memory_ = new MemoryFake;
-    elf_.reset(new ElfFake(memory_));
-    elf_interface_ = new ElfInterfaceFake(elf_->memory());
+    fake_memory_ = new MemoryFake;
+    std::shared_ptr<Memory> memory(fake_memory_);
+    elf_.reset(new ElfFake(memory));
+    elf_interface_ = new ElfInterfaceFake(memory);
     elf_->FakeSetInterface(elf_interface_);
   }
 
   ElfInterfaceFake* elf_interface_;
-  MemoryFake* memory_;
+  MemoryFake* fake_memory_;
   std::unique_ptr<ElfFake> elf_;
 };
 
@@ -103,6 +103,13 @@ TEST_F(RegsTest, rel_pc) {
   EXPECT_EQ(0U, GetPcAdjustment(0x1, elf_.get(), ARCH_ARM64));
   EXPECT_EQ(0U, GetPcAdjustment(0x0, elf_.get(), ARCH_ARM64));
 
+  EXPECT_EQ(4U, GetPcAdjustment(0x10, elf_.get(), ARCH_RISCV64));
+  EXPECT_EQ(4U, GetPcAdjustment(0x4, elf_.get(), ARCH_RISCV64));
+  EXPECT_EQ(0U, GetPcAdjustment(0x3, elf_.get(), ARCH_RISCV64));
+  EXPECT_EQ(0U, GetPcAdjustment(0x2, elf_.get(), ARCH_RISCV64));
+  EXPECT_EQ(0U, GetPcAdjustment(0x1, elf_.get(), ARCH_RISCV64));
+  EXPECT_EQ(0U, GetPcAdjustment(0x0, elf_.get(), ARCH_RISCV64));
+
   EXPECT_EQ(1U, GetPcAdjustment(0x100, elf_.get(), ARCH_X86));
   EXPECT_EQ(1U, GetPcAdjustment(0x2, elf_.get(), ARCH_X86));
   EXPECT_EQ(1U, GetPcAdjustment(0x1, elf_.get(), ARCH_X86));
@@ -112,28 +119,6 @@ TEST_F(RegsTest, rel_pc) {
   EXPECT_EQ(1U, GetPcAdjustment(0x2, elf_.get(), ARCH_X86_64));
   EXPECT_EQ(1U, GetPcAdjustment(0x1, elf_.get(), ARCH_X86_64));
   EXPECT_EQ(0U, GetPcAdjustment(0x0, elf_.get(), ARCH_X86_64));
-
-  EXPECT_EQ(8U, GetPcAdjustment(0x10, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(8U, GetPcAdjustment(0x8, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x7, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x6, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x5, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x4, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x3, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x2, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x1, elf_.get(), ARCH_MIPS));
-  EXPECT_EQ(0U, GetPcAdjustment(0x0, elf_.get(), ARCH_MIPS));
-
-  EXPECT_EQ(8U, GetPcAdjustment(0x10, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(8U, GetPcAdjustment(0x8, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x7, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x6, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x5, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x4, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x3, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x2, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x1, elf_.get(), ARCH_MIPS64));
-  EXPECT_EQ(0U, GetPcAdjustment(0x0, elf_.get(), ARCH_MIPS64));
 }
 
 TEST_F(RegsTest, rel_pc_arm) {
@@ -159,21 +144,22 @@ TEST_F(RegsTest, rel_pc_arm) {
 
   // Check thumb instructions handling.
   elf_->FakeSetLoadBias(0);
-  memory_->SetData32(0x2000, 0);
+  fake_memory_->SetData32(0x2000, 0);
   EXPECT_EQ(2U, GetPcAdjustment(0x2005, elf_.get(), ARCH_ARM));
-  memory_->SetData32(0x2000, 0xe000f000);
+  fake_memory_->SetData32(0x2000, 0xe000f000);
   EXPECT_EQ(4U, GetPcAdjustment(0x2005, elf_.get(), ARCH_ARM));
 
   elf_->FakeSetLoadBias(0x400);
-  memory_->SetData32(0x2100, 0);
+  fake_memory_->SetData32(0x2100, 0);
   EXPECT_EQ(2U, GetPcAdjustment(0x2505, elf_.get(), ARCH_ARM));
-  memory_->SetData32(0x2100, 0xf111f111);
+  fake_memory_->SetData32(0x2100, 0xf111f111);
   EXPECT_EQ(4U, GetPcAdjustment(0x2505, elf_.get(), ARCH_ARM));
 }
 
 TEST_F(RegsTest, elf_invalid) {
   auto map_info = MapInfo::Create(0x1000, 0x2000, 0, 0, "");
-  Elf* invalid_elf = new Elf(nullptr);
+  std::shared_ptr<Memory> empty;
+  Elf* invalid_elf = new Elf(empty);
   map_info->set_elf(invalid_elf);
 
   EXPECT_EQ(0x500U, invalid_elf->GetRelPc(0x1500, map_info.get()));
@@ -183,17 +169,29 @@ TEST_F(RegsTest, elf_invalid) {
   EXPECT_EQ(0x600U, invalid_elf->GetRelPc(0x1600, map_info.get()));
   EXPECT_EQ(4U, GetPcAdjustment(0x600U, invalid_elf, ARCH_ARM64));
 
+  EXPECT_EQ(0x600U, invalid_elf->GetRelPc(0x1600, map_info.get()));
+  EXPECT_EQ(4U, GetPcAdjustment(0x600U, invalid_elf, ARCH_RISCV64));
+
   EXPECT_EQ(0x700U, invalid_elf->GetRelPc(0x1700, map_info.get()));
   EXPECT_EQ(1U, GetPcAdjustment(0x700U, invalid_elf, ARCH_X86));
 
   EXPECT_EQ(0x800U, invalid_elf->GetRelPc(0x1800, map_info.get()));
   EXPECT_EQ(1U, GetPcAdjustment(0x800U, invalid_elf, ARCH_X86_64));
+}
 
-  EXPECT_EQ(0x900U, invalid_elf->GetRelPc(0x1900, map_info.get()));
-  EXPECT_EQ(8U, GetPcAdjustment(0x900U, invalid_elf, ARCH_MIPS));
-
-  EXPECT_EQ(0xa00U, invalid_elf->GetRelPc(0x1a00, map_info.get()));
-  EXPECT_EQ(8U, GetPcAdjustment(0xa00U, invalid_elf, ARCH_MIPS64));
+TEST_F(RegsTest, regs_convert) {
+  RegsArm arm;
+  EXPECT_EQ(0, arm.Convert(0));
+  EXPECT_EQ(0x1c22, arm.Convert(0x1c22));
+  RegsArm64 arm64;
+  EXPECT_EQ(0, arm64.Convert(0));
+  EXPECT_EQ(0x1c22, arm64.Convert(0x1c22));
+  RegsX86 x86;
+  EXPECT_EQ(0, x86.Convert(0));
+  EXPECT_EQ(0x1c22, x86.Convert(0x1c22));
+  RegsX86_64 x86_64;
+  EXPECT_EQ(0, x86_64.Convert(0));
+  EXPECT_EQ(0x1c22, x86_64.Convert(0x1c22));
 }
 
 TEST_F(RegsTest, arm_verify_sp_pc) {
@@ -214,6 +212,23 @@ TEST_F(RegsTest, arm64_verify_sp_pc) {
   EXPECT_EQ(0xc200000000U, arm64.pc());
 }
 
+TEST_F(RegsTest, riscv64_verify_sp_pc) {
+  RegsRiscv64 riscv64;
+  uint64_t* regs = reinterpret_cast<uint64_t*>(riscv64.RawData());
+  regs[2] = 0x212340000ULL;
+  regs[0] = 0x1abcd0000ULL;
+  EXPECT_EQ(0x212340000U, riscv64.sp());
+  EXPECT_EQ(0x1abcd0000U, riscv64.pc());
+}
+
+TEST_F(RegsTest, riscv_convert) {
+  RegsRiscv64 regs;
+  EXPECT_EQ(0, regs.Convert(0));
+  EXPECT_EQ(RISCV64_REG_REAL_COUNT - 1, regs.Convert(RISCV64_REG_REAL_COUNT - 1));
+  EXPECT_EQ(RISCV64_REG_VLENB, regs.Convert(0x1c22));
+  EXPECT_EQ(RISCV64_REG_COUNT, regs.Convert(RISCV64_REG_VLENB));
+}
+
 TEST_F(RegsTest, x86_verify_sp_pc) {
   RegsX86 x86;
   uint32_t* regs = reinterpret_cast<uint32_t*>(x86.RawData());
@@ -230,24 +245,6 @@ TEST_F(RegsTest, x86_64_verify_sp_pc) {
   regs[16] = 0x4900000000ULL;
   EXPECT_EQ(0x1200000000U, x86_64.sp());
   EXPECT_EQ(0x4900000000U, x86_64.pc());
-}
-
-TEST_F(RegsTest, mips_verify_sp_pc) {
-  RegsMips mips;
-  uint32_t* regs = reinterpret_cast<uint32_t*>(mips.RawData());
-  regs[29] = 0x100;
-  regs[32] = 0x200;
-  EXPECT_EQ(0x100U, mips.sp());
-  EXPECT_EQ(0x200U, mips.pc());
-}
-
-TEST_F(RegsTest, mips64_verify_sp_pc) {
-  RegsMips64 mips64;
-  uint64_t* regs = reinterpret_cast<uint64_t*>(mips64.RawData());
-  regs[29] = 0xb100000000ULL;
-  regs[32] = 0xc200000000ULL;
-  EXPECT_EQ(0xb100000000U, mips64.sp());
-  EXPECT_EQ(0xc200000000U, mips64.pc());
 }
 
 TEST_F(RegsTest, arm64_strip_pac_mask) {
@@ -273,17 +270,14 @@ TEST_F(RegsTest, machine_type) {
   RegsArm64 arm64_regs;
   EXPECT_EQ(ARCH_ARM64, arm64_regs.Arch());
 
+  RegsRiscv64 riscv64_regs;
+  EXPECT_EQ(ARCH_RISCV64, riscv64_regs.Arch());
+
   RegsX86 x86_regs;
   EXPECT_EQ(ARCH_X86, x86_regs.Arch());
 
   RegsX86_64 x86_64_regs;
   EXPECT_EQ(ARCH_X86_64, x86_64_regs.Arch());
-
-  RegsMips mips_regs;
-  EXPECT_EQ(ARCH_MIPS, mips_regs.Arch());
-
-  RegsMips64 mips64_regs;
-  EXPECT_EQ(ARCH_MIPS64, mips64_regs.Arch());
 }
 
 template <typename RegisterType>
@@ -307,10 +301,9 @@ TEST_F(RegsTest, clone) {
   std::vector<std::unique_ptr<Regs>> regs;
   regs.emplace_back(new RegsArm());
   regs.emplace_back(new RegsArm64());
+  regs.emplace_back(new RegsRiscv64());
   regs.emplace_back(new RegsX86());
   regs.emplace_back(new RegsX86_64());
-  regs.emplace_back(new RegsMips());
-  regs.emplace_back(new RegsMips64());
 
   for (auto& r : regs) {
     if (r->Is32Bit()) {
