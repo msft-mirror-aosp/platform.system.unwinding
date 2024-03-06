@@ -20,6 +20,7 @@
 
 #include <vector>
 
+#include <android-base/silent_death_test.h>
 #include <gtest/gtest.h>
 
 #include "MemoryLocalUnsafe.h"
@@ -50,7 +51,8 @@ TEST(MemoryLocalUnsafeTest, read_smoke) {
   }
 }
 
-TEST(MemoryLocalUnsafeTest, read_crash) {
+using MemoryLocalUnsafeDeathTest = SilentDeathTest;
+TEST_F(MemoryLocalUnsafeDeathTest, read_crash) {
   void* mapping =
       mmap(nullptr, getpagesize(), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   ASSERT_NE(MAP_FAILED, mapping);
