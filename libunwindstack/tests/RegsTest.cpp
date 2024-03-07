@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include <android-base/silent_death_test.h>
 #include <gtest/gtest.h>
 
 #include <unwindstack/Elf.h>
@@ -228,6 +229,21 @@ TEST_F(RegsTest, riscv_convert) {
   EXPECT_EQ(RISCV64_REG_VLENB, regs.Convert(0x1c22));
   EXPECT_EQ(RISCV64_REG_COUNT, regs.Convert(RISCV64_REG_VLENB));
 }
+
+#if defined(__riscv)
+TEST_F(RegsTest, riscv_get_vlenb) {
+  RegsRiscv64 regs;
+  EXPECT_NE(0U, regs.GetVlenbFromLocal());
+  EXPECT_NE(0U, regs.GetVlenbFromRemote(0));
+}
+#else
+using RegsDeathTest = SilentDeathTest;
+TEST_F(RegsDeathTest, riscv_get_vlenb) {
+  RegsRiscv64 regs;
+  ASSERT_DEATH(regs.GetVlenbFromLocal(), "");
+  ASSERT_DEATH(regs.GetVlenbFromRemote(0), "");
+}
+#endif
 
 TEST_F(RegsTest, x86_verify_sp_pc) {
   RegsX86 x86;
