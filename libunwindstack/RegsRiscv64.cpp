@@ -24,6 +24,7 @@
 #include <vector>
 
 #include <unwindstack/Elf.h>
+#include <unwindstack/Log.h>
 #include <unwindstack/MachineRiscv64.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/Memory.h>
@@ -35,30 +36,38 @@ namespace unwindstack {
 
 uint64_t RegsRiscv64::GetVlenbFromLocal() {
 #if defined(__riscv)
-  // Assumes that all cpus have the same value.
   uint64_t vlenb;
   asm volatile("csrr %0, 0xc22\n" : "=r"(vlenb)::);
   return vlenb;
 #else
-  return 0;
+  Log::Fatal("%s:%d: On non-riscv device, attempt to get vlenb locally.", __FILE__, __LINE__);
 #endif
 }
 
+#if defined(__riscv)
+uint64_t RegsRiscv64::GetVlenbFromRemote(pid_t) {
+  // All riscv cores in a cpu are required to have the same vlenb value.
+  // Note: If a device exists with multiple cpus, but all of the cpus do not
+  // have the same vlenb, then this method will need to be modified.
+  return GetVlenbFromLocal();
+}
+#else
 uint64_t RegsRiscv64::GetVlenbFromRemote(pid_t pid) {
   if (pid == 0) {
-    return GetVlenbFromLocal();
+    Log::Fatal("%s:%d: Attempt to get vlenb remotely from non-riscv device without pid.", __FILE__,
+               __LINE__);
   }
 
-  // We only care about these values, no need to get the other vector registers.
+  // We only care about the state values, no need to get anything else.
   struct riscv64_v_regset_state regs;
   struct iovec io = {.iov_base = &regs, .iov_len = sizeof(regs)};
   if (ptrace(PTRACE_GETREGSET, pid, NT_RISCV_VECTOR, reinterpret_cast<void*>(&io)) == -1) {
-    // TODO: Workaround due to some devices not properly returning these values.
-    // This code assumes that all cores on the device have the same vlenb.
-    return GetVlenbFromLocal();
+    Log::Error("Failed to get vlenb from target process %d: %d", pid, errno);
+    return 0;
   }
   return regs.vlenb;
 }
+#endif
 
 RegsRiscv64::RegsRiscv64()
     : RegsImpl<uint64_t>(RISCV64_REG_COUNT, Location(LOCATION_REGISTER, RISCV64_REG_RA)) {}
