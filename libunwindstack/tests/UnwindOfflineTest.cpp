@@ -16,6 +16,7 @@
 
 #include <sys/mman.h>
 
+#include <android-base/strings.h>
 #include <gtest/gtest.h>
 
 #include <cstddef>
@@ -88,6 +89,15 @@ class UnwindOfflineTest : public ::testing::Test {
 
       std::string actual_frame_info = DumpFrames(unwinder);
       ASSERT_EQ(expected_num_frames, unwinder.NumFrames()) << "Unwind:\n" << actual_frame_info;
+
+      // The old demangler in external/libcxx adds an extra space when closing
+      // multiple sets of template args (e.g. "Foo<Bar<Baz> >"), but the new
+      // libc++ demangler omits it. Replace "> >" with ">>" to work with either
+      // demangler until libc++ is upgraded.
+      // TODO(b/329940638). Remove this workaround and fix the tests.
+      actual_frame_info = android::base::StringReplace(actual_frame_info, "> >", ">>", true);
+      expected_frame_info = android::base::StringReplace(expected_frame_info, "> >", ">>", true);
+
       EXPECT_EQ(expected_frame_info, actual_frame_info);
     }
   }
