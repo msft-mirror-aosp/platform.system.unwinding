@@ -29,18 +29,6 @@
 #include <unwindstack/Memory.h>
 #include <unwindstack/SharedString.h>
 
-#if !defined(EM_AARCH64)
-#define EM_AARCH64 183
-#endif
-
-#if !defined(EM_RISCV)
-#define EM_RISCV 243
-#endif
-
-#if !defined(SHF_COMPRESSED)
-#define SHF_COMPRESSED 0x800
-#endif
-
 namespace unwindstack {
 
 // Forward declaration.
