@@ -26,10 +26,6 @@
 
 #include <string>
 
-#if !defined(EM_AARCH64)
-#define EM_AARCH64 183
-#endif
-
 template <typename Ehdr>
 void InitEhdr(Ehdr* ehdr, uint32_t elf_class, uint32_t machine) {
   memset(ehdr, 0, sizeof(Ehdr));
