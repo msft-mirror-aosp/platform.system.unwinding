@@ -36,10 +36,6 @@
 #include "LogFake.h"
 #include "utils/MemoryFake.h"
 
-#if !defined(PT_ARM_EXIDX)
-#define PT_ARM_EXIDX 0x70000001
-#endif
-
 namespace unwindstack {
 
 class ElfTest : public ::testing::Test {
