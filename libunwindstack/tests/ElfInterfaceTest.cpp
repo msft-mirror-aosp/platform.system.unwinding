@@ -35,14 +35,6 @@
 #include "ElfTestUtils.h"
 #include "utils/MemoryFake.h"
 
-#if !defined(PT_ARM_EXIDX)
-#define PT_ARM_EXIDX 0x70000001
-#endif
-
-#if !defined(EM_AARCH64)
-#define EM_AARCH64 183
-#endif
-
 #if __has_feature(address_sanitizer)
 // There is a test that tries to allocate a large value, allow it to fail
 // if asan is enabled.
