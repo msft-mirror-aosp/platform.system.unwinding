@@ -109,7 +109,7 @@ cc_defaults {
         },
         bionic: {
             header_libs: ["bionic_libc_platform_headers"],
-            static_libs: ["libasync_safe"],
+            whole_static_libs: ["libasync_safe"],
         },
     },
 
