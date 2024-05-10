@@ -35,18 +35,26 @@
 
 #include <unwindstack/AndroidUnwinder.h>
 #include <unwindstack/Error.h>
+#include <unwindstack/MachineArm.h>
+#include <unwindstack/MachineArm64.h>
+#include <unwindstack/MachineRiscv64.h>
+#include <unwindstack/MachineX86.h>
+#include <unwindstack/MachineX86_64.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
 #include <unwindstack/RegsGetLocal.h>
+#include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
 #include <unwindstack/UcontextArm.h>
 #include <unwindstack/UcontextArm64.h>
+#include <unwindstack/UcontextRiscv64.h>
 #include <unwindstack/UcontextX86.h>
 #include <unwindstack/UcontextX86_64.h>
 #include <unwindstack/Unwinder.h>
 
+#include "ForkTest.h"
 #include "PidUtils.h"
 #include "TestUtils.h"
 
@@ -58,20 +66,6 @@ static std::string GetBacktrace(AndroidUnwinder& unwinder, std::vector<FrameData
     backtrace_str += unwinder.FormatFrame(frame) + '\n';
   }
   return backtrace_str;
-}
-
-static pid_t ForkWaitForever() {
-  pid_t pid;
-  if ((pid = fork()) == 0) {
-    // Do a loop that guarantees the terminating leaf frame will be in
-    // the test executable and not any other library function.
-    bool run = true;
-    while (run) {
-      DoNotOptimize(run = true);
-    }
-    exit(1);
-  }
-  return pid;
 }
 
 TEST(AndroidUnwinderDataTest, demangle_function_names) {
@@ -109,7 +103,9 @@ TEST(AndroidUnwinderDataTest, get_error_string) {
   EXPECT_EQ("Memory Invalid at address 0x1000", data.GetErrorString());
 }
 
-TEST(AndroidUnwinderTest, unwind_errors) {
+using AndroidUnwinderTest = ForkTest;
+
+TEST_F(AndroidUnwinderTest, unwind_errors) {
   AndroidLocalUnwinder unwinder;
 
   AndroidUnwinderData data;
@@ -130,29 +126,25 @@ TEST(AndroidUnwinderTest, unwind_errors) {
   EXPECT_EQ(ERROR_BAD_ARCH, data.error.code);
 }
 
-TEST(AndroidUnwinderTest, create) {
+TEST_F(AndroidUnwinderTest, create) {
   // Verify the local unwinder object is created.
   std::unique_ptr<AndroidUnwinder> unwinder(AndroidUnwinder::Create(getpid()));
   AndroidUnwinderData data;
   ASSERT_TRUE(unwinder->Unwind(data));
 
-  pid_t pid = ForkWaitForever();
-  ASSERT_NE(-1, pid);
-  TestScopedPidReaper reap(pid);
-
-  ASSERT_TRUE(RunWhenQuiesced(pid, false, [pid, &unwinder]() {
+  ForkAndWaitForPidState([this, &unwinder]() {
     // Verify the remote unwinder object is created.
-    unwinder.reset(AndroidUnwinder::Create(pid));
+    unwinder.reset(AndroidUnwinder::Create(pid_));
     AndroidUnwinderData data;
     if (!unwinder->Unwind(data)) {
       printf("Failed to unwind %s\n", data.GetErrorString().c_str());
       return PID_RUN_FAIL;
     }
     return PID_RUN_PASS;
-  }));
+  });
 }
 
-TEST(AndroidUnwinderTest, initialize_fails) {
+TEST_F(AndroidUnwinderTest, initialize_fails) {
   AndroidLocalUnwinder unwinder;
 
   // Induce a failure in the initialize function by grabbing every
@@ -196,7 +188,7 @@ TEST(AndroidLocalUnwinderTest, suffix_ignore) {
   }
 }
 
-TEST(AndroidUnwinderTest, verify_all_unwind_functions) {
+TEST_F(AndroidUnwinderTest, verify_all_unwind_functions) {
   // Do not reuse the unwinder object to verify initialization is done
   // correctly.
   AndroidUnwinderData data;
@@ -264,6 +256,13 @@ TEST(AndroidUnwinderTest, verify_all_unwind_functions) {
       x86_64_ucontext->uc_mcontext.rcx = (*regs_x86_64)[X86_64_REG_RCX];
       x86_64_ucontext->uc_mcontext.rsp = (*regs_x86_64)[X86_64_REG_RSP];
       x86_64_ucontext->uc_mcontext.rip = (*regs_x86_64)[X86_64_REG_RIP];
+    } break;
+    case ARCH_RISCV64: {
+      riscv64_ucontext_t* riscv64_ucontext =
+          reinterpret_cast<riscv64_ucontext_t*>(malloc(sizeof(riscv64_ucontext_t)));
+      ucontext = riscv64_ucontext;
+      memcpy(&riscv64_ucontext->uc_mcontext.__gregs, regs->RawData(),
+             RISCV64_REG_REAL_COUNT * sizeof(uint64_t));
     } break;
     default:
       ucontext = nullptr;
@@ -342,66 +341,64 @@ TEST(AndroidLocalUnwinderTest, unwind_different_thread) {
   AndroidUnwinderData data;
   ASSERT_TRUE(unwinder.Unwind(tid, data));
   // Verify that we are unwinding the thread.
-  if (running_with_hwasan()) {
-    // Could be in a hwasan function, so allow the second caller to be ThreadBusyWait.
-    ASSERT_TRUE(data.frames[0].function_name == "ThreadBusyWait" ||
-                data.frames[1].function_name == "ThreadBusyWait")
-        << GetBacktrace(unwinder, data.frames);
-  } else {
-    ASSERT_EQ("ThreadBusyWait", data.frames[0].function_name)
-        << GetBacktrace(unwinder, data.frames);
+
+  // It's possible that ThreadBusyWait is not the lowest called function.
+  // This can happen when running hwasan or if you run fast enough, you
+  // can catch the code still in the atomic operator= function, but after
+  // the tid is set. We really only care that the unwind sees you are in
+  // ThreadBusyWait, so look for it specifically.
+  size_t i = 0;
+  for (; i < data.frames.size(); i++) {
+    if (data.frames[i].function_name == "ThreadBusyWait") {
+      break;
+    }
   }
+  ASSERT_NE(i, data.frames.size()) << "Cannot find ThreadBusyWait in backtrace\n"
+                                   << GetBacktrace(unwinder, data.frames);
+  ASSERT_NE(i + 1, data.frames.size())
+      << "ThreadBusyWait function is the last frame of the unwind.\n"
+      << GetBacktrace(unwinder, data.frames);
 
   // Allow the thread to terminate normally.
   keep_running = false;
   thread.join();
 }
 
-TEST(AndroidRemoteUnwinderTest, initialize_before) {
-  pid_t pid = ForkWaitForever();
-  ASSERT_NE(-1, pid);
-  TestScopedPidReaper reap(pid);
+class AndroidRemoteUnwinderTest : public ForkTest {
+ protected:
+  void Verify(std::function<PidRunEnum(const FrameData& frame)> verify_func) {
+    ForkAndWaitForPidState([this, &verify_func]() {
+      AndroidRemoteUnwinder unwinder(pid_);
+      AndroidUnwinderData data;
+      if (!unwinder.Unwind(data)) {
+        printf("Failed to unwind %s\n", data.GetErrorString().c_str());
+        return PID_RUN_FAIL;
+      }
+      const auto& frame = data.frames[0];
+      return verify_func(frame);
+    });
+  }
+};
 
-  ASSERT_TRUE(Attach(pid));
+TEST_F(AndroidRemoteUnwinderTest, initialize_before) {
+  ASSERT_NO_FATAL_FAILURE(Fork());
 
-  AndroidRemoteUnwinder unwinder(pid);
+  AndroidRemoteUnwinder unwinder(pid_);
   ErrorData error;
   ASSERT_TRUE(unwinder.Initialize(error));
 
   AndroidUnwinderData data;
   ASSERT_TRUE(unwinder.Unwind(data));
-
-  ASSERT_TRUE(Detach(pid));
 }
 
-static bool Verify(pid_t pid, std::function<PidRunEnum(const FrameData& frame)> fn) {
-  return RunWhenQuiesced(pid, false, [pid, &fn]() {
-    AndroidRemoteUnwinder unwinder(pid);
-    AndroidUnwinderData data;
-    if (!unwinder.Unwind(data)) {
-      printf("Failed to unwind %s\n", data.GetErrorString().c_str());
-      return PID_RUN_FAIL;
-    }
-    const auto& frame = data.frames[0];
-    return fn(frame);
-  });
-}
-
-TEST(AndroidRemoteUnwinderTest, skip_libraries) {
+TEST_F(AndroidRemoteUnwinderTest, skip_libraries) {
   void* test_lib = GetTestLibHandle();
   ASSERT_TRUE(test_lib != nullptr);
-  int (*wait_func)() = reinterpret_cast<int (*)()>(dlsym(test_lib, "WaitForever"));
+  void (*wait_func)() = reinterpret_cast<void (*)()>(dlsym(test_lib, "WaitForever"));
   ASSERT_TRUE(wait_func != nullptr);
 
-  pid_t pid;
-  if ((pid = fork()) == 0) {
-    DoNotOptimize(wait_func());
-    exit(0);
-  }
-  ASSERT_NE(-1, pid);
-  TestScopedPidReaper reap(pid);
-
-  ASSERT_TRUE(Verify(pid, [pid](const FrameData& frame) {
+  SetForkFunc([wait_func]() { wait_func(); });
+  Verify([this](const FrameData& frame) {
     // Make sure that the frame is in the dlopen'd library before proceeding.
     if (frame.map_info == nullptr ||
         !android::base::EndsWith(frame.map_info->name(), "/libunwindstack_local.so")) {
@@ -409,7 +406,7 @@ TEST(AndroidRemoteUnwinderTest, skip_libraries) {
     }
 
     // Do an unwind removing the libunwindstack_local.so library.
-    AndroidRemoteUnwinder unwinder(pid, std::vector<std::string>{"libunwindstack_local.so"});
+    AndroidRemoteUnwinder unwinder(pid_, std::vector<std::string>{"libunwindstack_local.so"});
     AndroidUnwinderData data;
     if (!unwinder.Unwind(data)) {
       printf("Failed to unwind %s\n", data.GetErrorString().c_str());
@@ -423,26 +420,23 @@ TEST(AndroidRemoteUnwinderTest, skip_libraries) {
       return PID_RUN_FAIL;
     }
     return PID_RUN_PASS;
-  }));
+  });
 }
 
-TEST(AndroidRemoteUnwinderTest, suffix_ignore) {
-  pid_t pid = ForkWaitForever();
-  ASSERT_NE(-1, pid);
-  TestScopedPidReaper reap(pid);
-
-  ASSERT_TRUE(Verify(pid, [pid](const FrameData& frame) {
+TEST_F(AndroidRemoteUnwinderTest, suffix_ignore) {
+  Verify([this](const FrameData& frame) {
     // Wait until the forked process is no longer in libc.so.
     if (frame.map_info != nullptr && android::base::EndsWith(frame.map_info->name(), ".so")) {
       return PID_RUN_KEEP_GOING;
     }
 
-    AndroidRemoteUnwinder unwinder(pid, std::vector<std::string>{}, std::vector<std::string>{"so"});
+    AndroidRemoteUnwinder unwinder(pid_, std::vector<std::string>{},
+                                   std::vector<std::string>{"so"});
     AndroidUnwinderData data;
     if (!unwinder.Unwind(data)) {
       printf("Failed to unwind %s\n", data.GetErrorString().c_str());
 
-      AndroidRemoteUnwinder normal_unwinder(pid);
+      AndroidRemoteUnwinder normal_unwinder(pid_);
       if (normal_unwinder.Unwind(data)) {
         printf("Full unwind %s\n", GetBacktrace(normal_unwinder, data.frames).c_str());
       }
@@ -457,17 +451,17 @@ TEST(AndroidRemoteUnwinderTest, suffix_ignore) {
       }
     }
     return PID_RUN_PASS;
-  }));
+  });
 }
 
-TEST(AndroidRemoteUnwinderTest, remote_get_arch_ptrace_fails) {
+TEST_F(AndroidRemoteUnwinderTest, remote_get_arch_ptrace_fails) {
   AndroidRemoteUnwinder unwinder(getpid());
   AndroidUnwinderData data;
   ASSERT_FALSE(unwinder.Unwind(data));
   EXPECT_EQ("Ptrace Call Failed", data.GetErrorString());
 }
 
-TEST(AndroidRemoteUnwinderTest, remote_get_ptrace_fails) {
+TEST_F(AndroidRemoteUnwinderTest, remote_get_ptrace_fails) {
   AndroidRemoteUnwinder unwinder(getpid(), Regs::CurrentArch());
   AndroidUnwinderData data;
   ASSERT_FALSE(unwinder.Unwind(data));

@@ -46,19 +46,16 @@ class MapInfoGetBuildIDTest : public ::testing::Test {
   void SetUp() override {
     tf_.reset(new TemporaryFile);
 
-    memory_ = new MemoryFake;
-    elf_ = new ElfFake(new MemoryFake);
-    elf_interface_ = new ElfInterfaceFake(memory_);
+    std::shared_ptr<Memory> memory(new MemoryFake);
+    elf_ = new ElfFake(memory);
+    elf_interface_ = new ElfInterfaceFake(memory);
     elf_->FakeSetInterface(elf_interface_);
     elf_container_.reset(elf_);
     map_info_ = MapInfo::Create(0x1000, 0x20000, 0, PROT_READ | PROT_WRITE, tf_->path);
   }
 
-  void TearDown() override { delete memory_; }
-
   void MultipleThreadTest(std::string expected_build_id);
 
-  MemoryFake* memory_;
   ElfFake* elf_;
   ElfInterfaceFake* elf_interface_;
   std::unique_ptr<ElfFake> elf_container_;

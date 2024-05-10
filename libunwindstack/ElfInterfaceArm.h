@@ -17,9 +17,11 @@
 #pragma once
 
 #include <elf.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include <iterator>
+#include <memory>
 #include <unordered_map>
 
 #include <unwindstack/ElfInterface.h>
@@ -29,11 +31,17 @@ namespace unwindstack {
 
 class ElfInterfaceArm : public ElfInterface32 {
  public:
-  ElfInterfaceArm(Memory* memory) : ElfInterface32(memory) {}
+  ElfInterfaceArm(std::shared_ptr<Memory>& memory) : ElfInterface32(memory) {}
   virtual ~ElfInterfaceArm() = default;
 
-  class iterator : public std::iterator<std::bidirectional_iterator_tag, uint32_t> {
+  class iterator {
    public:
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = uint32_t;
+    using difference_type = ptrdiff_t;
+    using pointer = uint32_t*;
+    using reference = uint32_t&;
+
     iterator(ElfInterfaceArm* interface, size_t index) : interface_(interface), index_(index) { }
 
     iterator& operator++() { index_++; return *this; }
@@ -41,8 +49,8 @@ class ElfInterfaceArm : public ElfInterface32 {
     iterator& operator--() { index_--; return *this; }
     iterator& operator--(int decrement) { index_ -= decrement; return *this; }
 
-    bool operator==(const iterator& rhs) { return this->index_ == rhs.index_; }
-    bool operator!=(const iterator& rhs) { return this->index_ != rhs.index_; }
+    bool operator==(const iterator& rhs) const { return this->index_ == rhs.index_; }
+    bool operator!=(const iterator& rhs) const { return this->index_ != rhs.index_; }
 
     uint32_t operator*() {
       uint32_t addr = interface_->addrs_[index_];

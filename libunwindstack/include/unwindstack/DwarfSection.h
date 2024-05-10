@@ -16,12 +16,16 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <iterator>
 #include <map>
+#include <memory>
 #include <optional>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include <unwindstack/DwarfError.h>
 #include <unwindstack/DwarfLocation.h>
@@ -36,14 +40,21 @@ class Memory;
 class Regs;
 template <typename AddressType>
 struct RegsInfo;
+struct SectionInfo;
 
 class DwarfSection {
  public:
-  DwarfSection(Memory* memory);
+  DwarfSection(std::shared_ptr<Memory>& memory);
   virtual ~DwarfSection() = default;
 
-  class iterator : public std::iterator<std::bidirectional_iterator_tag, DwarfFde*> {
+  class iterator {
    public:
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = DwarfFde*;
+    using difference_type = ptrdiff_t;
+    using pointer = DwarfFde**;
+    using reference = DwarfFde*&;
+
     iterator(DwarfSection* section, size_t index) : index_(index) {
       section->GetFdes(&fdes_);
       if (index_ == static_cast<size_t>(-1)) {
@@ -68,8 +79,8 @@ class DwarfSection {
       return *this;
     }
 
-    bool operator==(const iterator& rhs) { return this->index_ == rhs.index_; }
-    bool operator!=(const iterator& rhs) { return this->index_ != rhs.index_; }
+    bool operator==(const iterator& rhs) const { return this->index_ == rhs.index_; }
+    bool operator!=(const iterator& rhs) const { return this->index_ != rhs.index_; }
 
     const DwarfFde* operator*() {
       if (index_ > fdes_.size()) return nullptr;
@@ -87,7 +98,7 @@ class DwarfSection {
   DwarfErrorCode LastErrorCode() { return last_error_.code; }
   uint64_t LastErrorAddress() { return last_error_.address; }
 
-  virtual bool Init(uint64_t offset, uint64_t size, int64_t section_bias) = 0;
+  virtual bool Init(const SectionInfo& info) = 0;
 
   virtual bool Eval(const DwarfCie*, Memory*, const DwarfLocations&, Regs*, bool*) = 0;
 
@@ -124,10 +135,10 @@ class DwarfSection {
 template <typename AddressType>
 class DwarfSectionImpl : public DwarfSection {
  public:
-  DwarfSectionImpl(Memory* memory) : DwarfSection(memory) {}
+  DwarfSectionImpl(std::shared_ptr<Memory>& memory) : DwarfSection(memory) {}
   virtual ~DwarfSectionImpl() = default;
 
-  bool Init(uint64_t offset, uint64_t size, int64_t section_bias) override;
+  bool Init(const SectionInfo& info) override;
 
   const DwarfCie* GetCieFromOffset(uint64_t offset);
 

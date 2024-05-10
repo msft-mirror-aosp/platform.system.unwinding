@@ -18,6 +18,7 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <vector>
 
 #include <unwindstack/MachineArm.h>
@@ -33,33 +34,35 @@ namespace unwindstack {
 class ElfInterfaceArmTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    memory_.Clear();
+    fake_memory_ = new MemoryFake;
+    memory_.reset(fake_memory_);
     process_memory_.Clear();
   }
 
-  MemoryFake memory_;
+  std::shared_ptr<Memory> memory_;
+  MemoryFake* fake_memory_;
   MemoryFake process_memory_;
 };
 
 TEST_F(ElfInterfaceArmTest, GetPrel32Addr) {
-  ElfInterfaceArmFake interface(&memory_);
-  memory_.SetData32(0x1000, 0x230000);
+  ElfInterfaceArmFake interface(memory_);
+  fake_memory_->SetData32(0x1000, 0x230000);
 
   uint32_t value;
   ASSERT_TRUE(interface.GetPrel31Addr(0x1000, &value));
   ASSERT_EQ(0x231000U, value);
 
-  memory_.SetData32(0x1000, 0x80001000);
+  fake_memory_->SetData32(0x1000, 0x80001000);
   ASSERT_TRUE(interface.GetPrel31Addr(0x1000, &value));
   ASSERT_EQ(0x2000U, value);
 
-  memory_.SetData32(0x1000, 0x70001000);
+  fake_memory_->SetData32(0x1000, 0x70001000);
   ASSERT_TRUE(interface.GetPrel31Addr(0x1000, &value));
   ASSERT_EQ(0xf0002000U, value);
 }
 
 TEST_F(ElfInterfaceArmTest, FindEntry_start_zero) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
   interface.FakeSetStartOffset(0);
   interface.FakeSetTotalEntries(10);
 
@@ -68,7 +71,7 @@ TEST_F(ElfInterfaceArmTest, FindEntry_start_zero) {
 }
 
 TEST_F(ElfInterfaceArmTest, FindEntry_no_entries) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
   interface.FakeSetStartOffset(0x100);
   interface.FakeSetTotalEntries(0);
 
@@ -77,7 +80,7 @@ TEST_F(ElfInterfaceArmTest, FindEntry_no_entries) {
 }
 
 TEST_F(ElfInterfaceArmTest, FindEntry_no_valid_memory) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
   interface.FakeSetStartOffset(0x100);
   interface.FakeSetTotalEntries(2);
 
@@ -86,20 +89,20 @@ TEST_F(ElfInterfaceArmTest, FindEntry_no_valid_memory) {
 }
 
 TEST_F(ElfInterfaceArmTest, FindEntry_ip_before_first) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(1);
-  memory_.SetData32(0x1000, 0x6000);
+  fake_memory_->SetData32(0x1000, 0x6000);
 
   uint64_t entry_offset;
   ASSERT_FALSE(interface.FindEntry(0x1000, &entry_offset));
 }
 
 TEST_F(ElfInterfaceArmTest, FindEntry_single_entry_negative_value) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
   interface.FakeSetStartOffset(0x8000);
   interface.FakeSetTotalEntries(1);
-  memory_.SetData32(0x8000, 0x7fffff00);
+  fake_memory_->SetData32(0x8000, 0x7fffff00);
 
   uint64_t entry_offset;
   ASSERT_TRUE(interface.FindEntry(0x7ff0, &entry_offset));
@@ -107,11 +110,11 @@ TEST_F(ElfInterfaceArmTest, FindEntry_single_entry_negative_value) {
 }
 
 TEST_F(ElfInterfaceArmTest, FindEntry_two_entries) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(2);
-  memory_.SetData32(0x1000, 0x6000);
-  memory_.SetData32(0x1008, 0x7000);
+  fake_memory_->SetData32(0x1000, 0x6000);
+  fake_memory_->SetData32(0x1008, 0x7000);
 
   uint64_t entry_offset;
   ASSERT_TRUE(interface.FindEntry(0x7000, &entry_offset));
@@ -119,10 +122,10 @@ TEST_F(ElfInterfaceArmTest, FindEntry_two_entries) {
 }
 
 TEST_F(ElfInterfaceArmTest, FindEntry_last_check_single_entry) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(1);
-  memory_.SetData32(0x1000, 0x6000);
+  fake_memory_->SetData32(0x1000, 0x6000);
 
   uint64_t entry_offset;
   ASSERT_TRUE(interface.FindEntry(0x7000, &entry_offset));
@@ -130,17 +133,17 @@ TEST_F(ElfInterfaceArmTest, FindEntry_last_check_single_entry) {
 
   // To guarantee that we are using the cache on the second run,
   // set the memory to a different value.
-  memory_.SetData32(0x1000, 0x8000);
+  fake_memory_->SetData32(0x1000, 0x8000);
   ASSERT_TRUE(interface.FindEntry(0x7004, &entry_offset));
   ASSERT_EQ(0x1000U, entry_offset);
 }
 
 TEST_F(ElfInterfaceArmTest, FindEntry_last_check_multiple_entries) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(2);
-  memory_.SetData32(0x1000, 0x6000);
-  memory_.SetData32(0x1008, 0x8000);
+  fake_memory_->SetData32(0x1000, 0x6000);
+  fake_memory_->SetData32(0x1008, 0x8000);
 
   uint64_t entry_offset;
   ASSERT_TRUE(interface.FindEntry(0x9008, &entry_offset));
@@ -148,20 +151,20 @@ TEST_F(ElfInterfaceArmTest, FindEntry_last_check_multiple_entries) {
 
   // To guarantee that we are using the cache on the second run,
   // set the memory to a different value.
-  memory_.SetData32(0x1000, 0x16000);
-  memory_.SetData32(0x1008, 0x18000);
+  fake_memory_->SetData32(0x1000, 0x16000);
+  fake_memory_->SetData32(0x1008, 0x18000);
   ASSERT_TRUE(interface.FindEntry(0x9100, &entry_offset));
   ASSERT_EQ(0x1008U, entry_offset);
 }
 
 TEST_F(ElfInterfaceArmTest, FindEntry_multiple_entries_even) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(4);
-  memory_.SetData32(0x1000, 0x6000);
-  memory_.SetData32(0x1008, 0x7000);
-  memory_.SetData32(0x1010, 0x8000);
-  memory_.SetData32(0x1018, 0x9000);
+  fake_memory_->SetData32(0x1000, 0x6000);
+  fake_memory_->SetData32(0x1008, 0x7000);
+  fake_memory_->SetData32(0x1010, 0x8000);
+  fake_memory_->SetData32(0x1018, 0x9000);
 
   uint64_t entry_offset;
   ASSERT_TRUE(interface.FindEntry(0x9100, &entry_offset));
@@ -169,23 +172,23 @@ TEST_F(ElfInterfaceArmTest, FindEntry_multiple_entries_even) {
 
   // To guarantee that we are using the cache on the second run,
   // set the memory to a different value.
-  memory_.SetData32(0x1000, 0x16000);
-  memory_.SetData32(0x1008, 0x17000);
-  memory_.SetData32(0x1010, 0x18000);
-  memory_.SetData32(0x1018, 0x19000);
+  fake_memory_->SetData32(0x1000, 0x16000);
+  fake_memory_->SetData32(0x1008, 0x17000);
+  fake_memory_->SetData32(0x1010, 0x18000);
+  fake_memory_->SetData32(0x1018, 0x19000);
   ASSERT_TRUE(interface.FindEntry(0x9100, &entry_offset));
   ASSERT_EQ(0x1010U, entry_offset);
 }
 
 TEST_F(ElfInterfaceArmTest, FindEntry_multiple_entries_odd) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(5);
-  memory_.SetData32(0x1000, 0x5000);
-  memory_.SetData32(0x1008, 0x6000);
-  memory_.SetData32(0x1010, 0x7000);
-  memory_.SetData32(0x1018, 0x8000);
-  memory_.SetData32(0x1020, 0x9000);
+  fake_memory_->SetData32(0x1000, 0x5000);
+  fake_memory_->SetData32(0x1008, 0x6000);
+  fake_memory_->SetData32(0x1010, 0x7000);
+  fake_memory_->SetData32(0x1018, 0x8000);
+  fake_memory_->SetData32(0x1020, 0x9000);
 
   uint64_t entry_offset;
   ASSERT_TRUE(interface.FindEntry(0x8100, &entry_offset));
@@ -193,24 +196,24 @@ TEST_F(ElfInterfaceArmTest, FindEntry_multiple_entries_odd) {
 
   // To guarantee that we are using the cache on the second run,
   // set the memory to a different value.
-  memory_.SetData32(0x1000, 0x15000);
-  memory_.SetData32(0x1008, 0x16000);
-  memory_.SetData32(0x1010, 0x17000);
-  memory_.SetData32(0x1018, 0x18000);
-  memory_.SetData32(0x1020, 0x19000);
+  fake_memory_->SetData32(0x1000, 0x15000);
+  fake_memory_->SetData32(0x1008, 0x16000);
+  fake_memory_->SetData32(0x1010, 0x17000);
+  fake_memory_->SetData32(0x1018, 0x18000);
+  fake_memory_->SetData32(0x1020, 0x19000);
   ASSERT_TRUE(interface.FindEntry(0x8100, &entry_offset));
   ASSERT_EQ(0x1010U, entry_offset);
 }
 
 TEST_F(ElfInterfaceArmTest, iterate) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(5);
-  memory_.SetData32(0x1000, 0x5000);
-  memory_.SetData32(0x1008, 0x6000);
-  memory_.SetData32(0x1010, 0x7000);
-  memory_.SetData32(0x1018, 0x8000);
-  memory_.SetData32(0x1020, 0x9000);
+  fake_memory_->SetData32(0x1000, 0x5000);
+  fake_memory_->SetData32(0x1008, 0x6000);
+  fake_memory_->SetData32(0x1010, 0x7000);
+  fake_memory_->SetData32(0x1018, 0x8000);
+  fake_memory_->SetData32(0x1020, 0x9000);
 
   std::vector<uint32_t> entries;
   for (auto addr : interface) {
@@ -224,11 +227,11 @@ TEST_F(ElfInterfaceArmTest, iterate) {
   ASSERT_EQ(0xa020U, entries[4]);
 
   // Make sure the iterate cached the entries.
-  memory_.SetData32(0x1000, 0x11000);
-  memory_.SetData32(0x1008, 0x12000);
-  memory_.SetData32(0x1010, 0x13000);
-  memory_.SetData32(0x1018, 0x14000);
-  memory_.SetData32(0x1020, 0x15000);
+  fake_memory_->SetData32(0x1000, 0x11000);
+  fake_memory_->SetData32(0x1008, 0x12000);
+  fake_memory_->SetData32(0x1010, 0x13000);
+  fake_memory_->SetData32(0x1018, 0x14000);
+  fake_memory_->SetData32(0x1020, 0x15000);
 
   entries.clear();
   for (auto addr : interface) {
@@ -243,7 +246,7 @@ TEST_F(ElfInterfaceArmTest, iterate) {
 }
 
 TEST_F(ElfInterfaceArmTest, HandleUnknownType_arm_exidx) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
 
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(100);
@@ -260,7 +263,7 @@ TEST_F(ElfInterfaceArmTest, HandleUnknownType_arm_exidx) {
 }
 
 TEST_F(ElfInterfaceArmTest, StepExidx) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
 
   // FindEntry fails.
   bool finished;
@@ -270,8 +273,8 @@ TEST_F(ElfInterfaceArmTest, StepExidx) {
   // ExtractEntry should fail.
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(2);
-  memory_.SetData32(0x1000, 0x6000);
-  memory_.SetData32(0x1008, 0x8000);
+  fake_memory_->SetData32(0x1000, 0x6000);
+  fake_memory_->SetData32(0x1008, 0x8000);
 
   RegsArm regs;
   regs[ARM_REG_SP] = 0x1000;
@@ -283,12 +286,12 @@ TEST_F(ElfInterfaceArmTest, StepExidx) {
   EXPECT_EQ(0x1004U, interface.LastErrorAddress());
 
   // Eval should fail.
-  memory_.SetData32(0x1004, 0x81000000);
+  fake_memory_->SetData32(0x1004, 0x81000000);
   ASSERT_FALSE(interface.StepExidx(0x7000, &regs, &process_memory_, &finished));
   EXPECT_EQ(ERROR_UNWIND_INFO, interface.LastErrorCode());
 
   // Everything should pass.
-  memory_.SetData32(0x1004, 0x80b0b0b0);
+  fake_memory_->SetData32(0x1004, 0x80b0b0b0);
   ASSERT_TRUE(interface.StepExidx(0x7000, &regs, &process_memory_, &finished));
   EXPECT_EQ(ERROR_UNWIND_INFO, interface.LastErrorCode());
   ASSERT_FALSE(finished);
@@ -309,13 +312,13 @@ TEST_F(ElfInterfaceArmTest, StepExidx) {
 }
 
 TEST_F(ElfInterfaceArmTest, StepExidx_pc_set) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
 
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(2);
-  memory_.SetData32(0x1000, 0x6000);
-  memory_.SetData32(0x1004, 0x808800b0);
-  memory_.SetData32(0x1008, 0x8000);
+  fake_memory_->SetData32(0x1000, 0x6000);
+  fake_memory_->SetData32(0x1004, 0x808800b0);
+  fake_memory_->SetData32(0x1008, 0x8000);
   process_memory_.SetData32(0x10000, 0x10);
 
   RegsArm regs;
@@ -336,12 +339,12 @@ TEST_F(ElfInterfaceArmTest, StepExidx_pc_set) {
 }
 
 TEST_F(ElfInterfaceArmTest, StepExidx_cant_unwind) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
 
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(1);
-  memory_.SetData32(0x1000, 0x6000);
-  memory_.SetData32(0x1004, 1);
+  fake_memory_->SetData32(0x1000, 0x6000);
+  fake_memory_->SetData32(0x1004, 1);
 
   RegsArm regs;
   regs[ARM_REG_SP] = 0x10000;
@@ -359,12 +362,12 @@ TEST_F(ElfInterfaceArmTest, StepExidx_cant_unwind) {
 }
 
 TEST_F(ElfInterfaceArmTest, StepExidx_refuse_unwind) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
 
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(1);
-  memory_.SetData32(0x1000, 0x6000);
-  memory_.SetData32(0x1004, 0x808000b0);
+  fake_memory_->SetData32(0x1000, 0x6000);
+  fake_memory_->SetData32(0x1004, 0x808000b0);
 
   RegsArm regs;
   regs[ARM_REG_SP] = 0x10000;
@@ -382,13 +385,13 @@ TEST_F(ElfInterfaceArmTest, StepExidx_refuse_unwind) {
 }
 
 TEST_F(ElfInterfaceArmTest, StepExidx_pc_zero) {
-  ElfInterfaceArmFake interface(&memory_);
+  ElfInterfaceArmFake interface(memory_);
 
   interface.FakeSetStartOffset(0x1000);
   interface.FakeSetTotalEntries(1);
-  memory_.SetData32(0x1000, 0x6000);
+  fake_memory_->SetData32(0x1000, 0x6000);
   // Set the pc using a pop r15 command.
-  memory_.SetData32(0x1004, 0x808800b0);
+  fake_memory_->SetData32(0x1004, 0x808800b0);
 
   // pc value of zero.
   process_memory_.SetData32(0x10000, 0);
@@ -406,7 +409,7 @@ TEST_F(ElfInterfaceArmTest, StepExidx_pc_zero) {
   ASSERT_EQ(0U, regs.pc());
 
   // Now set the pc from the lr register (pop r14).
-  memory_.SetData32(0x1004, 0x808400b0);
+  fake_memory_->SetData32(0x1004, 0x808400b0);
 
   regs[ARM_REG_SP] = 0x10000;
   regs[ARM_REG_LR] = 0x20000;
