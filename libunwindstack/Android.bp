@@ -148,10 +148,7 @@ cc_library {
     vendor_ramdisk_available: true,
     // TODO(b/153609531): remove when no longer needed.
     native_bridge_supported: true,
-    vndk: {
-        enabled: true,
-        support_system_process: true,
-    },
+    double_loadable: true,
     defaults: ["libunwindstack_defaults"],
     srcs: [
         "DexFile.cpp",
