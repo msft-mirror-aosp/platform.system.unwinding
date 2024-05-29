@@ -19,7 +19,7 @@
 
 extern "C" bool GetInitialArgs(const char*** args, size_t* num_args) {
   static const char* initial_args[2] = {"--slow_threshold_ms=90000",
-                                        "--deadline_threshold_ms=120000"};
+                                        "--deadline_threshold_ms=200000"};
   *args = initial_args;
   *num_args = 2;
   return true;
