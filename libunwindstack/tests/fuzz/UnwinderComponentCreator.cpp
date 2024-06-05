@@ -31,20 +31,12 @@ std::unique_ptr<Regs> GetRegisters(ArchEnum arch) {
       std::unique_ptr<unwindstack::RegsArm64> regs = std::make_unique<unwindstack::RegsArm64>();
       return regs;
     }
-    case unwindstack::ARCH_X86: {
-      std::unique_ptr<unwindstack::RegsX86> regs = std::make_unique<unwindstack::RegsX86>();
+    case unwindstack::ARCH_RISCV64: {
+      std::unique_ptr<unwindstack::RegsRiscv64> regs = std::make_unique<unwindstack::RegsRiscv64>();
       return regs;
     }
     case unwindstack::ARCH_X86_64: {
       std::unique_ptr<unwindstack::RegsX86_64> regs = std::make_unique<unwindstack::RegsX86_64>();
-      return regs;
-    }
-    case unwindstack::ARCH_MIPS: {
-      std::unique_ptr<unwindstack::RegsMips> regs = std::make_unique<unwindstack::RegsMips>();
-      return regs;
-    }
-    case unwindstack::ARCH_MIPS64: {
-      std::unique_ptr<unwindstack::RegsMips64> regs = std::make_unique<unwindstack::RegsMips64>();
       return regs;
     }
     case unwindstack::ARCH_UNKNOWN:
@@ -94,10 +86,12 @@ void ElfPushFakeStepData(FuzzedDataProvider* data_provider) {
 
 ElfFake* PopulateElfFake(FuzzedDataProvider* data_provider) {
   // This will be passed to a smart pointer in ElfAddMapInfo.
-  ElfFake* elf = new ElfFake(new MemoryFake);
+  std::shared_ptr<Memory> memory(new MemoryFake);
+  ElfFake* elf = new ElfFake(memory);
 
   // This will be handled by a smart pointer within Elf.
-  ElfInterfaceFake* interface_fake = new ElfInterfaceFake(nullptr);
+  std::shared_ptr<Memory> empty;
+  ElfInterfaceFake* interface_fake = new ElfInterfaceFake(empty);
   std::string build_id = data_provider->ConsumeRandomLengthString(kMaxBuildIdLen);
   interface_fake->FakeSetBuildID(build_id);
   std::string so_name = data_provider->ConsumeRandomLengthString(kMaxSoNameLen);
