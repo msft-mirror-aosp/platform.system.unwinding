@@ -275,7 +275,6 @@ cc_library {
         "libunwindstack",
     ],
     whole_static_libs: [
-        "libc++fs",
         "libprocinfo",
         "libz",
     ],
@@ -554,7 +553,6 @@ cc_binary {
     name: "unwind_for_offline",
     defaults: ["libunwindstack_tools"],
     static_libs: [
-        "libc++fs",
         "libunwindstack_utils",
     ],
 
