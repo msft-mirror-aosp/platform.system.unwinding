@@ -203,7 +203,11 @@ class MapInfo {
   // Returns the printable version of the build id (hex dump of raw data).
   std::string GetPrintableBuildID();
 
-  inline bool IsBlank() { return offset() == 0 && flags() == 0 && name().empty(); }
+  // A blank map can have no name, or be a kernel named map [page size compat]
+  // that should be skipped.
+  inline bool IsBlank() {
+    return offset() == 0 && flags() == 0 && (name().empty() || name() == "[page size compat]");
+  }
 
   // Returns elf_fields_. It will create the object if it is null.
   ElfFields& GetElfFields();
