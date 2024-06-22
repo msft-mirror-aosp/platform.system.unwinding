@@ -105,6 +105,15 @@ TEST(MapInfoTest, real_map_check) {
   map2->set_name("");
   EXPECT_EQ(map3, map1->GetNextRealMap());
 
+  // Verify if the map has the name [page size compat] it's still considered blank.
+  map2->set_name("[page size compat]");
+  EXPECT_EQ(nullptr, map1->GetPrevRealMap());
+  EXPECT_EQ(map3, map1->GetNextRealMap());
+  EXPECT_EQ(map1, map3->GetPrevRealMap());
+  EXPECT_EQ(nullptr, map3->GetNextRealMap());
+  map2->set_name("");
+  EXPECT_EQ(map3, map1->GetNextRealMap());
+
   // Verify that if the Get{Next,Prev}RealMap names must match.
   map1->set_name("another");
   EXPECT_EQ(nullptr, map1->GetPrevRealMap());
