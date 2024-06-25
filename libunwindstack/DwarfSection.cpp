@@ -600,9 +600,12 @@ bool DwarfSectionImpl<AddressType>::GetCfaLocationInfo(uint64_t pc, const DwarfF
       last_error_ = cfa.last_error();
       return false;
     }
-    cie_loc_regs_[fde->cie_offset] = *loc_regs;
+    DwarfLocations* cie_loc_regs = &cie_loc_regs_[fde->cie_offset];
+    *cie_loc_regs = *loc_regs;
+    cfa.set_cie_loc_regs(cie_loc_regs);
+  } else {
+    cfa.set_cie_loc_regs(&reg_entry->second);
   }
-  cfa.set_cie_loc_regs(&cie_loc_regs_[fde->cie_offset]);
   if (!cfa.GetLocationInfo(pc, fde->cfa_instructions_offset, fde->cfa_instructions_end, loc_regs)) {
     last_error_ = cfa.last_error();
     return false;
@@ -706,8 +709,7 @@ bool DwarfSectionImpl<AddressType>::GetNextCieOrFde(uint64_t& next_entries_offse
   }
 
   if (entry_is_cie) {
-    auto entry = cie_entries_.find(start_offset);
-    if (entry == cie_entries_.end()) {
+    if (!cie_entries_.contains(start_offset)) {
       DwarfCie* cie = &cie_entries_[start_offset];
       cie->lsda_encoding = DW_EH_PE_omit;
       cie->cfa_instructions_end = next_entries_offset;
