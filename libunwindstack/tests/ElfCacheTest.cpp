@@ -99,7 +99,7 @@ class ElfCacheTest : public ::testing::Test {
 
     for (auto& map_info : *maps_) {
       if (!map_info->name().empty()) {
-        if (renames.count(map_info->name()) != 0) {
+        if (renames.contains(map_info->name())) {
           // Replace the name with the temporary file name.
           map_info->name() = renames.at(map_info->name());
         }
