@@ -379,7 +379,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_same) {
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x100, 0x102, &loc_regs));
   ASSERT_EQ(0x102U, this->dmem_->cur_offset());
   ASSERT_EQ(0U, loc_regs.size());
-  ASSERT_EQ(0U, loc_regs.count(127));
+  ASSERT_FALSE(loc_regs.contains(127));
 
   ASSERT_EQ("", GetFakeLogPrint());
   ASSERT_EQ("", GetFakeLogBuf());
@@ -392,7 +392,7 @@ TYPED_TEST_P(DwarfCfaTest, cfa_same) {
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x2100, 0x2103, &loc_regs));
   ASSERT_EQ(0x2103U, this->dmem_->cur_offset());
   ASSERT_EQ(0U, loc_regs.size());
-  ASSERT_EQ(0U, loc_regs.count(255));
+  ASSERT_FALSE(loc_regs.contains(255));
 
   ASSERT_EQ("", GetFakeLogPrint());
   ASSERT_EQ("", GetFakeLogBuf());
@@ -458,14 +458,14 @@ TYPED_TEST_P(DwarfCfaTest, cfa_state) {
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x2000, 0x2005, &loc_regs));
   ASSERT_EQ(0x2005U, this->dmem_->cur_offset());
   ASSERT_EQ(2U, loc_regs.size());
-  ASSERT_NE(loc_regs.end(), loc_regs.find(5));
-  ASSERT_NE(loc_regs.end(), loc_regs.find(6));
+  ASSERT_TRUE(loc_regs.contains(5));
+  ASSERT_TRUE(loc_regs.contains(6));
 
   loc_regs.clear();
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x2000, 0x2006, &loc_regs));
   ASSERT_EQ(0x2006U, this->dmem_->cur_offset());
   ASSERT_EQ(1U, loc_regs.size());
-  ASSERT_NE(loc_regs.end(), loc_regs.find(5));
+  ASSERT_TRUE(loc_regs.contains(5));
 
   ResetLogs();
   this->fake_memory_->SetMemory(
@@ -476,31 +476,31 @@ TYPED_TEST_P(DwarfCfaTest, cfa_state) {
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x6000, 0x600c, &loc_regs));
   ASSERT_EQ(0x600cU, this->dmem_->cur_offset());
   ASSERT_EQ(4U, loc_regs.size());
-  ASSERT_NE(loc_regs.end(), loc_regs.find(5));
-  ASSERT_NE(loc_regs.end(), loc_regs.find(6));
-  ASSERT_NE(loc_regs.end(), loc_regs.find(7));
-  ASSERT_NE(loc_regs.end(), loc_regs.find(9));
+  ASSERT_TRUE(loc_regs.contains(5));
+  ASSERT_TRUE(loc_regs.contains(6));
+  ASSERT_TRUE(loc_regs.contains(7));
+  ASSERT_TRUE(loc_regs.contains(9));
 
   loc_regs.clear();
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x6000, 0x600d, &loc_regs));
   ASSERT_EQ(0x600dU, this->dmem_->cur_offset());
   ASSERT_EQ(3U, loc_regs.size());
-  ASSERT_NE(loc_regs.end(), loc_regs.find(5));
-  ASSERT_NE(loc_regs.end(), loc_regs.find(6));
-  ASSERT_NE(loc_regs.end(), loc_regs.find(7));
+  ASSERT_TRUE(loc_regs.contains(5));
+  ASSERT_TRUE(loc_regs.contains(6));
+  ASSERT_TRUE(loc_regs.contains(7));
 
   loc_regs.clear();
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x6000, 0x600e, &loc_regs));
   ASSERT_EQ(0x600eU, this->dmem_->cur_offset());
   ASSERT_EQ(2U, loc_regs.size());
-  ASSERT_NE(loc_regs.end(), loc_regs.find(5));
-  ASSERT_NE(loc_regs.end(), loc_regs.find(6));
+  ASSERT_TRUE(loc_regs.contains(5));
+  ASSERT_TRUE(loc_regs.contains(6));
 
   loc_regs.clear();
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x6000, 0x600f, &loc_regs));
   ASSERT_EQ(0x600fU, this->dmem_->cur_offset());
   ASSERT_EQ(1U, loc_regs.size());
-  ASSERT_NE(loc_regs.end(), loc_regs.find(5));
+  ASSERT_TRUE(loc_regs.contains(5));
 
   loc_regs.clear();
   ASSERT_TRUE(this->cfa_->GetLocationInfo(this->fde_.pc_start, 0x6000, 0x6010, &loc_regs));
