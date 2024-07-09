@@ -68,7 +68,10 @@ class DexFilesTest : public ::testing::Test {
                        "500000-501000 r--p 0000000 00:00 0 /fake/elf4\n"
                        "501000-502000 ---p 0000000 00:00 0\n"
                        "503000-510000 rw-p 0003000 00:00 0 /fake/elf4\n"
-                       "510000-520000 rw-p 0010000 00:00 0 /fake/elf4\n"));
+                       "510000-520000 rw-p 0010000 00:00 0 /fake/elf4\n"
+                       "600000-601000 r--p 0000000 00:00 0 /fake/elf5\n"
+                       "601000-602000 ---p 0000000 00:00 0 [page size compat]\n"
+                       "603000-610000 rw-p 0003000 00:00 0 /fake/elf5\n"));
     ASSERT_TRUE(maps_->Parse());
 
     // Global variable in a section that is not readable.
@@ -88,6 +91,11 @@ class DexFilesTest : public ::testing::Test {
 
     // Global variable set in this map, but there is an empty map before rw map.
     map_info = maps_->Get(kMapGlobalAfterEmpty).get();
+    ASSERT_TRUE(map_info != nullptr);
+    CreateFakeElf(map_info, 0x3800, 0x3000, 0x3000, 0xd000);
+
+    // Global variable set in this map, but there is a page size compat map before rw map.
+    map_info = maps_->Get(kMapGlobalAfterPageSizeCompat).get();
     ASSERT_TRUE(map_info != nullptr);
     CreateFakeElf(map_info, 0x3800, 0x3000, 0x3000, 0xd000);
   }
@@ -115,6 +123,7 @@ class DexFilesTest : public ::testing::Test {
   static constexpr size_t kMapDexFiles = 8;
   static constexpr size_t kMapGlobalAfterEmpty = 9;
   static constexpr size_t kMapDexFilesAfterEmpty = 12;
+  static constexpr size_t kMapGlobalAfterPageSizeCompat = 13;
 
   std::shared_ptr<Memory> process_memory_;
   MemoryFake* memory_;
@@ -354,6 +363,19 @@ TEST_F(DexFilesTest, get_method_information_with_empty_map) {
   WriteDex(0x510000);
 
   dex_files_->GetFunctionName(maps_.get(), 0x510100, &method_name, &method_offset);
+  EXPECT_EQ("Main.<init>", method_name);
+  EXPECT_EQ(0U, method_offset);
+}
+
+TEST_F(DexFilesTest, get_method_information_with_page_size_compat_map) {
+  SharedString method_name = "nothing";
+  uint64_t method_offset = 0x124;
+
+  WriteDescriptor32(0x603800, 0x606000);
+  WriteEntry32(0x606000, 0, 0, 0x610000, sizeof(kDexData));
+  WriteDex(0x610000);
+
+  dex_files_->GetFunctionName(maps_.get(), 0x610100, &method_name, &method_offset);
   EXPECT_EQ("Main.<init>", method_name);
   EXPECT_EQ(0U, method_offset);
 }
