@@ -109,7 +109,7 @@ cc_defaults {
         },
         bionic: {
             header_libs: ["bionic_libc_platform_headers"],
-            static_libs: ["libasync_safe"],
+            whole_static_libs: ["libasync_safe"],
         },
     },
 
@@ -128,7 +128,6 @@ cc_defaults {
 
     whole_static_libs: [
         "librustc_demangle_static",
-        "libz_static",
         "libzstd",
     ],
 
@@ -136,6 +135,7 @@ cc_defaults {
         "libbase",
         "liblog",
         "liblzma",
+        "libz",
     ],
 }
 
@@ -148,10 +148,7 @@ cc_library {
     vendor_ramdisk_available: true,
     // TODO(b/153609531): remove when no longer needed.
     native_bridge_supported: true,
-    vndk: {
-        enabled: true,
-        support_system_process: true,
-    },
+    double_loadable: true,
     defaults: ["libunwindstack_defaults"],
     srcs: [
         "DexFile.cpp",
@@ -278,7 +275,6 @@ cc_library {
         "libunwindstack",
     ],
     whole_static_libs: [
-        "libc++fs",
         "libprocinfo",
         "libz",
     ],
@@ -557,7 +553,6 @@ cc_binary {
     name: "unwind_for_offline",
     defaults: ["libunwindstack_tools"],
     static_libs: [
-        "libc++fs",
         "libunwindstack_utils",
     ],
 
