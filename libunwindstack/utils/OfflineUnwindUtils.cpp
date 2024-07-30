@@ -463,7 +463,7 @@ const std::string& OfflineUnwindUtils::GetAdjustedSampleName(
 
 bool OfflineUnwindUtils::IsValidUnwindSample(const std::string& sample_name,
                                              std::string* error_msg) const {
-  if (samples_.find(sample_name) == samples_.end()) {
+  if (!samples_.contains(sample_name)) {
     std::stringstream err_stream;
     err_stream << "Invalid sample name (offline file directory) '" << sample_name << "'.";
     if (sample_name == kSingleSample) {
