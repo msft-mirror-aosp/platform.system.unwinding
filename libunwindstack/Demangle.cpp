@@ -25,18 +25,18 @@
 
 namespace unwindstack {
 
-std::string DemangleNameIfNeeded(const std::string& name) {
-  if (name.length() < 2 || name[0] != '_') {
+static std::string Demangle(const char* name, size_t length) {
+  if (length < 2 || name[0] != '_') {
     return name;
   }
 
   char* demangled_str = nullptr;
   if (name[1] == 'Z') {
     // Try to demangle C++ name.
-    demangled_str = abi::__cxa_demangle(name.c_str(), nullptr, nullptr, nullptr);
+    demangled_str = abi::__cxa_demangle(name, nullptr, nullptr, nullptr);
   } else if (name[1] == 'R') {
     // Try to demangle rust name.
-    demangled_str = rustc_demangle(name.c_str(), nullptr, nullptr, nullptr);
+    demangled_str = rustc_demangle(name, nullptr, nullptr, nullptr);
   }
 
   if (demangled_str == nullptr) {
@@ -46,6 +46,17 @@ std::string DemangleNameIfNeeded(const std::string& name) {
   std::string demangled_name(demangled_str);
   free(demangled_str);
   return demangled_name;
+}
+
+std::string DemangleNameIfNeeded(const std::string& name) {
+  // This is special, the Android linker has functions of the form __dl_XXX,
+  // where the XX might be a mangled name. Try to demangle that part and
+  // add the __dl_ back.
+  if (name.starts_with("__dl_")) {
+    return "__dl_" + Demangle(&name[5], name.length() - 5);
+  }
+
+  return Demangle(name.c_str(), name.length());
 }
 
 }  // namespace unwindstack
