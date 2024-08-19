@@ -22,7 +22,6 @@
 // tools using libdexfile for android targets.
 
 extern "C" void __android_log_assert(const char* cond, const char*, const char* fmt, ...) {
-  constexpr size_t kBufferSize = 1024;
   if (fmt) {
     va_list ap;
     va_start(ap, fmt);
