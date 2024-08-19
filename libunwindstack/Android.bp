@@ -128,7 +128,6 @@ cc_defaults {
 
     whole_static_libs: [
         "librustc_demangle_static",
-        "libz_static",
         "libzstd",
     ],
 
@@ -136,6 +135,7 @@ cc_defaults {
         "libbase",
         "liblog",
         "liblzma",
+        "libz",
     ],
 }
 
@@ -233,11 +233,25 @@ cc_library {
 }
 
 // Make sure that the code can be compiled without Android Logging.
-cc_library {
+cc_library_static {
     name: "libunwindstack_stdout_log",
     defaults: ["libunwindstack_defaults"],
     srcs: [
         "LogStdout.cpp",
+    ],
+    target: {
+        android: {
+            srcs: [
+                "AndroidLogStdout.cpp",
+                "DexFile.cpp",
+            ],
+            cflags: ["-DDEXFILE_SUPPORT"],
+            whole_static_libs: ["libdexfile_support"],
+        },
+    },
+    whole_static_libs: [
+        "liblzma",
+        "libz",
     ],
 }
 
@@ -509,6 +523,8 @@ cc_defaults {
     shared_libs: [
         "libbase",
         "liblzma",
+    ],
+    static_libs: [
         "libunwindstack_stdout_log",
     ],
     target: {
