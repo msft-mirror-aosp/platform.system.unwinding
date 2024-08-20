@@ -26,13 +26,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <unwindstack/DexFiles.h>
-#include <unwindstack/Elf.h>
-#include <unwindstack/JitDebug.h>
-#include <unwindstack/Maps.h>
-#include <unwindstack/Memory.h>
+#include <unwindstack/AndroidUnwinder.h>
 #include <unwindstack/Regs.h>
-#include <unwindstack/Unwinder.h>
 
 static bool Attach(pid_t pid) {
   if (ptrace(PTRACE_SEIZE, pid, 0, 0) == -1) {
@@ -86,13 +81,17 @@ void DoUnwind(pid_t pid) {
   }
   printf("\n");
 
-  unwindstack::UnwinderFromPid unwinder(1024, pid);
-  unwinder.SetRegs(regs);
-  unwinder.Unwind();
+  unwindstack::AndroidRemoteUnwinder unwinder(pid);
+  unwindstack::AndroidUnwinderData data;
+  if (!unwinder.Unwind(regs, data)) {
+    printf("Unable to unwind pid %d: %s\n", pid, data.GetErrorString().c_str());
+    return;
+  }
+  data.DemangleFunctionNames();
 
   // Print the frames.
-  for (size_t i = 0; i < unwinder.NumFrames(); i++) {
-    printf("%s\n", unwinder.FormatFrame(i).c_str());
+  for (const auto& frame : data.frames) {
+    printf("%s\n", unwinder.FormatFrame(frame).c_str());
   }
 }
 
