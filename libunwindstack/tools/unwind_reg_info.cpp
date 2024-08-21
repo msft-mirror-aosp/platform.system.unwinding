@@ -32,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include <unwindstack/Demangle.h>
 #include <unwindstack/DwarfLocation.h>
 #include <unwindstack/DwarfMemory.h>
 #include <unwindstack/DwarfSection.h>
@@ -201,7 +202,7 @@ int GetInfo(const char* file, uint64_t offset, uint64_t pc) {
   SharedString function_name;
   uint64_t function_offset;
   if (elf.GetFunctionName(pc, &function_name, &function_offset)) {
-    printf(" (%s)", function_name.c_str());
+    printf(" (%s)", DemangleNameIfNeeded(function_name).c_str());
   }
   printf(":\n");
 
