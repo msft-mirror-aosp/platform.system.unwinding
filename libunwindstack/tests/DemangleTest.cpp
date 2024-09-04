@@ -43,4 +43,13 @@ TEST(DemangleTest, rust_names) {
   EXPECT_EQ("profcollectd::main", DemangleNameIfNeeded("_RNvCs4VPobU5SDH_12profcollectd4main"));
 }
 
+TEST(DemangleTest, linker_names) {
+  EXPECT_EQ("__dl_", DemangleNameIfNeeded("__dl_"));
+  EXPECT_EQ("__dl_abort", DemangleNameIfNeeded("__dl_abort"));
+  EXPECT_EQ("__dl__Z", DemangleNameIfNeeded("__dl__Z"));
+  EXPECT_EQ("__dl__Z", DemangleNameIfNeeded("__dl__Z"));
+  EXPECT_EQ("__dl_fake(bool)", DemangleNameIfNeeded("__dl__Z4fakeb"));
+  EXPECT_EQ("__dl_demangle(int)", DemangleNameIfNeeded("__dl__Z8demanglei"));
+}
+
 }  // namespace unwindstack
