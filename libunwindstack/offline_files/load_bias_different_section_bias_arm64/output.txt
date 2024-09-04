@@ -1,5 +1,5 @@
   #00 pc 00000000000d59bc  linker64 (__dl_syscall+28)
-  #01 pc 00000000000554e8  linker64 (__dl__ZL24debuggerd_signal_handleriP7siginfoPv+1148)
+  #01 pc 00000000000554e8  linker64 (__dl_debuggerd_signal_handler(int, siginfo*, void*)+1148)
   #02 pc 00000000000008c0  vdso (__kernel_rt_sigreturn)
   #03 pc 000000000007f3e8  libc.so (abort+168)
   #04 pc 00000000000459fc  test (std::__ndk1::__throw_bad_cast()+4)

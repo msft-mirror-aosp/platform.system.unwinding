@@ -28,6 +28,7 @@
 
 #include <string>
 
+#include <unwindstack/Demangle.h>
 #include <unwindstack/DwarfSection.h>
 #include <unwindstack/DwarfStructs.h>
 #include <unwindstack/Elf.h>
@@ -56,7 +57,7 @@ void DumpArm(Elf* elf, ElfInterfaceArm* interface) {
       printf("  PC 0x%" PRIx64, pc + load_bias);
       uint64_t func_offset;
       if (elf->GetFunctionName(pc + load_bias, &name, &func_offset) && !name.empty()) {
-        printf(" <%s>", name.c_str());
+        printf(" <%s>", DemangleNameIfNeeded(name).c_str());
       }
       printf("\n");
       uint64_t entry;
@@ -95,7 +96,7 @@ void DumpDwarfSection(Elf* elf, DwarfSection* section, uint64_t) {
     SharedString name;
     uint64_t func_offset;
     if (elf->GetFunctionName(fde->pc_start, &name, &func_offset) && !name.empty()) {
-      printf(" <%s>", name.c_str());
+      printf(" <%s>", DemangleNameIfNeeded(name).c_str());
     }
     printf("\n");
     if (!section->Log(2, UINT64_MAX, fde, elf->arch())) {
