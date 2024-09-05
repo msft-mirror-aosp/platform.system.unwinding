@@ -25,6 +25,7 @@
 
 #include <string>
 
+#include <unwindstack/Demangle.h>
 #include <unwindstack/Elf.h>
 #include <unwindstack/Log.h>
 #include <unwindstack/Memory.h>
@@ -103,7 +104,7 @@ int main(int argc, char** argv) {
     if (func_offset != 0) {
       printf("+%" PRId64, func_offset);
     }
-    printf(": %s\n", cur_name.c_str());
+    printf(": %s\n", DemangleNameIfNeeded(cur_name).c_str());
     return 0;
   }
 
@@ -116,7 +117,8 @@ int main(int argc, char** argv) {
       uint64_t func_offset;
       if (elf.GetFunctionName(addr, &cur_name, &func_offset)) {
         if (cur_name != name) {
-          printf("<0x%" PRIx64 "> Function: %s\n", addr - func_offset, cur_name.c_str());
+          printf("<0x%" PRIx64 "> Function: %s\n", addr - func_offset,
+                 DemangleNameIfNeeded(cur_name).c_str());
         }
         name = cur_name;
       }

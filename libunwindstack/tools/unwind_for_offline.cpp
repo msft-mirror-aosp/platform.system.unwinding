@@ -14,28 +14,28 @@
  * limitations under the License.
  */
 
-#include <cstdio>
-#define _GNU_SOURCE 1
+#include <ctype.h>
 #include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 #include <algorithm>
-#include <cstdlib>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include <unwindstack/Elf.h>
-#include <unwindstack/JitDebug.h>
+#include <unwindstack/AndroidUnwinder.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
-#include <unwindstack/Unwinder.h>
 #include "utils/ProcessTracer.h"
 
 #include <android-base/file.h>
@@ -289,13 +289,17 @@ bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread, 
   if (!SaveRegs(regs)) {
     return false;
   }
+  uint64_t sp = regs->sp();
 
   // Do an unwind so we know how much of the stack to save, and what
   // elf files are involved.
-  unwindstack::UnwinderFromPid unwinder(1024, tid);
-  unwinder.SetRegs(regs);
-  uint64_t sp = regs->sp();
-  unwinder.Unwind();
+  unwindstack::AndroidRemoteUnwinder unwinder(tid);
+  unwindstack::AndroidUnwinderData data;
+  if (!unwinder.Unwind(regs, data)) {
+    fprintf(stderr, "Unable to unwind tid %d: %s\n", tid, data.GetErrorString().c_str());
+    return false;
+  }
+  data.DemangleFunctionNames();
 
   std::vector<std::pair<uint64_t, uint64_t>> stacks;
   unwindstack::Maps* maps = unwinder.GetMaps();
@@ -307,7 +311,7 @@ bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread, 
   }
 
   std::unordered_map<uintptr_t, unwindstack::MapInfo*> map_infos;
-  for (const auto& frame : unwinder.frames()) {
+  for (const auto& frame : data.frames) {
     auto map_info = maps->Find(frame.sp);
     if (map_info != nullptr && sp_map_start != map_info->start()) {
       stacks.emplace_back(std::make_pair(frame.sp, map_info->end()));
@@ -316,8 +320,8 @@ bool SaveData(pid_t tid, const std::filesystem::path& cwd, bool is_main_thread, 
     map_infos[reinterpret_cast<uintptr_t>(frame.map_info.get())] = frame.map_info.get();
   }
 
-  for (size_t i = 0; i < unwinder.NumFrames(); i++) {
-    fprintf(output_fp, "%s\n", unwinder.FormatFrame(i).c_str());
+  for (const auto& frame : data.frames) {
+    fprintf(output_fp, "%s\n", unwinder.FormatFrame(frame).c_str());
   }
 
   if (!SaveStack(tid, stacks, output_fp)) {
