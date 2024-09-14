@@ -167,6 +167,14 @@ bool LocalUpdatableMaps::Parse() {
   return parsed;
 }
 
+void LocalUpdatableMaps::ForEachMapInfo(std::function<bool(MapInfo*)> const& find_var) {
+  pthread_rwlock_rdlock(&maps_rwlock_);
+  for (const auto& info : maps_) {
+    if (!find_var(info.get())) break;
+  }
+  pthread_rwlock_unlock(&maps_rwlock_);
+}
+
 bool LocalUpdatableMaps::Reparse(/*out*/ bool* any_changed) {
   // New maps will be added at the end without deleting the old ones.
   size_t last_map_idx = maps_.size();
