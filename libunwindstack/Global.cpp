@@ -87,7 +87,7 @@ void Global::FindAndReadVariable(Maps* maps, const char* var_str) {
   // This will be needed in Android kernels as long as 4kB-page-sized
   // devices are supported.
   MapInfo* map_zero = nullptr;
-  for (const auto& info : *maps) {
+  maps->ForEachMapInfo([&map_zero, &variable, this](MapInfo* info) -> bool {
     if ((info->flags() & (PROT_READ | PROT_WRITE)) == (PROT_READ | PROT_WRITE) &&
         map_zero != nullptr && Searchable(info->name()) && info->name() == map_zero->name()) {
       Elf* elf = map_zero->GetElf(memory_, arch());
@@ -97,14 +97,15 @@ void Global::FindAndReadVariable(Maps* maps, const char* var_str) {
         if (ptr >= info->offset() && ptr < offset_end) {
           ptr = info->start() + ptr - info->offset();
           if (ReadVariableData(ptr)) {
-            break;
+            return false;
           }
         }
       }
     } else if (info->offset() == 0 && !info->IsBlank()) {
-      map_zero = info.get();
+      map_zero = info;
     }
-  }
+    return true;
+  });
 }
 
 }  // namespace unwindstack
