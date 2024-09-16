@@ -273,4 +273,18 @@ TEST_F(MemoryFileTest, init_reinit) {
   }
 }
 
+// Verify that if the init fails, that a subsequent read does not crash.
+TEST_F(MemoryFileTest, init_fail_read_fail) {
+  WriteTestData();
+
+  ASSERT_TRUE(memory_.Init(tf_->path, 0));
+
+  // Now force init to fail.
+  ASSERT_FALSE(memory_.Init("/does/not/exist", 0));
+
+  // Read should not crash.
+  uint64_t data;
+  ASSERT_FALSE(memory_.ReadFully(0, &data, sizeof(data)));
+}
+
 }  // namespace unwindstack
