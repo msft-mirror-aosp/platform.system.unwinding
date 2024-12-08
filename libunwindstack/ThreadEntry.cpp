@@ -85,13 +85,17 @@ const char* ThreadEntry::GetWaitTypeName(WaitType type) {
   }
 }
 
-bool ThreadEntry::Wait(WaitType type) {
+bool ThreadEntry::Wait(WaitType type, pid_t tid) {
   static const std::chrono::duration wait_time(std::chrono::seconds(10));
   std::unique_lock<std::mutex> lock(wait_mutex_);
   if (wait_cond_.wait_for(lock, wait_time, [this, type] { return wait_value_ == type; })) {
     return true;
   } else {
-    Log::AsyncSafe("Timeout waiting for %s", GetWaitTypeName(type));
+    if (tid == 0) {
+      Log::AsyncSafe("In thread being unwound: Timeout waiting for %s", GetWaitTypeName(type));
+    } else {
+      Log::AsyncSafe("Unwinding thread %d: Timeout waiting for %s", tid, GetWaitTypeName(type));
+    }
     return false;
   }
 }
