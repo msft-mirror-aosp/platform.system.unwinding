@@ -57,9 +57,9 @@ static void SignalHandler(int, siginfo_t*, void* sigcontext) {
   entry->Wake();
   // Pause the thread until the unwind is complete. This avoids having
   // the thread run ahead causing problems.
-  // The number indicates that we are waiting for the second Wake() call
-  // overall which is made by the thread requesting an unwind.
-  if (entry->Wait(WAIT_FOR_UNWIND_TO_COMPLETE)) {
+  // We are waiting for the second Wake() call overall which is made by the
+  // thread requesting the unwind.
+  if (entry->Wait(WAIT_FOR_UNWIND_TO_COMPLETE, 0)) {
     // Do not remove the entry here because that can result in a deadlock
     // if the code cannot properly send a signal to the thread under test.
     entry->Wake();
@@ -116,7 +116,7 @@ ThreadEntry* ThreadUnwinder::SendSignalToThread(int signal, pid_t tid) {
 
   // Wait for the thread to get the ucontext. The number indicates
   // that we are waiting for the first Wake() call made by the thread.
-  bool wait_completed = entry->Wait(WAIT_FOR_UCONTEXT);
+  bool wait_completed = entry->Wait(WAIT_FOR_UCONTEXT, tid);
   if (wait_completed) {
     return entry;
   }
@@ -176,7 +176,7 @@ void ThreadUnwinder::UnwindWithSignal(int signal, pid_t tid, std::unique_ptr<Reg
 
   // Wait for the thread to indicate it is done with the ThreadEntry.
   // If this fails, the Wait command will log an error message.
-  entry->Wait(WAIT_FOR_THREAD_TO_RESTART);
+  entry->Wait(WAIT_FOR_THREAD_TO_RESTART, tid);
 
   ThreadEntry::Remove(entry);
 }
