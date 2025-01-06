@@ -40,7 +40,7 @@ class ThreadEntry {
 
   void Wake();
 
-  bool Wait(WaitType type);
+  bool Wait(WaitType type, pid_t tid);
 
   void CopyUcontextFromSigcontext(void* sigcontext);
 
