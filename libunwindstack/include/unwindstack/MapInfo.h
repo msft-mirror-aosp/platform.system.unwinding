@@ -133,6 +133,8 @@ class MapInfo {
     return elf().get();
   }
 
+  bool LoadBiasInitialized() { return load_bias() != UINT64_MAX; }
+
   inline uint64_t start() const { return start_; }
   inline void set_start(uint64_t value) { start_ = value; }
 
