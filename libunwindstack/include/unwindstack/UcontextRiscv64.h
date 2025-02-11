@@ -28,9 +28,10 @@
 
 #pragma once
 
-namespace unwindstack {
-
+#include <stdint.h>
 #include <sys/cdefs.h>
+
+namespace unwindstack {
 
 typedef uint64_t __riscv_mc_gp_state[32];  // unsigned long
 

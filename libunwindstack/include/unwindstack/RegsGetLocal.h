@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <unwindstack/Regs.h>
+
 namespace unwindstack {
 
 #if defined(__arm__)
