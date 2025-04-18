@@ -30,6 +30,7 @@
 #include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
+#include <unwindstack/UcontextArm64.h>
 
 #include "ElfFake.h"
 #include "RegsFake.h"
@@ -263,9 +264,77 @@ TEST_F(RegsTest, x86_64_verify_sp_pc) {
   EXPECT_EQ(0x4900000000U, x86_64.pc());
 }
 
+TEST_F(RegsTest, arm64_esr) {
+  RegsArm64 arm64;
+  EXPECT_TRUE(arm64.SetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, 0x1000U));
+  uint64_t esr = 0;
+  EXPECT_TRUE(arm64.GetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, &esr));
+  EXPECT_EQ(0x1000U, esr);
+}
+
+TEST_F(RegsTest, arm64_esr_from_ucontext) {
+  arm64_ucontext_t ucontext;
+  arm64_esr_ctx* ctx = reinterpret_cast<arm64_esr_ctx*>(ucontext.uc_mcontext.reserved);
+  ctx->head.magic = 0x45535201U;
+  ctx->head.size = sizeof(arm64_esr_ctx);
+  ctx->esr = 0x1200adefU;
+
+  std::unique_ptr<Regs> regs(RegsArm64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+
+  uint64_t esr;
+  EXPECT_TRUE(regs->GetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, &esr));
+  EXPECT_EQ(0x1200adefU, esr);
+}
+
+TEST_F(RegsTest, arm64_esr_from_ucontext_edges) {
+  arm64_ucontext_t ucontext;
+  arm64_ctx* ctx = reinterpret_cast<arm64_ctx*>(ucontext.uc_mcontext.reserved);
+  ctx->magic = 0xdeadbeef;
+  // Choose a size that should be outside the structure.
+  ctx->size = sizeof(ucontext.uc_mcontext.reserved);
+
+  std::unique_ptr<Regs> regs(RegsArm64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+
+  uint64_t esr;
+  EXPECT_TRUE(regs->GetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, &esr));
+  EXPECT_EQ(0U, esr);
+
+  // Put the esr context at the end of the ucontext section but with the esr
+  // value past the end, so the value should not be set.
+  ctx->size = sizeof(ucontext.uc_mcontext.reserved) - sizeof(arm64_ctx);
+  arm64_ctx* last_ctx = reinterpret_cast<arm64_ctx*>(reinterpret_cast<uint8_t*>(ctx) + ctx->size);
+  last_ctx->magic = 0x45535201U;
+  last_ctx->size = sizeof(arm64_esr_ctx);
+
+  regs.reset(RegsArm64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+
+  EXPECT_TRUE(regs->GetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, &esr));
+  EXPECT_EQ(0U, esr);
+
+  // Now move the esr context data at the absolute end of the section.
+  last_ctx->magic = 0;
+  last_ctx->size = 0;
+
+  ctx->size = sizeof(ucontext.uc_mcontext.reserved) - sizeof(arm64_esr_ctx);
+  arm64_esr_ctx* esr_ctx =
+      reinterpret_cast<arm64_esr_ctx*>(reinterpret_cast<uint8_t*>(ctx) + ctx->size);
+  esr_ctx->head.magic = 0x45535201U;
+  esr_ctx->head.size = sizeof(arm64_esr_ctx);
+  esr_ctx->esr = 0xdead1234U;
+
+  regs.reset(RegsArm64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+
+  EXPECT_TRUE(regs->GetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, &esr));
+  EXPECT_EQ(0xdead1234U, esr);
+}
+
 TEST_F(RegsTest, arm64_strip_pac_mask) {
   RegsArm64 arm64;
-  arm64.SetPseudoRegister(Arm64Reg::ARM64_PREG_RA_SIGN_STATE, 1);
+  EXPECT_TRUE(arm64.SetPseudoRegister(Arm64Reg::ARM64_PREG_RA_SIGN_STATE, 1));
   arm64.SetPACMask(0x007fff8000000000ULL);
   arm64.set_pc(0x0020007214bb3a04ULL);
   EXPECT_EQ(0x0000007214bb3a04ULL, arm64.pc());
