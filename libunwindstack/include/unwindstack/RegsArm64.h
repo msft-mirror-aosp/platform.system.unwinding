@@ -67,8 +67,8 @@ class RegsArm64 : public RegsImpl<uint64_t> {
   static Regs* CreateFromUcontext(void* ucontext);
 
  protected:
-  uint64_t pseudo_regs_[Arm64Reg::ARM64_PREG_LAST - Arm64Reg::ARM64_PREG_FIRST];
-  uint64_t pac_mask_;
+  uint64_t pseudo_regs_[Arm64Reg::ARM64_PREG_LAST - Arm64Reg::ARM64_PREG_FIRST] = {};
+  uint64_t pac_mask_ = 0;
 };
 
 }  // namespace unwindstack

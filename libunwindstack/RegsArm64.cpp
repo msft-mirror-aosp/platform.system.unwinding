@@ -34,10 +34,7 @@
 namespace unwindstack {
 
 RegsArm64::RegsArm64()
-    : RegsImpl<uint64_t>(ARM64_REG_LAST, Location(LOCATION_REGISTER, ARM64_REG_LR)) {
-  ResetPseudoRegisters();
-  pac_mask_ = 0;
-}
+    : RegsImpl<uint64_t>(ARM64_REG_LAST, Location(LOCATION_REGISTER, ARM64_REG_LR)) {}
 
 ArchEnum RegsArm64::Arch() {
   return ARCH_ARM64;
@@ -144,10 +141,26 @@ Regs* RegsArm64::Read(const void* remote_data) {
 }
 
 Regs* RegsArm64::CreateFromUcontext(void* ucontext) {
+  // Get the normal aarch64 registers.
   arm64_ucontext_t* arm64_ucontext = reinterpret_cast<arm64_ucontext_t*>(ucontext);
-
   RegsArm64* regs = new RegsArm64();
   memcpy(regs->RawData(), &arm64_ucontext->uc_mcontext.regs[0], ARM64_REG_LAST * sizeof(uint64_t));
+
+  // The reserved part of the mcontext contains extra information.
+  uint64_t ctx = reinterpret_cast<uint64_t>(arm64_ucontext->uc_mcontext.reserved);
+  uint64_t max_ctx_value = ctx + sizeof(arm64_ucontext->uc_mcontext.reserved);
+  while ((ctx + sizeof(arm64_ctx)) <= max_ctx_value) {
+    arm64_ctx* ctx_ptr = reinterpret_cast<arm64_ctx*>(ctx);
+    if (ctx_ptr->size == 0) {
+      break;
+    }
+    if (ctx_ptr->magic == kArm64EsrMagic && (ctx + sizeof(arm64_esr_ctx)) <= max_ctx_value) {
+      regs->SetPseudoRegister(Arm64Reg::ARM64_PREG_ESR,
+                              reinterpret_cast<arm64_esr_ctx*>(ctx_ptr)->esr);
+      break;
+    }
+    ctx += ctx_ptr->size;
+  }
   return regs;
 }
 
@@ -177,7 +190,7 @@ bool RegsArm64::StepIfSignalHandler(uint64_t elf_offset, Elf* elf, Memory* proce
 
 void RegsArm64::ResetPseudoRegisters(void) {
   // DWARF for AArch64 says RA_SIGN_STATE should be initialized to 0.
-  this->SetPseudoRegister(Arm64Reg::ARM64_PREG_RA_SIGN_STATE, 0);
+  memset(pseudo_regs_, 0, sizeof(pseudo_regs_));
 }
 
 bool RegsArm64::SetPseudoRegister(uint16_t id, uint64_t value) {
