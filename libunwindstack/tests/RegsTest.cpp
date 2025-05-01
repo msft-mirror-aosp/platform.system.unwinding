@@ -23,7 +23,11 @@
 
 #include <unwindstack/Elf.h>
 #include <unwindstack/ElfInterface.h>
+#include <unwindstack/MachineArm.h>
+#include <unwindstack/MachineArm64.h>
 #include <unwindstack/MachineRiscv64.h>
+#include <unwindstack/MachineX86.h>
+#include <unwindstack/MachineX86_64.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
@@ -264,12 +268,16 @@ TEST_F(RegsTest, x86_64_verify_sp_pc) {
   EXPECT_EQ(0x4900000000U, x86_64.pc());
 }
 
+TEST_F(RegsTest, arm_error_code) {
+  RegsArm arm;
+  arm.SetExtraRegister(ARM_EXTRA_REG_ERROR_CODE, 0x8769U);
+  EXPECT_EQ(0x8769U, arm.GetExtraRegister(ARM_EXTRA_REG_ERROR_CODE));
+}
+
 TEST_F(RegsTest, arm64_esr) {
   RegsArm64 arm64;
-  EXPECT_TRUE(arm64.SetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, 0x1000U));
-  uint64_t esr = 0;
-  EXPECT_TRUE(arm64.GetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, &esr));
-  EXPECT_EQ(0x1000U, esr);
+  arm64.SetExtraRegister(Arm64Reg::ARM64_EXTRA_REG_ESR, 0x1000U);
+  EXPECT_EQ(0x1000U, arm64.GetExtraRegister(Arm64Reg::ARM64_EXTRA_REG_ESR));
 }
 
 TEST_F(RegsTest, arm64_esr_from_ucontext) {
@@ -282,9 +290,7 @@ TEST_F(RegsTest, arm64_esr_from_ucontext) {
   std::unique_ptr<Regs> regs(RegsArm64::CreateFromUcontext(&ucontext));
   ASSERT_TRUE(regs.get() != nullptr);
 
-  uint64_t esr;
-  EXPECT_TRUE(regs->GetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, &esr));
-  EXPECT_EQ(0x1200adefU, esr);
+  EXPECT_EQ(0x1200adefU, regs->GetExtraRegister(ARM64_EXTRA_REG_ESR));
 }
 
 TEST_F(RegsTest, arm64_esr_from_ucontext_edges) {
@@ -297,9 +303,7 @@ TEST_F(RegsTest, arm64_esr_from_ucontext_edges) {
   std::unique_ptr<Regs> regs(RegsArm64::CreateFromUcontext(&ucontext));
   ASSERT_TRUE(regs.get() != nullptr);
 
-  uint64_t esr;
-  EXPECT_TRUE(regs->GetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, &esr));
-  EXPECT_EQ(0U, esr);
+  EXPECT_EQ(0U, regs->GetExtraRegister(ARM64_EXTRA_REG_ESR));
 
   // Put the esr context at the end of the ucontext section but with the esr
   // value past the end, so the value should not be set.
@@ -311,8 +315,7 @@ TEST_F(RegsTest, arm64_esr_from_ucontext_edges) {
   regs.reset(RegsArm64::CreateFromUcontext(&ucontext));
   ASSERT_TRUE(regs.get() != nullptr);
 
-  EXPECT_TRUE(regs->GetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, &esr));
-  EXPECT_EQ(0U, esr);
+  EXPECT_EQ(0U, regs->GetExtraRegister(ARM64_EXTRA_REG_ESR));
 
   // Now move the esr context data at the absolute end of the section.
   last_ctx->magic = 0;
@@ -328,8 +331,19 @@ TEST_F(RegsTest, arm64_esr_from_ucontext_edges) {
   regs.reset(RegsArm64::CreateFromUcontext(&ucontext));
   ASSERT_TRUE(regs.get() != nullptr);
 
-  EXPECT_TRUE(regs->GetPseudoRegister(Arm64Reg::ARM64_PREG_ESR, &esr));
-  EXPECT_EQ(0xdead1234U, esr);
+  EXPECT_EQ(0xdead1234U, regs->GetExtraRegister(ARM64_EXTRA_REG_ESR));
+}
+
+TEST_F(RegsTest, x86_err) {
+  RegsX86 x86;
+  x86.SetExtraRegister(X86_EXTRA_REG_ERR, 0x1234U);
+  EXPECT_EQ(0x1234U, x86.GetExtraRegister(X86_EXTRA_REG_ERR));
+}
+
+TEST_F(RegsTest, x86_64_err) {
+  RegsX86_64 x86_64;
+  x86_64.SetExtraRegister(X86_64_EXTRA_REG_ERR, 0x2000U);
+  EXPECT_EQ(0x2000U, x86_64.GetExtraRegister(X86_64_EXTRA_REG_ERR));
 }
 
 TEST_F(RegsTest, arm64_strip_pac_mask) {

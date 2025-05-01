@@ -71,6 +71,9 @@ class Regs {
   virtual bool SetPseudoRegister(uint16_t, uint64_t) { return false; }
   virtual bool GetPseudoRegister(uint16_t, uint64_t*) { return false; }
 
+  virtual void SetExtraRegister(uint16_t, uint64_t) {}
+  virtual uint64_t GetExtraRegister(uint16_t) { return 0; }
+
   virtual bool StepIfSignalHandler(uint64_t elf_offset, Elf* elf, Memory* process_memory) = 0;
 
   virtual bool SetPcFromReturnAddress(Memory* process_memory) = 0;
@@ -98,13 +101,26 @@ class Regs {
 template <typename AddressType>
 class RegsImpl : public Regs {
  public:
-  RegsImpl(uint16_t total_regs, Location return_loc)
-      : Regs(total_regs, return_loc), regs_(total_regs) {}
+  RegsImpl(uint16_t total_regs, uint16_t total_extra_regs, Location return_loc)
+      : Regs(total_regs, return_loc), regs_(total_regs), extra_regs_(total_extra_regs) {}
   virtual ~RegsImpl() = default;
 
   inline AddressType& operator[](size_t reg) { return regs_[reg]; }
 
   void* RawData() override { return regs_.data(); }
+
+  void SetExtraRegister(uint16_t reg, uint64_t value) override {
+    if (reg >= extra_regs_.size()) {
+      return;
+    }
+    extra_regs_[reg] = value;
+  }
+  uint64_t GetExtraRegister(uint16_t reg) override {
+    if (reg >= extra_regs_.size()) {
+      return 0;
+    }
+    return extra_regs_[reg];
+  }
 
   virtual void IterateRegisters(std::function<void(const char*, uint64_t)> fn) override {
     for (size_t i = 0; i < regs_.size(); ++i) {
@@ -114,6 +130,7 @@ class RegsImpl : public Regs {
 
  protected:
   std::vector<AddressType> regs_;
+  std::vector<uint64_t> extra_regs_;
 };
 
 uint64_t GetPcAdjustment(uint64_t rel_pc, Elf* elf, ArchEnum arch);

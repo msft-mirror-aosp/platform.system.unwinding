@@ -46,6 +46,9 @@ class RegsFake : public Regs {
     return true;
   }
 
+  void SetExtraRegister(uint16_t, uint64_t) override {}
+  uint64_t GetExtraRegister(uint16_t) override { return 0; }
+
   void IterateRegisters(std::function<void(const char*, uint64_t)>) override {}
 
   bool Is32Bit() {
@@ -74,7 +77,10 @@ template <typename TypeParam>
 class RegsImplFake : public RegsImpl<TypeParam> {
  public:
   RegsImplFake(uint16_t total_regs)
-      : RegsImpl<TypeParam>(total_regs, Regs::Location(Regs::LOCATION_UNKNOWN, 0)) {}
+      : RegsImpl<TypeParam>(total_regs, 0, Regs::Location(Regs::LOCATION_UNKNOWN, 0)) {}
+  RegsImplFake(uint16_t total_regs, uint16_t total_extra_regs)
+      : RegsImpl<TypeParam>(total_regs, total_extra_regs,
+                            Regs::Location(Regs::LOCATION_UNKNOWN, 0)) {}
   virtual ~RegsImplFake() = default;
 
   ArchEnum Arch() override { return ARCH_UNKNOWN; }

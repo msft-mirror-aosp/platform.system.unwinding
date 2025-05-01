@@ -64,9 +64,12 @@ enum Arm64Reg : uint16_t {
 
   // AARCH64 Return address signed state pseudo-register
   ARM64_PREG_RA_SIGN_STATE = 34,
-  ARM64_PREG_ESR = 35,
   ARM64_PREG_LAST,
   ARM64_PREG_FIRST = ARM64_PREG_RA_SIGN_STATE,
+
+  // Extra registers, usually only found in ucontext data.
+  ARM64_EXTRA_REG_ESR = 0,
+  ARM64_EXTRA_REG_LAST,
 };
 
 }  // namespace unwindstack
