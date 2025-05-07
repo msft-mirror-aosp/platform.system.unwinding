@@ -28,7 +28,8 @@
 
 namespace unwindstack {
 
-RegsX86::RegsX86() : RegsImpl<uint32_t>(X86_REG_LAST, Location(LOCATION_SP_OFFSET, -4)) {}
+RegsX86::RegsX86()
+    : RegsImpl<uint32_t>(X86_REG_LAST, X86_EXTRA_REG_LAST, Location(LOCATION_SP_OFFSET, -4)) {}
 
 ArchEnum RegsX86::Arch() {
   return ARCH_X86;
@@ -109,6 +110,7 @@ Regs* RegsX86::CreateFromUcontext(void* ucontext) {
 
   RegsX86* regs = new RegsX86();
   regs->SetFromUcontext(x86_ucontext);
+  regs->SetExtraRegister(X86_EXTRA_REG_ERR, x86_ucontext->uc_mcontext.err);
   return regs;
 }
 

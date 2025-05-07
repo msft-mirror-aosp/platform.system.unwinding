@@ -29,7 +29,9 @@
 
 namespace unwindstack {
 
-RegsArm::RegsArm() : RegsImpl<uint32_t>(ARM_REG_LAST, Location(LOCATION_REGISTER, ARM_REG_LR)) {}
+RegsArm::RegsArm()
+    : RegsImpl<uint32_t>(ARM_REG_LAST, ARM_EXTRA_REG_LAST,
+                         Location(LOCATION_REGISTER, ARM_REG_LR)) {}
 
 ArchEnum RegsArm::Arch() {
   return ARCH_ARM;
@@ -93,6 +95,7 @@ Regs* RegsArm::CreateFromUcontext(void* ucontext) {
 
   RegsArm* regs = new RegsArm();
   memcpy(regs->RawData(), &arm_ucontext->uc_mcontext.regs[0], ARM_REG_LAST * sizeof(uint32_t));
+  regs->SetExtraRegister(ARM_EXTRA_REG_ERROR_CODE, arm_ucontext->uc_mcontext.error_code);
   return regs;
 }
 

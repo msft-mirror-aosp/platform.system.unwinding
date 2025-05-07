@@ -43,6 +43,10 @@ enum X86Reg : uint16_t {
 
   X86_REG_SP = X86_REG_ESP,
   X86_REG_PC = X86_REG_EIP,
+
+  // Extra registers, usually only found in ucontext data.
+  X86_EXTRA_REG_ERR = 0,
+  X86_EXTRA_REG_LAST,
 };
 
 }  // namespace unwindstack
