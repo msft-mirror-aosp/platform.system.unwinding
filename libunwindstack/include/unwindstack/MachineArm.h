@@ -42,6 +42,10 @@ enum ArmReg : uint16_t {
   ARM_REG_SP = ARM_REG_R13,
   ARM_REG_LR = ARM_REG_R14,
   ARM_REG_PC = ARM_REG_R15,
+
+  // Extra registers, usually only found in ucontext data.
+  ARM_EXTRA_REG_ERROR_CODE = 0,
+  ARM_EXTRA_REG_LAST,
 };
 
 }  // namespace unwindstack

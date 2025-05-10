@@ -70,7 +70,7 @@ uint64_t RegsRiscv64::GetVlenbFromRemote(pid_t pid) {
 #endif
 
 RegsRiscv64::RegsRiscv64()
-    : RegsImpl<uint64_t>(RISCV64_REG_COUNT, Location(LOCATION_REGISTER, RISCV64_REG_RA)) {}
+    : RegsImpl<uint64_t>(RISCV64_REG_COUNT, 0, Location(LOCATION_REGISTER, RISCV64_REG_RA)) {}
 
 ArchEnum RegsRiscv64::Arch() {
   return ARCH_RISCV64;
