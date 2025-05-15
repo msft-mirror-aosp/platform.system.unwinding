@@ -48,48 +48,62 @@ static std::string DumpFrames(const AndroidUnwinderData& data, AndroidUnwinder& 
   return unwind;
 }
 
-static DwarfLocationEnum GetReturnAddressLocation(uint64_t rel_pc, DwarfSection* section) {
+static bool ReturnAddressLocationIsUndefined(ArchEnum arch, DwarfSection* section,
+                                             uint64_t rel_pc) {
   if (section == nullptr) {
-    return DWARF_LOCATION_INVALID;
+    return false;
   }
 
   const DwarfFde* fde = section->GetFdeFromPc(rel_pc);
   if (fde == nullptr || fde->cie == nullptr) {
-    return DWARF_LOCATION_INVALID;
+    return false;
   }
   DwarfLocations regs;
-  if (!section->GetCfaLocationInfo(rel_pc, fde, &regs, ARCH_UNKNOWN)) {
-    return DWARF_LOCATION_INVALID;
+  if (!section->GetCfaLocationInfo(rel_pc, fde, &regs, arch)) {
+    return false;
   }
 
   auto reg_entry = regs.find(fde->cie->return_address_register);
   if (reg_entry == regs.end()) {
-    return DWARF_LOCATION_INVALID;
+    return false;
   }
-  return reg_entry->second.type;
+  return reg_entry->second.type == DWARF_LOCATION_UNDEFINED;
 }
 
 static void VerifyReturnAddress(const FrameData& frame) {
-  // Now go and find information about the register data and verify that the relative pc results in
-  // an undefined register.
-  auto file_memory = Memory::CreateFileMemory(frame.map_info->name(), 0);
-  Elf elf(file_memory);
-  ASSERT_TRUE(frame.map_info != nullptr);
-  ASSERT_TRUE(elf.Init()) << "Failed to init elf object from " << frame.map_info->name().c_str();
-  ASSERT_TRUE(elf.valid()) << "Elf " << frame.map_info->name().c_str() << " is not valid.";
-  ElfInterface* interface = elf.interface();
+  Elf* elf = frame.map_info->GetElfObj();
+  ASSERT_NE(nullptr, elf) << "No elf object in map info frame";
+  ASSERT_TRUE(elf->valid()) << "No valid elf object in map info for frame";
+  ElfInterface* interface = elf->interface();
+  ASSERT_NE(nullptr, interface) << "Cannot find elf interface in elf object";
 
-  // Only check the eh_frame and the debug_frame since the undefined register
-  // is set using a cfi directive.
-  // Check debug_frame first, then eh_frame since debug_frame always
-  // contains the most specific data.
-  DwarfLocationEnum location = GetReturnAddressLocation(frame.rel_pc, interface->debug_frame());
-  if (location == DWARF_LOCATION_UNDEFINED) {
+  // The undefined register comes from a cfi directive set in __libc__init
+  // using the BIONIC_STOP_UNWIND macro.
+  // Look for this definition in these DwarfSections in this order:
+  //   debug_frame
+  //   eh_frame
+  //   gnu_debugdata debug_frame
+  //   gnu_debugdata eh_frame
+  // Always check debug_frame first since it usually conatins the most
+  // specific data.
+  if (ReturnAddressLocationIsUndefined(elf->arch(), interface->debug_frame(), frame.rel_pc)) {
+    return;
+  }
+  if (ReturnAddressLocationIsUndefined(elf->arch(), interface->eh_frame(), frame.rel_pc)) {
     return;
   }
 
-  location = GetReturnAddressLocation(frame.rel_pc, interface->eh_frame());
-  ASSERT_EQ(DWARF_LOCATION_UNDEFINED, location);
+  ElfInterface* gnu_debugdata = elf->gnu_debugdata_interface();
+  ASSERT_TRUE(gnu_debugdata != nullptr)
+      << "Could not find undefined return register in debug_frame or eh_frame";
+  if (ReturnAddressLocationIsUndefined(elf->arch(), gnu_debugdata->debug_frame(), frame.rel_pc)) {
+    return;
+  }
+  if (ReturnAddressLocationIsUndefined(elf->arch(), gnu_debugdata->eh_frame(), frame.rel_pc)) {
+    return;
+  }
+  FAIL() << "Could not find undefined return register in debug_frame, eh_frame, gnu_debugdata "
+            "debug_frame or gnu_debugdata eh_frame";
 }
 
 // This assumes that the function starts from the main thread, and that the
