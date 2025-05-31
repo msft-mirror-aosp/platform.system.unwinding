@@ -152,7 +152,7 @@ int main(int argc, char** argv) {
     std::string thread_name;
     android::base::ReadFileToString(android::base::StringPrintf("/proc/%d/comm", tid),
                                     &thread_name);
-    android::base::Trim(thread_name);
+    thread_name = android::base::Trim(thread_name);
     if (thread_name.empty()) {
       thread_name = "Unknown Thread";
     }
