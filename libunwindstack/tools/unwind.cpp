@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
     if (thread_name.empty()) {
       thread_name = "Unknown Thread";
     }
-    printf("\nTid: %d Thread name: %s", tid, thread_name.c_str());
+    printf("\nTid: %d Thread name: %s\n", tid, thread_name.c_str());
 
     DoUnwind(tid);
 
