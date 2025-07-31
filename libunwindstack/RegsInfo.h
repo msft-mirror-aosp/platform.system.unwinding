@@ -51,7 +51,7 @@ struct RegsInfo {
   }
 
   inline bool IsSaved(uint32_t reg) {
-    if (reg > MAX_REGISTERS) {
+    if (reg >= MAX_REGISTERS) {
       // This should never happen since all currently supported
       // architectures have < 64 total registers.
       abort();
