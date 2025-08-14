@@ -232,6 +232,28 @@ cc_library {
     min_sdk_version: "29",
 }
 
+cc_library_static {
+    name: "libunwindstack_demangle",
+    defaults: ["libunwindstack_flags"],
+    vendor_available: true,
+
+    srcs: ["Demangle.cpp"],
+
+    whole_static_libs: [
+        "librustc_demangle_static",
+    ],
+
+    export_include_dirs: ["include"],
+
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.runtime",
+    ],
+    visibility: [
+        "//bionic/libc/malloc_debug",
+    ],
+}
+
 // Make sure that the code can be compiled without Android Logging.
 cc_library_static {
     name: "libunwindstack_stdout_log",
