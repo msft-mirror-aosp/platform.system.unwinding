@@ -103,6 +103,7 @@ bool AndroidLocalUnwinder::InternalInitialize(ErrorData& error) {
   arch_ = Regs::CurrentArch();
 
   maps_.reset(new LocalUpdatableMaps);
+  maps_->set_check_global_elf_cache(check_global_elf_cache_);
   if (!maps_->Parse()) {
     error.code = ERROR_MAPS_PARSE;
     return false;
@@ -212,6 +213,7 @@ bool AndroidRemoteUnwinder::InternalInitialize(ErrorData& error) {
   }
 
   maps_.reset(new RemoteMaps(pid_));
+  maps_->set_check_global_elf_cache(check_global_elf_cache_);
   if (!maps_->Parse()) {
     error.code = ERROR_MAPS_PARSE;
     return false;

@@ -281,10 +281,12 @@ Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum exp
     return elf().get();
   }
 
-  ScopedElfCacheLock elf_cache_lock;
-  if (Elf::CachingEnabled() && !name().empty()) {
-    if (Elf::CacheGet(this)) {
-      return elf().get();
+  if (check_global_elf_cache_) {
+    ScopedElfCacheLock elf_cache_lock;
+    if (Elf::CachingEnabled() && !name().empty()) {
+      if (Elf::CacheGet(this)) {
+        return elf().get();
+      }
     }
   }
 

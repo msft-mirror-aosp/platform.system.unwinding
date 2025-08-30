@@ -38,34 +38,40 @@ class MemoryFileAtOffset;
 class MapInfo {
  public:
   MapInfo(std::shared_ptr<MapInfo>& prev_map, uint64_t start, uint64_t end, uint64_t offset,
-          uint64_t flags, SharedString name)
+          uint64_t flags, SharedString name, bool check_global_elf_cache = false)
       : start_(start),
         end_(end),
         offset_(offset),
         flags_(flags),
+        check_global_elf_cache_(check_global_elf_cache),
         name_(name),
         elf_fields_(nullptr),
         prev_map_(prev_map) {}
-  MapInfo(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags, SharedString name)
+  MapInfo(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags, SharedString name,
+          bool check_global_elf_cache = false)
       : start_(start),
         end_(end),
         offset_(offset),
         flags_(flags),
+        check_global_elf_cache_(check_global_elf_cache),
         name_(name),
         elf_fields_(nullptr) {}
 
-  static inline std::shared_ptr<MapInfo> Create(std::shared_ptr<MapInfo>& prev_map,
-                                                uint64_t start, uint64_t end, uint64_t offset,
-                                                uint64_t flags, SharedString name) {
-    auto map_info = std::make_shared<MapInfo>(prev_map, start, end, offset, flags, name);
+  static inline std::shared_ptr<MapInfo> Create(std::shared_ptr<MapInfo>& prev_map, uint64_t start,
+                                                uint64_t end, uint64_t offset, uint64_t flags,
+                                                SharedString name,
+                                                bool check_global_elf_cache = false) {
+    auto map_info = std::make_shared<MapInfo>(prev_map, start, end, offset, flags, name,
+                                              check_global_elf_cache);
     if (prev_map) {
       prev_map->next_map_ = map_info;
     }
     return map_info;
   }
   static inline std::shared_ptr<MapInfo> Create(uint64_t start, uint64_t end, uint64_t offset,
-                                                uint64_t flags, SharedString name) {
-    return std::make_shared<MapInfo>(start, end, offset, flags, name);
+                                                uint64_t flags, SharedString name,
+                                                bool check_global_elf_cache = false) {
+    return std::make_shared<MapInfo>(start, end, offset, flags, name, check_global_elf_cache);
   }
 
   ~MapInfo();
@@ -214,6 +220,8 @@ class MapInfo {
   // Returns elf_fields_. It will create the object if it is null.
   ElfFields& GetElfFields();
 
+  bool check_global_elf_cache() { return check_global_elf_cache_; }
+
  private:
   MapInfo(const MapInfo&) = delete;
   void operator=(const MapInfo&) = delete;
@@ -228,6 +236,7 @@ class MapInfo {
   uint64_t end_ = 0;
   uint64_t offset_ = 0;
   uint16_t flags_ = 0;
+  bool check_global_elf_cache_ = false;
   SharedString name_;
 
   std::atomic<ElfFields*> elf_fields_;
