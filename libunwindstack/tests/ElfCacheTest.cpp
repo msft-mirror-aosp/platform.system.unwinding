@@ -73,11 +73,14 @@ class ElfCacheTest : public ::testing::Test {
 
     // Create maps for testing.
     maps_.reset(new BufferMaps(kMapData));
-    maps_->set_check_global_elf_cache(true);
+    // The enable check global elf cache needs to be on by default. If the
+    // caching tests start failing, that indicates that the default is wrong
+    // and needs to be fixed.
     ASSERT_TRUE(maps_->Parse());
 
     maps_no_elf_cache_.reset(new BufferMaps(kMapData));
-    maps_->set_check_global_elf_cache(false);
+    // Global elf caching is on by default, so disable it for these maps.
+    maps_no_elf_cache_->set_check_global_elf_cache(false);
     ASSERT_TRUE(maps_no_elf_cache_->Parse());
 
     std::unordered_map<std::string, std::string> renames;

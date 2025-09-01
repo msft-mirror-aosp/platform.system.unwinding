@@ -236,7 +236,7 @@ class MapInfo {
   uint64_t end_ = 0;
   uint64_t offset_ = 0;
   uint16_t flags_ = 0;
-  bool check_global_elf_cache_ = false;
+  bool check_global_elf_cache_ = true;
   SharedString name_;
 
   std::atomic<ElfFields*> elf_fields_;
