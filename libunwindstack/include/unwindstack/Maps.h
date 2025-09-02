@@ -88,7 +88,7 @@ class Maps {
 
  protected:
   std::vector<std::shared_ptr<MapInfo>> maps_;
-  bool check_global_elf_cache_ = false;
+  bool check_global_elf_cache_ = true;
 };
 
 class RemoteMaps : public Maps {
