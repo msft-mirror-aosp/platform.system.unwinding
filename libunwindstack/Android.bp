@@ -250,7 +250,7 @@ cc_library_static {
         "com.android.runtime",
     ],
     visibility: [
-        "//bionic/libc/malloc_debug",
+        "//bionic/libc/memory/malloc_debug",
     ],
 }
 
