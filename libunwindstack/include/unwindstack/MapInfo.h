@@ -38,7 +38,7 @@ class MemoryFileAtOffset;
 class MapInfo {
  public:
   MapInfo(std::shared_ptr<MapInfo>& prev_map, uint64_t start, uint64_t end, uint64_t offset,
-          uint64_t flags, SharedString name, bool check_global_elf_cache = false)
+          uint64_t flags, SharedString name, bool check_global_elf_cache = true)
       : start_(start),
         end_(end),
         offset_(offset),
@@ -48,7 +48,7 @@ class MapInfo {
         elf_fields_(nullptr),
         prev_map_(prev_map) {}
   MapInfo(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags, SharedString name,
-          bool check_global_elf_cache = false)
+          bool check_global_elf_cache = true)
       : start_(start),
         end_(end),
         offset_(offset),
@@ -60,7 +60,7 @@ class MapInfo {
   static inline std::shared_ptr<MapInfo> Create(std::shared_ptr<MapInfo>& prev_map, uint64_t start,
                                                 uint64_t end, uint64_t offset, uint64_t flags,
                                                 SharedString name,
-                                                bool check_global_elf_cache = false) {
+                                                bool check_global_elf_cache = true) {
     auto map_info = std::make_shared<MapInfo>(prev_map, start, end, offset, flags, name,
                                               check_global_elf_cache);
     if (prev_map) {
@@ -70,7 +70,7 @@ class MapInfo {
   }
   static inline std::shared_ptr<MapInfo> Create(uint64_t start, uint64_t end, uint64_t offset,
                                                 uint64_t flags, SharedString name,
-                                                bool check_global_elf_cache = false) {
+                                                bool check_global_elf_cache = true) {
     return std::make_shared<MapInfo>(start, end, offset, flags, name, check_global_elf_cache);
   }
 
