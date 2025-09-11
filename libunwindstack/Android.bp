@@ -200,9 +200,6 @@ cc_library {
         linux: {
             runtime_libs: ["libdexfile"], // libdexfile_support dependency
         },
-        musl: {
-            cflags: ["-DNT_RISCV_VECTOR=0x901"],
-        },
     },
 
     arch: {
