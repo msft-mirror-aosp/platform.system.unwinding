@@ -111,18 +111,24 @@ Regs* RegsX86_64::Read(const void* remote_data) {
 }
 
 void RegsX86_64::SetFromUcontext(x86_64_ucontext_t* ucontext) {
-  // R8-R15
-  memcpy(&regs_[X86_64_REG_R8], &ucontext->uc_mcontext.r8, 8 * sizeof(uint64_t));
-
-  // Rest of the registers.
-  regs_[X86_64_REG_RDI] = ucontext->uc_mcontext.rdi;
-  regs_[X86_64_REG_RSI] = ucontext->uc_mcontext.rsi;
-  regs_[X86_64_REG_RBP] = ucontext->uc_mcontext.rbp;
-  regs_[X86_64_REG_RBX] = ucontext->uc_mcontext.rbx;
-  regs_[X86_64_REG_RDX] = ucontext->uc_mcontext.rdx;
+  // The ucontext registers and the regular registers are not in the same
+  // order, so copy each value individually.
   regs_[X86_64_REG_RAX] = ucontext->uc_mcontext.rax;
+  regs_[X86_64_REG_RDX] = ucontext->uc_mcontext.rdx;
   regs_[X86_64_REG_RCX] = ucontext->uc_mcontext.rcx;
+  regs_[X86_64_REG_RBX] = ucontext->uc_mcontext.rbx;
+  regs_[X86_64_REG_RSI] = ucontext->uc_mcontext.rsi;
+  regs_[X86_64_REG_RDI] = ucontext->uc_mcontext.rdi;
+  regs_[X86_64_REG_RBP] = ucontext->uc_mcontext.rbp;
   regs_[X86_64_REG_RSP] = ucontext->uc_mcontext.rsp;
+  regs_[X86_64_REG_R8] = ucontext->uc_mcontext.r8;
+  regs_[X86_64_REG_R9] = ucontext->uc_mcontext.r9;
+  regs_[X86_64_REG_R10] = ucontext->uc_mcontext.r10;
+  regs_[X86_64_REG_R11] = ucontext->uc_mcontext.r11;
+  regs_[X86_64_REG_R12] = ucontext->uc_mcontext.r12;
+  regs_[X86_64_REG_R13] = ucontext->uc_mcontext.r13;
+  regs_[X86_64_REG_R14] = ucontext->uc_mcontext.r14;
+  regs_[X86_64_REG_R15] = ucontext->uc_mcontext.r15;
   regs_[X86_64_REG_RIP] = ucontext->uc_mcontext.rip;
 }
 
