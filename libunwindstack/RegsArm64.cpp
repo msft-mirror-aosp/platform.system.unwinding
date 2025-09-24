@@ -133,11 +133,7 @@ Regs* RegsArm64::Read(const void* remote_data) {
   const arm64_user_regs* user = reinterpret_cast<const arm64_user_regs*>(remote_data);
 
   RegsArm64* regs = new RegsArm64();
-  memcpy(regs->RawData(), &user->regs[0], (ARM64_REG_R30 + 1) * sizeof(uint64_t));
-  uint64_t* reg_data = reinterpret_cast<uint64_t*>(regs->RawData());
-  reg_data[ARM64_REG_SP] = user->sp;
-  reg_data[ARM64_REG_PC] = user->pc;
-  reg_data[ARM64_REG_PSTATE] = user->pstate;
+  memcpy(regs->RawData(), &user->regs[0], (ARM64_REG_PSTATE + 1) * sizeof(uint64_t));
   return regs;
 }
 
@@ -145,7 +141,8 @@ Regs* RegsArm64::CreateFromUcontext(void* ucontext) {
   // Get the normal aarch64 registers.
   arm64_ucontext_t* arm64_ucontext = reinterpret_cast<arm64_ucontext_t*>(ucontext);
   RegsArm64* regs = new RegsArm64();
-  memcpy(regs->RawData(), &arm64_ucontext->uc_mcontext.regs[0], ARM64_REG_LAST * sizeof(uint64_t));
+  memcpy(regs->RawData(), &arm64_ucontext->uc_mcontext.regs[0],
+         (ARM64_REG_PSTATE + 1) * sizeof(uint64_t));
 
   // The reserved part of the mcontext contains extra information.
   uint64_t ctx = reinterpret_cast<uint64_t>(arm64_ucontext->uc_mcontext.reserved);
@@ -182,7 +179,7 @@ bool RegsArm64::StepIfSignalHandler(uint64_t elf_offset, Elf* elf, Memory* proce
 
   // SP + sizeof(siginfo_t) + uc_mcontext offset + X0 offset.
   if (!process_memory->ReadFully(regs_[ARM64_REG_SP] + 0x80 + 0xb0 + 0x08, regs_.data(),
-                                 sizeof(uint64_t) * ARM64_REG_LAST)) {
+                                 sizeof(uint64_t) * (ARM64_REG_PSTATE + 1))) {
     return false;
   }
   return true;

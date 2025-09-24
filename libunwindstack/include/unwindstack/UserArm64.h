@@ -30,13 +30,12 @@
 
 #include <stdint.h>
 
+#include <unwindstack/MachineArm64.h>
+
 namespace unwindstack {
 
 struct arm64_user_regs {
-  uint64_t regs[31];
-  uint64_t sp;
-  uint64_t pc;
-  uint64_t pstate;
+  uint64_t regs[ARM64_REG_PSTATE + 1];
 };
 
 }  // namespace unwindstack

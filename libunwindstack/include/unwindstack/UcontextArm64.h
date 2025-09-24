@@ -57,9 +57,8 @@ struct arm64_esr_ctx {
 };
 
 struct arm64_mcontext_t {
-  uint64_t fault_address;         // __u64
-  uint64_t regs[ARM64_REG_LAST];  // __u64
-  uint64_t pstate;                // __u64
+  uint64_t fault_address;               // __u64
+  uint64_t regs[ARM64_REG_PSTATE + 1];  // __u64
   uint8_t reserved[4096] __attribute__((__aligned__(16)));
 };
 
