@@ -35,6 +35,7 @@
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
 #include <unwindstack/UcontextArm64.h>
+#include <unwindstack/UcontextX86_64.h>
 
 #include "ElfFake.h"
 #include "RegsFake.h"
@@ -344,6 +345,56 @@ TEST_F(RegsTest, x86_64_err) {
   RegsX86_64 x86_64;
   x86_64.SetExtraRegister(X86_64_EXTRA_REG_ERR, 0x2000U);
   EXPECT_EQ(0x2000U, x86_64.GetExtraRegister(X86_64_EXTRA_REG_ERR));
+}
+
+TEST_F(RegsTest, x86_64_create_from_ucontext) {
+  // Create a ucontext structure and fill it with unique values.
+  x86_64_ucontext_t ucontext;
+  memset(&ucontext, 0, sizeof(ucontext));
+  x86_64_mcontext_t* mcontext = &ucontext.uc_mcontext;
+  mcontext->rax = 1;
+  mcontext->rbx = 2;
+  mcontext->rcx = 3;
+  mcontext->rdx = 4;
+  mcontext->r8 = 5;
+  mcontext->r9 = 6;
+  mcontext->r10 = 7;
+  mcontext->r11 = 8;
+  mcontext->r12 = 9;
+  mcontext->r13 = 10;
+  mcontext->r14 = 11;
+  mcontext->r15 = 12;
+  mcontext->rdi = 13;
+  mcontext->rsi = 14;
+  mcontext->rbp = 15;
+  mcontext->rsp = 16;
+  mcontext->rip = 17;
+  mcontext->err = 0x1234;
+
+  // Create a Regs object from the ucontext.
+  std::unique_ptr<Regs> regs_ptr(RegsX86_64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs_ptr != nullptr);
+  RegsX86_64* regs = static_cast<RegsX86_64*>(regs_ptr.get());
+
+  // Verify that all registers have been set to the correct values.
+  EXPECT_EQ(1ULL, (*regs)[X86_64_REG_RAX]);
+  EXPECT_EQ(2ULL, (*regs)[X86_64_REG_RBX]);
+  EXPECT_EQ(3ULL, (*regs)[X86_64_REG_RCX]);
+  EXPECT_EQ(4ULL, (*regs)[X86_64_REG_RDX]);
+  EXPECT_EQ(5ULL, (*regs)[X86_64_REG_R8]);
+  EXPECT_EQ(6ULL, (*regs)[X86_64_REG_R9]);
+  EXPECT_EQ(7ULL, (*regs)[X86_64_REG_R10]);
+  EXPECT_EQ(8ULL, (*regs)[X86_64_REG_R11]);
+  EXPECT_EQ(9ULL, (*regs)[X86_64_REG_R12]);
+  EXPECT_EQ(10ULL, (*regs)[X86_64_REG_R13]);
+  EXPECT_EQ(11ULL, (*regs)[X86_64_REG_R14]);
+  EXPECT_EQ(12ULL, (*regs)[X86_64_REG_R15]);
+  EXPECT_EQ(13ULL, (*regs)[X86_64_REG_RDI]);
+  EXPECT_EQ(14ULL, (*regs)[X86_64_REG_RSI]);
+  EXPECT_EQ(15ULL, (*regs)[X86_64_REG_RBP]);
+  EXPECT_EQ(16ULL, (*regs)[X86_64_REG_RSP]);
+  EXPECT_EQ(17ULL, (*regs)[X86_64_REG_RIP]);
+  EXPECT_EQ(0x1234U, regs->GetExtraRegister(X86_64_EXTRA_REG_ERR));
 }
 
 TEST_F(RegsTest, arm64_strip_pac_mask) {
