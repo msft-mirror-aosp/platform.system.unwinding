@@ -38,4 +38,13 @@ struct arm64_user_regs {
   uint64_t regs[ARM64_REG_PSTATE + 1];
 };
 
+struct arm64_user_sve_header {
+  uint32_t size;
+  uint32_t max_size;
+  uint16_t vl;
+  uint16_t max_vl;
+  uint16_t flags;
+  uint16_t reserved;
+};
+
 }  // namespace unwindstack

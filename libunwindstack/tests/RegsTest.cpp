@@ -291,7 +291,7 @@ TEST_F(RegsTest, arm_error_code) {
 }
 
 TEST_F(RegsTest, arm64_esr_from_ucontext) {
-  arm64_ucontext_t ucontext;
+  arm64_ucontext_t ucontext = {};
   arm64_esr_ctx* ctx = reinterpret_cast<arm64_esr_ctx*>(ucontext.uc_mcontext.reserved);
   ctx->head.magic = 0x45535201U;
   ctx->head.size = sizeof(arm64_esr_ctx);
@@ -304,7 +304,7 @@ TEST_F(RegsTest, arm64_esr_from_ucontext) {
 }
 
 TEST_F(RegsTest, arm64_esr_from_ucontext_edges) {
-  arm64_ucontext_t ucontext;
+  arm64_ucontext_t ucontext = {};
   arm64_ctx* ctx = reinterpret_cast<arm64_ctx*>(ucontext.uc_mcontext.reserved);
   ctx->magic = 0xdeadbeef;
   // Choose a size that should be outside the structure.
@@ -342,6 +342,112 @@ TEST_F(RegsTest, arm64_esr_from_ucontext_edges) {
   ASSERT_TRUE(regs.get() != nullptr);
   raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
   EXPECT_EQ(0xdead1234U, raw_regs[ARM64_REG_ESR]);
+}
+
+TEST_F(RegsTest, arm64_vg_from_sve_ucontext) {
+  arm64_ucontext_t ucontext = {};
+  arm64_sve_ctx* ctx = reinterpret_cast<arm64_sve_ctx*>(ucontext.uc_mcontext.reserved);
+  ctx->head.magic = 0x53564501U;
+  ctx->head.size = sizeof(arm64_sve_ctx);
+  ctx->vl = 80;
+
+  std::unique_ptr<Regs> regs(RegsArm64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+  uint64_t* raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(10U, raw_regs[ARM64_REG_VG]);
+}
+
+TEST_F(RegsTest, arm64_vg_from_sve_ucontext_edges) {
+  arm64_ucontext_t ucontext = {};
+  arm64_ctx* ctx = reinterpret_cast<arm64_ctx*>(ucontext.uc_mcontext.reserved);
+  ctx->magic = 0xdeadbeef;
+  ctx->size = sizeof(ucontext.uc_mcontext.reserved) - sizeof(arm64_ctx);
+
+  // Put the sve context at the end of the ucontext section but with the vl
+  // value past the end, so the value should not be set.
+  arm64_ctx* last_ctx = reinterpret_cast<arm64_ctx*>(reinterpret_cast<uint8_t*>(ctx) + ctx->size);
+  last_ctx->magic = 0x53564501U;
+  last_ctx->size = sizeof(arm64_sve_ctx);
+
+  std::unique_ptr<Regs> regs(RegsArm64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+  uint64_t* raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(0U, raw_regs[ARM64_REG_VG]);
+
+  // Now move the sve context data at the absolute end of the section.
+  last_ctx->magic = 0;
+  last_ctx->size = 0;
+
+  ctx->size = sizeof(ucontext.uc_mcontext.reserved) - sizeof(arm64_sve_ctx);
+  arm64_sve_ctx* sve_ctx =
+      reinterpret_cast<arm64_sve_ctx*>(reinterpret_cast<uint8_t*>(ctx) + ctx->size);
+  sve_ctx->head.magic = 0x53564501U;
+  sve_ctx->head.size = sizeof(arm64_sve_ctx);
+  sve_ctx->vl = 80;
+
+  regs.reset(RegsArm64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+  raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(10U, raw_regs[ARM64_REG_VG]);
+}
+
+TEST_F(RegsTest, arm64_vg_from_extra_ucontext) {
+  arm64_ucontext_t ucontext = {};
+  // First the extra header.
+  arm64_ctx* ctx = reinterpret_cast<arm64_ctx*>(ucontext.uc_mcontext.reserved);
+  ctx->magic = 0x45585401U;
+  ctx->size = sizeof(arm64_ctx);
+  // Add an sve context header, after a null header (the data should be all zero).
+  arm64_sve_ctx* sve_ctx =
+      reinterpret_cast<arm64_sve_ctx*>(reinterpret_cast<uintptr_t>(ctx) + 2 * sizeof(arm64_ctx));
+  sve_ctx->head.magic = 0x53564501U;
+  sve_ctx->head.size = sizeof(arm64_sve_ctx);
+  sve_ctx->vl = 80;
+
+  std::unique_ptr<Regs> regs(RegsArm64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+  uint64_t* raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(10U, raw_regs[ARM64_REG_VG]);
+}
+
+TEST_F(RegsTest, arm64_vg_from_extra_ucontext_edges) {
+  arm64_ucontext_t ucontext = {};
+  // First the extra header.
+  arm64_ctx* ctx = reinterpret_cast<arm64_ctx*>(ucontext.uc_mcontext.reserved);
+  ctx->magic = 0x45585401U;
+  ctx->size = sizeof(arm64_ctx);
+  arm64_ctx* null_ctx =
+      reinterpret_cast<arm64_ctx*>(reinterpret_cast<uintptr_t>(ctx) + sizeof(arm64_ctx));
+  // Change the magic of the null context to be non-null.
+  null_ctx->magic = 1;
+  // Add an sve context header, after a null header (the data should be all zero).
+  arm64_sve_ctx* sve_ctx =
+      reinterpret_cast<arm64_sve_ctx*>(reinterpret_cast<uintptr_t>(null_ctx) + sizeof(arm64_ctx));
+  sve_ctx->head.magic = 0x53564501U;
+  sve_ctx->head.size = sizeof(arm64_sve_ctx);
+  sve_ctx->vl = 80;
+
+  std::unique_ptr<Regs> regs(RegsArm64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+  uint64_t* raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(0U, raw_regs[ARM64_REG_VG]);
+
+  // Set the size of the null context to be non-null.
+  null_ctx->magic = 0;
+  null_ctx->size = 1;
+
+  regs.reset(RegsArm64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+  raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(0U, raw_regs[ARM64_REG_VG]);
+
+  // Verify that if the null context is null, it actually does work.
+  null_ctx->magic = 0;
+  null_ctx->size = 0;
+  regs.reset(RegsArm64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+  raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(10U, raw_regs[ARM64_REG_VG]);
 }
 
 TEST_F(RegsTest, x86_create_from_ucontext) {

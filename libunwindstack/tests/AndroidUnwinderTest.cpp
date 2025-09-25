@@ -251,7 +251,7 @@ TEST_F(AndroidUnwinderTest, verify_all_unwind_functions) {
           reinterpret_cast<arm64_ucontext_t*>(malloc(sizeof(arm64_ucontext_t)));
       ucontext = arm64_ucontext;
       memcpy(&arm64_ucontext->uc_mcontext.regs[0], regs->RawData(),
-             ARM64_REG_LAST * sizeof(uint64_t));
+             sizeof(arm64_ucontext->uc_mcontext.regs));
     } break;
     case ARCH_X86: {
       x86_ucontext_t* x86_ucontext =

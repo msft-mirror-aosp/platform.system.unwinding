@@ -72,7 +72,7 @@ Regs* Regs::RemoteGet(pid_t pid, ErrorCode* error_code) {
   case sizeof(arm_user_regs):
     return RegsArm::Read(buffer.data());
   case sizeof(arm64_user_regs):
-    return RegsArm64::Read(buffer.data());
+    return RegsArm64::Read(buffer.data(), pid);
   case sizeof(riscv64_user_regs):
     return RegsRiscv64::Read(buffer.data(), pid);
   }

@@ -508,6 +508,9 @@ cc_defaults {
         "offline_files/vlenb_riscv64/*",
         "offline_files/zlib_compress_arm/*",
         "offline_files/zstd_compress_arm/*",
+        "offline_files/vg_arm64/*",
+        "offline_files/vg_arm64/non_streaming/*",
+        "offline_files/vg_arm64/streaming/*",
     ],
 
     target: {

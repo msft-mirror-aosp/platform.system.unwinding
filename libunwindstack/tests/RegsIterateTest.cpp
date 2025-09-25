@@ -115,6 +115,7 @@ std::vector<Register> ExpectedRegisters<RegsArm64>() {
   result.push_back({"pc", ARM64_REG_PC});
   result.push_back({"pst", ARM64_REG_PSTATE});
   result.push_back({"esr", ARM64_REG_ESR});
+  result.push_back({"vg", ARM64_REG_VG});
   return result;
 }
 

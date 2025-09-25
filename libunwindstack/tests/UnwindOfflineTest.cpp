@@ -1809,5 +1809,68 @@ TEST_F(UnwindOfflineTest, vlenb_riscv64) {
   EXPECT_EQ(0x7fffe388bb20ULL, unwinder.frames()[7].sp);
 }
 
+// Unwind through functions using VG for CFA definition.
+TEST_F(UnwindOfflineTest, vg_non_streaming_arm64) {
+  std::string error_msg;
+  if (!offline_utils_.Init({.offline_files_dir = "vg_arm64/non_streaming/", .arch = ARCH_ARM64},
+                           &error_msg))
+    FAIL() << error_msg;
+
+  Regs* regs = offline_utils_.GetRegs();
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, offline_utils_.GetProcessMemory());
+  unwinder.Unwind();
+
+  size_t expected_num_frames;
+  if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg)) FAIL() << error_msg;
+  std::string expected_frame_info;
+  if (!GetExpectedSamplesFrameInfo(&expected_frame_info, &error_msg)) FAIL() << error_msg;
+
+  std::string frame_info(DumpFrames(unwinder));
+  ASSERT_EQ(expected_num_frames, unwinder.NumFrames()) << "Unwind:\n" << frame_info;
+  EXPECT_EQ(expected_frame_info, frame_info);
+  EXPECT_EQ(0xacf8462f6858U, unwinder.frames()[0].pc);
+  EXPECT_EQ(0xffffe5350f10U, unwinder.frames()[0].sp);
+  EXPECT_EQ(0xacf8462f6994U, unwinder.frames()[1].pc);
+  EXPECT_EQ(0xffffe5351750U, unwinder.frames()[1].sp);
+  EXPECT_EQ(0xacf8462f69fcU, unwinder.frames()[2].pc);
+  EXPECT_EQ(0xffffe5351790U, unwinder.frames()[2].sp);
+  EXPECT_EQ(0xacf8462f6a24U, unwinder.frames()[3].pc);
+  EXPECT_EQ(0xffffe53518c0U, unwinder.frames()[3].sp);
+  EXPECT_EQ(0xefe86dae5a90U, unwinder.frames()[4].pc);
+  EXPECT_EQ(0xffffe53518d0U, unwinder.frames()[4].sp);
+}
+
+// Unwind through functions using VG for CFA definition, including one that changes the value of VG
+// by entering streaming mode.
+TEST_F(UnwindOfflineTest, vg_streaming_arm64) {
+  std::string error_msg;
+  if (!offline_utils_.Init({.offline_files_dir = "vg_arm64/streaming/", .arch = ARCH_ARM64},
+                           &error_msg))
+    FAIL() << error_msg;
+
+  Regs* regs = offline_utils_.GetRegs();
+  Unwinder unwinder(128, offline_utils_.GetMaps(), regs, offline_utils_.GetProcessMemory());
+  unwinder.Unwind();
+
+  size_t expected_num_frames;
+  if (!offline_utils_.GetExpectedNumFrames(&expected_num_frames, &error_msg)) FAIL() << error_msg;
+  std::string expected_frame_info;
+  if (!GetExpectedSamplesFrameInfo(&expected_frame_info, &error_msg)) FAIL() << error_msg;
+
+  std::string frame_info(DumpFrames(unwinder));
+  ASSERT_EQ(expected_num_frames, unwinder.NumFrames()) << "Unwind:\n" << frame_info;
+  EXPECT_EQ(expected_frame_info, frame_info);
+  EXPECT_EQ(0xc8ae34f67858U, unwinder.frames()[0].pc);
+  EXPECT_EQ(0xfffff0798380U, unwinder.frames()[0].sp);
+  EXPECT_EQ(0xc8ae34f678d4U, unwinder.frames()[1].pc);
+  EXPECT_EQ(0xfffff0798c20U, unwinder.frames()[1].sp);
+  EXPECT_EQ(0xc8ae34f67960U, unwinder.frames()[2].pc);
+  EXPECT_EQ(0xfffff0799510U, unwinder.frames()[2].sp);
+  EXPECT_EQ(0xc8ae34f67a1cU, unwinder.frames()[3].pc);
+  EXPECT_EQ(0xfffff0799640U, unwinder.frames()[3].sp);
+  EXPECT_EQ(0xf81307859a90U, unwinder.frames()[4].pc);
+  EXPECT_EQ(0xfffff0799650U, unwinder.frames()[4].sp);
+}
+
 }  // namespace
 }  // namespace unwindstack
