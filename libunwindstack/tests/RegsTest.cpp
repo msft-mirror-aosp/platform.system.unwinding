@@ -397,6 +397,13 @@ TEST_F(RegsTest, x86_64_create_from_ucontext) {
   EXPECT_EQ(0x1234U, regs->GetExtraRegister(X86_64_EXTRA_REG_ERR));
 }
 
+TEST_F(RegsTest, arm64_ra_sign_check) {
+  RegsArm64 arm64;
+  EXPECT_FALSE(arm64.IsRASigned());
+  EXPECT_TRUE(arm64.SetPseudoRegister(Arm64Reg::ARM64_PREG_RA_SIGN_STATE, 1));
+  EXPECT_TRUE(arm64.IsRASigned());
+}
+
 TEST_F(RegsTest, arm64_strip_pac_mask) {
   RegsArm64 arm64;
   EXPECT_TRUE(arm64.SetPseudoRegister(Arm64Reg::ARM64_PREG_RA_SIGN_STATE, 1));

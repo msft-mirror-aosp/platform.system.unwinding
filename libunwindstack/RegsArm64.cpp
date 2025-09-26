@@ -187,7 +187,7 @@ bool RegsArm64::StepIfSignalHandler(uint64_t elf_offset, Elf* elf, Memory* proce
 
 void RegsArm64::ResetPseudoRegisters(void) {
   // DWARF for AArch64 says RA_SIGN_STATE should be initialized to 0.
-  memset(pseudo_regs_, 0, sizeof(pseudo_regs_));
+  pseudo_regs_[ARM64_PREG_RA_SIGN_STATE - ARM64_PREG_FIRST] = 0;
 }
 
 bool RegsArm64::SetPseudoRegister(uint16_t id, uint64_t value) {
@@ -207,9 +207,7 @@ bool RegsArm64::GetPseudoRegister(uint16_t id, uint64_t* value) {
 }
 
 bool RegsArm64::IsRASigned() {
-  uint64_t value;
-  auto result = this->GetPseudoRegister(ARM64_PREG_RA_SIGN_STATE, &value);
-  return (result && (value != 0));
+  return pseudo_regs_[ARM64_PREG_RA_SIGN_STATE - ARM64_PREG_FIRST] != 0;
 }
 
 void RegsArm64::SetPACMask(uint64_t mask) {
