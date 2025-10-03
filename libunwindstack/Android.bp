@@ -149,7 +149,10 @@ cc_library {
     // TODO(b/153609531): remove when no longer needed.
     native_bridge_supported: true,
     double_loadable: true,
-    defaults: ["libunwindstack_defaults"],
+    defaults: [
+        "libunwindstack_defaults",
+        "rust_static_std", // for rustc_demangle_static
+    ],
     srcs: [
         "DexFile.cpp",
         "LogAndroid.cpp",
@@ -231,7 +234,10 @@ cc_library {
 
 cc_library_static {
     name: "libunwindstack_demangle",
-    defaults: ["libunwindstack_flags"],
+    defaults: [
+        "libunwindstack_flags",
+        "rust_static_std", // for rustc_demangle_static
+    ],
     vendor_available: true,
 
     srcs: ["Demangle.cpp"],
@@ -254,7 +260,10 @@ cc_library_static {
 // Make sure that the code can be compiled without Android Logging.
 cc_library_static {
     name: "libunwindstack_stdout_log",
-    defaults: ["libunwindstack_defaults"],
+    defaults: [
+        "libunwindstack_defaults",
+        "rust_static_std", // for rustc_demangle_static
+    ],
     srcs: [
         "LogStdout.cpp",
     ],
@@ -280,7 +289,10 @@ cc_library_static {
     ramdisk_available: true,
     recovery_available: true,
     vendor_ramdisk_available: true,
-    defaults: ["libunwindstack_defaults"],
+    defaults: [
+        "libunwindstack_defaults",
+        "rust_static_std", // for rustc_demangle_static
+    ],
     srcs: ["LogAndroid.cpp"],
 
     visibility: [
@@ -289,6 +301,25 @@ cc_library_static {
         "//system/core/init",
         "//system/core/libutils",
         "//system/unwinding/libbacktrace",
+    ],
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.runtime",
+    ],
+}
+
+// Static library without DEX support to avoid dependencies on the ART APEX or
+// dependencies on `std` to ensure it is usable inside the linker or libc.
+cc_library_static {
+    name: "libunwindstack_no_dex_no_std",
+    ramdisk_available: true,
+    recovery_available: true,
+    vendor_ramdisk_available: true,
+    defaults: ["libunwindstack_defaults"],
+    srcs: ["LogAndroid.cpp"],
+
+    visibility: [
+        "//system/core/debuggerd",
     ],
     apex_available: [
         "//apex_available:platform",
