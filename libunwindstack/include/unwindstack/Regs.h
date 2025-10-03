@@ -48,7 +48,9 @@ class Regs {
   };
 
   Regs(uint16_t total_regs, const Location& return_loc)
-      : total_regs_(total_regs), return_loc_(return_loc) {}
+      : total_regs_(total_regs), total_all_regs_(total_regs), return_loc_(return_loc) {}
+  Regs(uint16_t total_regs, uint16_t total_all_regs, const Location& return_loc)
+      : total_regs_(total_regs), total_all_regs_(total_all_regs), return_loc_(return_loc) {}
   virtual ~Regs() = default;
 
   virtual ArchEnum Arch() = 0;
@@ -81,10 +83,17 @@ class Regs {
   virtual void IterateRegisters(std::function<void(const char*, uint64_t)>) = 0;
 
   uint16_t total_regs() { return total_regs_; }
+  uint16_t total_all_regs() { return total_all_regs_; }
 
   virtual Regs* Clone() = 0;
 
-  virtual uint16_t Convert(uint16_t reg) { return reg; }
+  // Convert a Dwarf register number to an internal register number.
+  // By default, no conversion occurs, only return an out of bound register
+  // value if the register is outside of the normal set of registers.
+  virtual uint16_t Convert(uint16_t reg) {
+    if (reg >= total_regs_) return total_all_regs_;
+    return reg;
+  }
 
   static ArchEnum CurrentArch();
   static ArchEnum RemoteGetArch(pid_t pid, ErrorCode* error_code = nullptr);
@@ -93,7 +102,11 @@ class Regs {
   static Regs* CreateFromLocal();
 
  protected:
+  // Total number of general purpose architectural registers.
   uint16_t total_regs_;
+  // Always >= total_regs_ and all numbers after total_regs_ are internal
+  // only numbers that do not correspond to the Dwarf register number.
+  uint16_t total_all_regs_;
   Location return_loc_;
   uint64_t dex_pc_ = 0;
 };
@@ -101,26 +114,13 @@ class Regs {
 template <typename AddressType>
 class RegsImpl : public Regs {
  public:
-  RegsImpl(uint16_t total_regs, uint16_t total_extra_regs, Location return_loc)
-      : Regs(total_regs, return_loc), regs_(total_regs), extra_regs_(total_extra_regs) {}
+  RegsImpl(uint16_t total_regs, uint16_t total_all_regs, Location return_loc)
+      : Regs(total_regs, total_all_regs, return_loc), regs_(total_all_regs) {}
   virtual ~RegsImpl() = default;
 
   inline AddressType& operator[](size_t reg) { return regs_[reg]; }
 
   void* RawData() override { return regs_.data(); }
-
-  void SetExtraRegister(uint16_t reg, uint64_t value) override {
-    if (reg >= extra_regs_.size()) {
-      return;
-    }
-    extra_regs_[reg] = value;
-  }
-  uint64_t GetExtraRegister(uint16_t reg) override {
-    if (reg >= extra_regs_.size()) {
-      return 0;
-    }
-    return extra_regs_[reg];
-  }
 
   virtual void IterateRegisters(std::function<void(const char*, uint64_t)> fn) override {
     for (size_t i = 0; i < regs_.size(); ++i) {
@@ -130,7 +130,6 @@ class RegsImpl : public Regs {
 
  protected:
   std::vector<AddressType> regs_;
-  std::vector<uint64_t> extra_regs_;
 };
 
 uint64_t GetPcAdjustment(uint64_t rel_pc, Elf* elf, ArchEnum arch);

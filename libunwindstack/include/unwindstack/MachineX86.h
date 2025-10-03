@@ -41,12 +41,12 @@ enum X86Reg : uint16_t {
   X86_REG_GS = 15,
   X86_REG_LAST,
 
+  // Extra register
+  X86_REG_ERR = X86_REG_LAST,  // Only found in ucontext data.
+  X86_ALL_REG_LAST,
+
   X86_REG_SP = X86_REG_ESP,
   X86_REG_PC = X86_REG_EIP,
-
-  // Extra registers, usually only found in ucontext data.
-  X86_EXTRA_REG_ERR = 0,
-  X86_EXTRA_REG_LAST,
 };
 
 }  // namespace unwindstack
