@@ -59,7 +59,7 @@ struct RegsInfo {
     return saved_reg_map & (1ULL << reg);
   }
 
-  inline uint16_t Total() { return regs->total_regs(); }
+  inline uint16_t Total() { return regs->total_all_regs(); }
 };
 
 }  // namespace unwindstack

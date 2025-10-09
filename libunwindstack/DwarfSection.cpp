@@ -499,7 +499,8 @@ bool DwarfSectionImpl<AddressType>::Eval(const DwarfCie* cie, Memory* regular_me
                                          const DwarfLocations& loc_regs, Regs* regs,
                                          bool* finished) {
   RegsImpl<AddressType>* cur_regs = reinterpret_cast<RegsImpl<AddressType>*>(regs);
-  if (cie->return_address_register >= cur_regs->total_regs()) {
+  uint16_t return_address_register = cur_regs->Convert(cie->return_address_register);
+  if (return_address_register >= cur_regs->total_all_regs()) {
     last_error_.code = DWARF_ERROR_ILLEGAL_VALUE;
     return false;
   }
@@ -525,14 +526,16 @@ bool DwarfSectionImpl<AddressType>::Eval(const DwarfCie* cie, Memory* regular_me
   const DwarfLocation* loc = &cfa_entry->second;
   // Only a few location types are valid for the cfa.
   switch (loc->type) {
-    case DWARF_LOCATION_REGISTER:
-      if (loc->values[0] >= cur_regs->total_regs()) {
+    case DWARF_LOCATION_REGISTER: {
+      uint16_t cur_reg = cur_regs->Convert(loc->values[0]);
+      if (cur_reg >= cur_regs->total_all_regs()) {
         last_error_.code = DWARF_ERROR_ILLEGAL_VALUE;
         return false;
       }
-      eval_info.cfa = (*cur_regs)[loc->values[0]];
+      eval_info.cfa = (*cur_regs)[cur_reg];
       eval_info.cfa += loc->values[1];
       break;
+    }
     case DWARF_LOCATION_VAL_EXPRESSION: {
       AddressType value;
       if (!EvalExpression(*loc, regular_memory, &value, &eval_info.regs_info, nullptr)) {
@@ -552,21 +555,23 @@ bool DwarfSectionImpl<AddressType>::Eval(const DwarfCie* cie, Memory* regular_me
     // Already handled the CFA register.
     if (reg == CFA_REG) continue;
 
-    AddressType* reg_ptr;
-    if (reg >= cur_regs->total_regs()) {
-      if (entry.second.type != DWARF_LOCATION_PSEUDO_REGISTER) {
-        // Skip this unknown register.
-        continue;
-      }
+    if (entry.second.type == DWARF_LOCATION_PSEUDO_REGISTER) {
       if (!eval_info.regs_info.regs->SetPseudoRegister(reg, entry.second.values[0])) {
         last_error_.code = DWARF_ERROR_ILLEGAL_VALUE;
         return false;
       }
-    } else {
-      reg_ptr = eval_info.regs_info.Save(reg);
-      if (!EvalRegister(&entry.second, reg, reg_ptr, &eval_info)) {
-        return false;
-      }
+      continue;
+    }
+
+    AddressType* reg_ptr;
+    reg = cur_regs->Convert(reg);
+    if (reg >= cur_regs->total_all_regs()) {
+      // Skip this unknown register.
+      continue;
+    }
+    reg_ptr = eval_info.regs_info.Save(reg);
+    if (!EvalRegister(&entry.second, reg, reg_ptr, &eval_info)) {
+      return false;
     }
   }
 
@@ -574,7 +579,7 @@ bool DwarfSectionImpl<AddressType>::Eval(const DwarfCie* cie, Memory* regular_me
   if (eval_info.return_address_undefined) {
     cur_regs->set_pc(0);
   } else {
-    cur_regs->set_pc((*cur_regs)[cie->return_address_register]);
+    cur_regs->set_pc((*cur_regs)[return_address_register]);
   }
 
   // If the pc was set to zero, consider this the final frame. Exception: if
