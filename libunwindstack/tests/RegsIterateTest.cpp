@@ -73,6 +73,7 @@ std::vector<Register> ExpectedRegisters<RegsArm>() {
   result.push_back({"sp", ARM_REG_SP});
   result.push_back({"lr", ARM_REG_LR});
   result.push_back({"pc", ARM_REG_PC});
+  result.push_back({"error_code", ARM_REG_ERROR_CODE});
   return result;
 }
 
@@ -113,6 +114,7 @@ std::vector<Register> ExpectedRegisters<RegsArm64>() {
   result.push_back({"sp", ARM64_REG_SP});
   result.push_back({"pc", ARM64_REG_PC});
   result.push_back({"pst", ARM64_REG_PSTATE});
+  result.push_back({"esr", ARM64_REG_ESR});
   return result;
 }
 
@@ -128,6 +130,7 @@ std::vector<Register> ExpectedRegisters<RegsX86>() {
   result.push_back({"esi", X86_REG_ESI});
   result.push_back({"esp", X86_REG_ESP});
   result.push_back({"eip", X86_REG_EIP});
+  result.push_back({"err", X86_REG_ERR});
   return result;
 }
 
@@ -151,6 +154,7 @@ std::vector<Register> ExpectedRegisters<RegsX86_64>() {
   result.push_back({"rbp", X86_64_REG_RBP});
   result.push_back({"rsp", X86_64_REG_RSP});
   result.push_back({"rip", X86_64_REG_RIP});
+  result.push_back({"err", X86_64_REG_ERR});
   return result;
 }
 

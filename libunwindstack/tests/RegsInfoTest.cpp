@@ -90,6 +90,7 @@ TEST_F(RegsInfoDeathTest, invalid_register) {
   RegsInfo<uint64_t> info(&regs);
 
   ASSERT_DEATH(info.Save(RegsInfo<uint64_t>::MAX_REGISTERS), "");
+  ASSERT_DEATH(info.IsSaved(RegsInfo<uint64_t>::MAX_REGISTERS), "");
 }
 
 }  // namespace unwindstack

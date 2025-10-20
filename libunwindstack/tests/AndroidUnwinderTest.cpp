@@ -188,6 +188,37 @@ TEST(AndroidLocalUnwinderTest, suffix_ignore) {
   }
 }
 
+// Verify that the AndroidLocalUnwinder object defaults to not checking
+// the global elf cache.
+TEST(AndroidLocalUnwinderTest, verify_check_elf_cache_default) {
+  AndroidLocalUnwinder unwinder;
+  ASSERT_FALSE(unwinder.check_global_elf_cache());
+
+  ErrorData error;
+  ASSERT_TRUE(unwinder.Initialize(error));
+  EXPECT_FALSE(unwinder.GetMaps()->check_global_elf_cache());
+  for (auto map_info : *unwinder.GetMaps()) {
+    EXPECT_FALSE(map_info->check_global_elf_cache())
+        << "Failed on MapInfo " << map_info->name().c_str();
+  }
+}
+
+// Verify that the AndroidLocalUnwinder object set the check global
+// elf cache correctly.
+TEST(AndroidLocalUnwinderTest, verify_set_check_elf_cache) {
+  AndroidLocalUnwinder unwinder;
+  unwinder.set_check_global_elf_cache(true);
+  ASSERT_TRUE(unwinder.check_global_elf_cache());
+
+  ErrorData error;
+  ASSERT_TRUE(unwinder.Initialize(error));
+  EXPECT_TRUE(unwinder.GetMaps()->check_global_elf_cache());
+  for (auto map_info : *unwinder.GetMaps()) {
+    EXPECT_TRUE(map_info->check_global_elf_cache())
+        << "Failed on MapInfo " << map_info->name().c_str();
+  }
+}
+
 TEST_F(AndroidUnwinderTest, verify_all_unwind_functions) {
   // Do not reuse the unwinder object to verify initialization is done
   // correctly.
@@ -262,7 +293,7 @@ TEST_F(AndroidUnwinderTest, verify_all_unwind_functions) {
           reinterpret_cast<riscv64_ucontext_t*>(malloc(sizeof(riscv64_ucontext_t)));
       ucontext = riscv64_ucontext;
       memcpy(&riscv64_ucontext->uc_mcontext.__gregs, regs->RawData(),
-             RISCV64_REG_REAL_COUNT * sizeof(uint64_t));
+             RISCV64_REG_LAST * sizeof(uint64_t));
     } break;
     default:
       ucontext = nullptr;
@@ -466,6 +497,41 @@ TEST_F(AndroidRemoteUnwinderTest, remote_get_ptrace_fails) {
   AndroidUnwinderData data;
   ASSERT_FALSE(unwinder.Unwind(data));
   EXPECT_EQ("Ptrace Call Failed", data.GetErrorString());
+}
+
+// Verify that the AndroidRemoteUnwinder object defaults to not checking
+// the global elf cache.
+TEST_F(AndroidRemoteUnwinderTest, verify_check_elf_cache_default) {
+  ASSERT_NO_FATAL_FAILURE(Fork());
+
+  AndroidRemoteUnwinder unwinder(pid_);
+  ASSERT_FALSE(unwinder.check_global_elf_cache());
+
+  ErrorData error;
+  ASSERT_TRUE(unwinder.Initialize(error));
+  EXPECT_FALSE(unwinder.GetMaps()->check_global_elf_cache());
+  for (auto map_info : *unwinder.GetMaps()) {
+    EXPECT_FALSE(map_info->check_global_elf_cache())
+        << "Failed on MapInfo " << map_info->name().c_str();
+  }
+}
+
+// Verify that the AndroidRemoteUnwinder object set the check global
+// elf cache correctly.
+TEST_F(AndroidRemoteUnwinderTest, verify_set_check_elf_cache) {
+  ASSERT_NO_FATAL_FAILURE(Fork());
+
+  AndroidRemoteUnwinder unwinder(pid_);
+  unwinder.set_check_global_elf_cache(true);
+  ASSERT_TRUE(unwinder.check_global_elf_cache());
+
+  ErrorData error;
+  ASSERT_TRUE(unwinder.Initialize(error));
+  EXPECT_TRUE(unwinder.GetMaps()->check_global_elf_cache());
+  for (auto map_info : *unwinder.GetMaps()) {
+    EXPECT_TRUE(map_info->check_global_elf_cache())
+        << "Failed on MapInfo " << map_info->name().c_str();
+  }
 }
 
 }  // namespace unwindstack

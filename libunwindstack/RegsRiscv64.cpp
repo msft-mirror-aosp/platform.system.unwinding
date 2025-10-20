@@ -70,7 +70,8 @@ uint64_t RegsRiscv64::GetVlenbFromRemote(pid_t pid) {
 #endif
 
 RegsRiscv64::RegsRiscv64()
-    : RegsImpl<uint64_t>(RISCV64_REG_COUNT, 0, Location(LOCATION_REGISTER, RISCV64_REG_RA)) {}
+    : RegsImpl<uint64_t>(RISCV64_REG_LAST, RISCV64_ALL_REG_LAST,
+                         Location(LOCATION_REGISTER, RISCV64_REG_RA)) {}
 
 ArchEnum RegsRiscv64::Arch() {
   return ARCH_RISCV64;
@@ -135,6 +136,7 @@ void RegsRiscv64::IterateRegisters(std::function<void(const char*, uint64_t)> fn
   fn("a5", regs_[RISCV64_REG_A5]);
   fn("a6", regs_[RISCV64_REG_A6]);
   fn("a7", regs_[RISCV64_REG_A7]);
+  // Extra register
   fn("vlenb", regs_[RISCV64_REG_VLENB]);
 }
 
@@ -142,7 +144,7 @@ Regs* RegsRiscv64::Read(const void* remote_data, pid_t pid) {
   const riscv64_user_regs* user = reinterpret_cast<const riscv64_user_regs*>(remote_data);
 
   RegsRiscv64* regs = new RegsRiscv64();
-  memcpy(regs->RawData(), &user->regs[0], RISCV64_REG_REAL_COUNT * sizeof(uint64_t));
+  memcpy(regs->RawData(), &user->regs[0], sizeof(user->regs));
   regs->regs_[RISCV64_REG_VLENB] = GetVlenbFromRemote(pid);
   return regs;
 }
@@ -152,13 +154,12 @@ Regs* RegsRiscv64::CreateFromUcontext(void* ucontext) {
 
   RegsRiscv64* regs = new RegsRiscv64();
   memcpy(regs->RawData(), &riscv64_ucontext->uc_mcontext.__gregs[0],
-         RISCV64_REG_REAL_COUNT * sizeof(uint64_t));
+         sizeof(riscv64_ucontext->uc_mcontext.__gregs));
 
   // TODO: Until b/323045700 is fixed, this code temporarily assumes
   // this function will only be called on the same core an unwind occurs.
   // If not, the vlenb value might be wrong.
-  uint64_t* raw_data = reinterpret_cast<uint64_t*>(regs->RawData());
-  raw_data[RISCV64_REG_VLENB] = GetVlenbFromLocal();
+  regs->regs_[RISCV64_REG_VLENB] = GetVlenbFromLocal();
   return regs;
 }
 
@@ -181,7 +182,7 @@ bool RegsRiscv64::StepIfSignalHandler(uint64_t elf_offset, Elf* elf, Memory* pro
 
   // SP + sizeof(siginfo_t) + uc_mcontext offset + PC offset.
   if (!process_memory->ReadFully(regs_[RISCV64_REG_SP] + 0x80 + 0xb0 + 0x00, regs_.data(),
-                                 sizeof(uint64_t) * (RISCV64_REG_REAL_COUNT))) {
+                                 sizeof(uint64_t) * RISCV64_REG_LAST)) {
     return false;
   }
   return true;
@@ -192,13 +193,8 @@ Regs* RegsRiscv64::Clone() {
 }
 
 uint16_t RegsRiscv64::Convert(uint16_t reg) {
-  if (reg == 0x1c22) {
-    return RISCV64_REG_VLENB;
-  }
-  if (reg == RISCV64_REG_VLENB) {
-    // It should never be valid for the register to be vlenb naturally.
-    return total_regs();
-  }
+  if (reg == kDwarfVlenbReg) return RISCV64_REG_VLENB;
+  if (reg >= RISCV64_REG_LAST) return RISCV64_ALL_REG_LAST;
   return reg;
 }
 

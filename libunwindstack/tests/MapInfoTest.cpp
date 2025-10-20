@@ -32,6 +32,7 @@ TEST(MapInfoTest, maps_constructor_const_char) {
   auto prev_map = MapInfo::Create(0, 0, 0, 0, "");
   auto map_info = MapInfo::Create(prev_map, 1, 2, 3, 4, "map");
 
+  EXPECT_TRUE(prev_map->check_global_elf_cache());
   EXPECT_EQ(prev_map.get(), map_info->prev_map().get());
   EXPECT_EQ(1UL, map_info->start());
   EXPECT_EQ(2UL, map_info->end());
@@ -41,6 +42,27 @@ TEST(MapInfoTest, maps_constructor_const_char) {
   EXPECT_EQ(UINT64_MAX, map_info->load_bias());
   EXPECT_EQ(0UL, map_info->elf_offset());
   EXPECT_TRUE(map_info->elf().get() == nullptr);
+  EXPECT_TRUE(map_info->check_global_elf_cache());
+}
+
+TEST(MapInfoTest, maps_constructor_check_global_cache_settings) {
+  auto prev_map = MapInfo::Create(0, 0, 0, 0, "", false);
+  auto map_info = MapInfo::Create(prev_map, 1, 2, 3, 4, "map", false);
+
+  EXPECT_FALSE(prev_map->check_global_elf_cache());
+  EXPECT_FALSE(map_info->check_global_elf_cache());
+
+  map_info.reset(new MapInfo(0, 0, 0, 0, ""));
+  EXPECT_TRUE(map_info->check_global_elf_cache());
+
+  map_info.reset(new MapInfo(0, 0, 0, 0, "", false));
+  EXPECT_FALSE(map_info->check_global_elf_cache());
+
+  map_info.reset(new MapInfo(prev_map, 0, 0, 0, 0, ""));
+  EXPECT_TRUE(map_info->check_global_elf_cache());
+
+  map_info.reset(new MapInfo(prev_map, 0, 0, 0, 0, "", false));
+  EXPECT_FALSE(map_info->check_global_elf_cache());
 }
 
 TEST(MapInfoTest, maps_constructor_string) {
@@ -48,6 +70,7 @@ TEST(MapInfoTest, maps_constructor_string) {
   auto prev_map = MapInfo::Create(0, 0, 0, 0, "");
   auto map_info = MapInfo::Create(prev_map, 1, 2, 3, 4, name);
 
+  EXPECT_TRUE(prev_map->check_global_elf_cache());
   EXPECT_EQ(prev_map, map_info->prev_map());
   EXPECT_EQ(1UL, map_info->start());
   EXPECT_EQ(2UL, map_info->end());
@@ -57,6 +80,7 @@ TEST(MapInfoTest, maps_constructor_string) {
   EXPECT_EQ(UINT64_MAX, map_info->load_bias());
   EXPECT_EQ(0UL, map_info->elf_offset());
   EXPECT_TRUE(map_info->elf().get() == nullptr);
+  EXPECT_TRUE(map_info->check_global_elf_cache());
 }
 
 TEST(MapInfoTest, real_map_check) {

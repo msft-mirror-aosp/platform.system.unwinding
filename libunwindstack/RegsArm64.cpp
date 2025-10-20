@@ -34,7 +34,7 @@
 namespace unwindstack {
 
 RegsArm64::RegsArm64()
-    : RegsImpl<uint64_t>(ARM64_REG_LAST, ARM64_EXTRA_REG_LAST,
+    : RegsImpl<uint64_t>(ARM64_REG_LAST, ARM64_ALL_REG_LAST,
                          Location(LOCATION_REGISTER, ARM64_REG_LR)) {}
 
 ArchEnum RegsArm64::Arch() {
@@ -127,17 +127,15 @@ void RegsArm64::IterateRegisters(std::function<void(const char*, uint64_t)> fn) 
   fn("sp", regs_[ARM64_REG_SP]);
   fn("pc", regs_[ARM64_REG_PC]);
   fn("pst", regs_[ARM64_REG_PSTATE]);
+  // Extra register
+  fn("esr", regs_[ARM64_REG_ESR]);
 }
 
 Regs* RegsArm64::Read(const void* remote_data) {
   const arm64_user_regs* user = reinterpret_cast<const arm64_user_regs*>(remote_data);
 
   RegsArm64* regs = new RegsArm64();
-  memcpy(regs->RawData(), &user->regs[0], (ARM64_REG_R30 + 1) * sizeof(uint64_t));
-  uint64_t* reg_data = reinterpret_cast<uint64_t*>(regs->RawData());
-  reg_data[ARM64_REG_SP] = user->sp;
-  reg_data[ARM64_REG_PC] = user->pc;
-  reg_data[ARM64_REG_PSTATE] = user->pstate;
+  memcpy(regs->RawData(), &user->regs[0], sizeof(user->regs));
   return regs;
 }
 
@@ -145,7 +143,8 @@ Regs* RegsArm64::CreateFromUcontext(void* ucontext) {
   // Get the normal aarch64 registers.
   arm64_ucontext_t* arm64_ucontext = reinterpret_cast<arm64_ucontext_t*>(ucontext);
   RegsArm64* regs = new RegsArm64();
-  memcpy(regs->RawData(), &arm64_ucontext->uc_mcontext.regs[0], ARM64_REG_LAST * sizeof(uint64_t));
+  memcpy(regs->RawData(), &arm64_ucontext->uc_mcontext.regs[0],
+         sizeof(arm64_ucontext->uc_mcontext.regs));
 
   // The reserved part of the mcontext contains extra information.
   uint64_t ctx = reinterpret_cast<uint64_t>(arm64_ucontext->uc_mcontext.reserved);
@@ -156,7 +155,7 @@ Regs* RegsArm64::CreateFromUcontext(void* ucontext) {
       break;
     }
     if (ctx_ptr->magic == kArm64EsrMagic && (ctx + sizeof(arm64_esr_ctx)) <= max_ctx_value) {
-      regs->SetExtraRegister(ARM64_EXTRA_REG_ESR, reinterpret_cast<arm64_esr_ctx*>(ctx_ptr)->esr);
+      regs->regs_[ARM64_REG_ESR] = reinterpret_cast<arm64_esr_ctx*>(ctx_ptr)->esr;
       break;
     }
     ctx += ctx_ptr->size;
@@ -182,7 +181,7 @@ bool RegsArm64::StepIfSignalHandler(uint64_t elf_offset, Elf* elf, Memory* proce
 
   // SP + sizeof(siginfo_t) + uc_mcontext offset + X0 offset.
   if (!process_memory->ReadFully(regs_[ARM64_REG_SP] + 0x80 + 0xb0 + 0x08, regs_.data(),
-                                 sizeof(uint64_t) * ARM64_REG_LAST)) {
+                                 sizeof(uint64_t) * (ARM64_REG_PSTATE + 1))) {
     return false;
   }
   return true;
@@ -190,29 +189,25 @@ bool RegsArm64::StepIfSignalHandler(uint64_t elf_offset, Elf* elf, Memory* proce
 
 void RegsArm64::ResetPseudoRegisters(void) {
   // DWARF for AArch64 says RA_SIGN_STATE should be initialized to 0.
-  memset(pseudo_regs_, 0, sizeof(pseudo_regs_));
+  pseudo_regs_[ARM64_PREG_RA_SIGN_STATE] = 0;
 }
 
 bool RegsArm64::SetPseudoRegister(uint16_t id, uint64_t value) {
-  if ((id >= ARM64_PREG_FIRST) && (id < ARM64_PREG_LAST)) {
-    pseudo_regs_[id - ARM64_PREG_FIRST] = value;
-    return true;
-  }
-  return false;
+  if (id >= ARM64_PREG_LAST) return false;
+
+  pseudo_regs_[id] = value;
+  return true;
 }
 
 bool RegsArm64::GetPseudoRegister(uint16_t id, uint64_t* value) {
-  if ((id >= ARM64_PREG_FIRST) && (id < ARM64_PREG_LAST)) {
-    *value = pseudo_regs_[id - ARM64_PREG_FIRST];
-    return true;
-  }
-  return false;
+  if (id >= ARM64_PREG_LAST) return false;
+
+  *value = pseudo_regs_[id];
+  return true;
 }
 
 bool RegsArm64::IsRASigned() {
-  uint64_t value;
-  auto result = this->GetPseudoRegister(ARM64_PREG_RA_SIGN_STATE, &value);
-  return (result && (value != 0));
+  return pseudo_regs_[ARM64_PREG_RA_SIGN_STATE] != 0;
 }
 
 void RegsArm64::SetPACMask(uint64_t mask) {

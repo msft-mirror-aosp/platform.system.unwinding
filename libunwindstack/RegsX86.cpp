@@ -29,7 +29,7 @@
 namespace unwindstack {
 
 RegsX86::RegsX86()
-    : RegsImpl<uint32_t>(X86_REG_LAST, X86_EXTRA_REG_LAST, Location(LOCATION_SP_OFFSET, -4)) {}
+    : RegsImpl<uint32_t>(X86_REG_LAST, X86_ALL_REG_LAST, Location(LOCATION_SP_OFFSET, -4)) {}
 
 ArchEnum RegsX86::Arch() {
   return ARCH_X86;
@@ -73,6 +73,7 @@ void RegsX86::IterateRegisters(std::function<void(const char*, uint64_t)> fn) {
   fn("esi", regs_[X86_REG_ESI]);
   fn("esp", regs_[X86_REG_ESP]);
   fn("eip", regs_[X86_REG_EIP]);
+  fn("err", regs_[X86_REG_ERR]);
 }
 
 Regs* RegsX86::Read(const void* user_data) {
@@ -93,7 +94,8 @@ Regs* RegsX86::Read(const void* user_data) {
 }
 
 void RegsX86::SetFromUcontext(x86_ucontext_t* ucontext) {
-  // Put the registers in the expected order.
+  // The ucontext registers and the regular registers are not in the same
+  // order, so copy each value individually.
   regs_[X86_REG_EDI] = ucontext->uc_mcontext.edi;
   regs_[X86_REG_ESI] = ucontext->uc_mcontext.esi;
   regs_[X86_REG_EBP] = ucontext->uc_mcontext.ebp;
@@ -103,14 +105,20 @@ void RegsX86::SetFromUcontext(x86_ucontext_t* ucontext) {
   regs_[X86_REG_ECX] = ucontext->uc_mcontext.ecx;
   regs_[X86_REG_EAX] = ucontext->uc_mcontext.eax;
   regs_[X86_REG_EIP] = ucontext->uc_mcontext.eip;
+  regs_[X86_REG_EFL] = ucontext->uc_mcontext.efl;
+  regs_[X86_REG_CS] = ucontext->uc_mcontext.cs;
+  regs_[X86_REG_DS] = ucontext->uc_mcontext.ds;
+  regs_[X86_REG_ES] = ucontext->uc_mcontext.es;
+  regs_[X86_REG_FS] = ucontext->uc_mcontext.fs;
+  regs_[X86_REG_GS] = ucontext->uc_mcontext.gs;
+  regs_[X86_REG_SS] = ucontext->uc_mcontext.ss;
+  // Extra register
+  regs_[X86_REG_ERR] = ucontext->uc_mcontext.err;
 }
 
 Regs* RegsX86::CreateFromUcontext(void* ucontext) {
-  x86_ucontext_t* x86_ucontext = reinterpret_cast<x86_ucontext_t*>(ucontext);
-
   RegsX86* regs = new RegsX86();
-  regs->SetFromUcontext(x86_ucontext);
-  regs->SetExtraRegister(X86_EXTRA_REG_ERR, x86_ucontext->uc_mcontext.err);
+  regs->SetFromUcontext(reinterpret_cast<x86_ucontext_t*>(ucontext));
   return regs;
 }
 

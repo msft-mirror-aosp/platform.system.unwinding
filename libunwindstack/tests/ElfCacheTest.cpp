@@ -43,35 +43,45 @@ class ElfCacheTest : public ::testing::Test {
   void SetUp() override {
     Elf::SetCachingEnabled(true);
 
+    static const char kMapData[] =
+        "1000-2000 r-xs 00000000 00:00 0 elf_one.so\n"
+        "2000-3000 r-xs 00000000 00:00 0 elf_two.so\n"
+        "3000-4000 ---s 00000000 00:00 0\n"
+        "4000-5000 r--s 00000000 00:00 0 elf_three.so\n"
+        "5000-6000 r-xs 00001000 00:00 0 elf_three.so\n"
+        "6000-7000 ---s 00000000 00:00 0\n"
+        "7000-8000 r--s 00001000 00:00 0 app_one.apk\n"
+        "8000-9000 r-xs 00005000 00:00 0 app_one.apk\n"
+        "9000-a000 r--s 00004000 00:00 0 app_two.apk\n"
+        "a000-b000 r-xs 00005000 00:00 0 app_two.apk\n"
+        "b000-c000 r--s 00008000 00:00 0 app_two.apk\n"
+        "c000-d000 r-xs 00009000 00:00 0 app_two.apk\n"
+        "d000-e000 ---s 00000000 00:00 0\n"
+        "e000-f000 r-xs 00000000 00:00 0 invalid\n"
+        "f000-10000 r-xs 00000000 00:00 0 invalid\n"
+        "10000-11000 r-xs 00000000 00:00 0 elf_two.so\n"
+        "11000-12000 r-xs 00000000 00:00 0 elf_one.so\n"
+        "12000-13000 r--s 00000000 00:00 0 elf_three.so\n"
+        "13000-14000 r-xs 00001000 00:00 0 elf_three.so\n"
+        "14000-15000 ---s 00000000 00:00 0\n"
+        "15000-16000 r--s 00001000 00:00 0 app_one.apk\n"
+        "16000-17000 r-xs 00005000 00:00 0 app_one.apk\n"
+        "17000-18000 r--s 00004000 00:00 0 app_two.apk\n"
+        "18000-19000 r-xs 00005000 00:00 0 app_two.apk\n"
+        "19000-1a000 r--s 00008000 00:00 0 app_two.apk\n"
+        "1a000-1b000 r-xs 00009000 00:00 0 app_two.apk\n";
+
     // Create maps for testing.
-    maps_.reset(
-        new BufferMaps("1000-2000 r-xs 00000000 00:00 0 elf_one.so\n"
-                       "2000-3000 r-xs 00000000 00:00 0 elf_two.so\n"
-                       "3000-4000 ---s 00000000 00:00 0\n"
-                       "4000-5000 r--s 00000000 00:00 0 elf_three.so\n"
-                       "5000-6000 r-xs 00001000 00:00 0 elf_three.so\n"
-                       "6000-7000 ---s 00000000 00:00 0\n"
-                       "7000-8000 r--s 00001000 00:00 0 app_one.apk\n"
-                       "8000-9000 r-xs 00005000 00:00 0 app_one.apk\n"
-                       "9000-a000 r--s 00004000 00:00 0 app_two.apk\n"
-                       "a000-b000 r-xs 00005000 00:00 0 app_two.apk\n"
-                       "b000-c000 r--s 00008000 00:00 0 app_two.apk\n"
-                       "c000-d000 r-xs 00009000 00:00 0 app_two.apk\n"
-                       "d000-e000 ---s 00000000 00:00 0\n"
-                       "e000-f000 r-xs 00000000 00:00 0 invalid\n"
-                       "f000-10000 r-xs 00000000 00:00 0 invalid\n"
-                       "10000-11000 r-xs 00000000 00:00 0 elf_two.so\n"
-                       "11000-12000 r-xs 00000000 00:00 0 elf_one.so\n"
-                       "12000-13000 r--s 00000000 00:00 0 elf_three.so\n"
-                       "13000-14000 r-xs 00001000 00:00 0 elf_three.so\n"
-                       "14000-15000 ---s 00000000 00:00 0\n"
-                       "15000-16000 r--s 00001000 00:00 0 app_one.apk\n"
-                       "16000-17000 r-xs 00005000 00:00 0 app_one.apk\n"
-                       "17000-18000 r--s 00004000 00:00 0 app_two.apk\n"
-                       "18000-19000 r-xs 00005000 00:00 0 app_two.apk\n"
-                       "19000-1a000 r--s 00008000 00:00 0 app_two.apk\n"
-                       "1a000-1b000 r-xs 00009000 00:00 0 app_two.apk\n"));
+    maps_.reset(new BufferMaps(kMapData));
+    // The enable check global elf cache needs to be on by default. If the
+    // caching tests start failing, that indicates that the default is wrong
+    // and needs to be fixed.
     ASSERT_TRUE(maps_->Parse());
+
+    maps_no_elf_cache_.reset(new BufferMaps(kMapData));
+    // Global elf caching is on by default, so disable it for these maps.
+    maps_no_elf_cache_->set_check_global_elf_cache(false);
+    ASSERT_TRUE(maps_no_elf_cache_->Parse());
 
     std::unordered_map<std::string, std::string> renames;
 
@@ -105,6 +115,15 @@ class ElfCacheTest : public ::testing::Test {
         }
       }
     }
+
+    for (auto& map_info : *maps_no_elf_cache_) {
+      if (!map_info->name().empty()) {
+        if (renames.contains(map_info->name())) {
+          // Replace the name with the temporary file name.
+          map_info->name() = renames.at(map_info->name());
+        }
+      }
+    }
   }
 
   // Make sure the cache is cleared between runs.
@@ -128,6 +147,7 @@ class ElfCacheTest : public ::testing::Test {
 
   std::vector<std::unique_ptr<TemporaryFile>> temps_;
   std::unique_ptr<Maps> maps_;
+  std::unique_ptr<Maps> maps_no_elf_cache_;
   static std::shared_ptr<Memory> memory_;
 };
 
@@ -328,8 +348,8 @@ TEST_F(ElfCacheTest, verify_elf_apk_caching_rx_first_rx_second) {
   EXPECT_EQ(0x8000U, maps_->Find(0x19000)->offset());
 }
 
-// Verify that with elf caching disabled, we aren't caching improperly.
-TEST_F(ElfCacheTest, verify_disable_elf_caching) {
+// Verify that with global elf caching disabled, we aren't caching improperly.
+TEST_F(ElfCacheTest, verify_disable_global_elf_caching) {
   Elf::SetCachingEnabled(false);
 
   Elf* elf_one = maps_->Find(0x1000)->GetElf(memory_, ARCH_ARM);
@@ -362,6 +382,40 @@ TEST_F(ElfCacheTest, verify_disable_elf_caching) {
   EXPECT_NE(maps_->Find(0x18000)->GetElf(memory_, ARCH_ARM), app_two_elf1);
   EXPECT_NE(maps_->Find(0x19000)->GetElf(memory_, ARCH_ARM), app_two_elf2);
   EXPECT_NE(maps_->Find(0x1a000)->GetElf(memory_, ARCH_ARM), app_two_elf2);
+}
+
+// Verify if the global elf cache should not be checked, no elf objects are cached.
+TEST_F(ElfCacheTest, verify_check_global_elf_cache) {
+  Elf* elf_one = maps_no_elf_cache_->Find(0x1000)->GetElf(memory_, ARCH_ARM);
+  ASSERT_TRUE(elf_one->valid());
+  Elf* elf_two = maps_no_elf_cache_->Find(0x2000)->GetElf(memory_, ARCH_ARM);
+  EXPECT_TRUE(elf_two->valid());
+  Elf* elf_three = maps_no_elf_cache_->Find(0x4000)->GetElf(memory_, ARCH_ARM);
+  ASSERT_TRUE(elf_three->valid());
+  EXPECT_EQ(maps_no_elf_cache_->Find(0x5000)->GetElf(memory_, ARCH_ARM), elf_three);
+
+  EXPECT_NE(maps_no_elf_cache_->Find(0x10000)->GetElf(memory_, ARCH_ARM), elf_two);
+  EXPECT_NE(maps_no_elf_cache_->Find(0x11000)->GetElf(memory_, ARCH_ARM), elf_one);
+  EXPECT_NE(maps_no_elf_cache_->Find(0x12000)->GetElf(memory_, ARCH_ARM), elf_three);
+  EXPECT_NE(maps_no_elf_cache_->Find(0x13000)->GetElf(memory_, ARCH_ARM), elf_three);
+
+  Elf* app_one_elf1 = maps_no_elf_cache_->Find(0x7000)->GetElf(memory_, ARCH_ARM);
+  ASSERT_TRUE(app_one_elf1->valid());
+  Elf* app_one_elf2 = maps_no_elf_cache_->Find(0x8000)->GetElf(memory_, ARCH_ARM);
+  ASSERT_TRUE(app_one_elf2->valid());
+  Elf* app_two_elf1 = maps_no_elf_cache_->Find(0x9000)->GetElf(memory_, ARCH_ARM);
+  ASSERT_TRUE(app_two_elf1->valid());
+  EXPECT_EQ(maps_no_elf_cache_->Find(0xa000)->GetElf(memory_, ARCH_ARM), app_two_elf1);
+  Elf* app_two_elf2 = maps_no_elf_cache_->Find(0xb000)->GetElf(memory_, ARCH_ARM);
+  ASSERT_TRUE(app_two_elf2->valid());
+  EXPECT_EQ(maps_no_elf_cache_->Find(0xc000)->GetElf(memory_, ARCH_ARM), app_two_elf2);
+
+  EXPECT_NE(maps_no_elf_cache_->Find(0x15000)->GetElf(memory_, ARCH_ARM), app_one_elf1);
+  EXPECT_NE(maps_no_elf_cache_->Find(0x16000)->GetElf(memory_, ARCH_ARM), app_one_elf2);
+  EXPECT_NE(maps_no_elf_cache_->Find(0x17000)->GetElf(memory_, ARCH_ARM), app_two_elf1);
+  EXPECT_NE(maps_no_elf_cache_->Find(0x18000)->GetElf(memory_, ARCH_ARM), app_two_elf1);
+  EXPECT_NE(maps_no_elf_cache_->Find(0x19000)->GetElf(memory_, ARCH_ARM), app_two_elf2);
+  EXPECT_NE(maps_no_elf_cache_->Find(0x1a000)->GetElf(memory_, ARCH_ARM), app_two_elf2);
 }
 
 // Verify that invalid elf objects are not cached.

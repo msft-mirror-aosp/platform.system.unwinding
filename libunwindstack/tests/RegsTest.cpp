@@ -34,7 +34,10 @@
 #include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
+#include <unwindstack/UcontextArm.h>
 #include <unwindstack/UcontextArm64.h>
+#include <unwindstack/UcontextX86.h>
+#include <unwindstack/UcontextX86_64.h>
 
 #include "ElfFake.h"
 #include "RegsFake.h"
@@ -188,16 +191,29 @@ TEST_F(RegsTest, elf_invalid) {
 TEST_F(RegsTest, regs_convert) {
   RegsArm arm;
   EXPECT_EQ(0, arm.Convert(0));
-  EXPECT_EQ(0x1c22, arm.Convert(0x1c22));
+  EXPECT_EQ(ARM_REG_LAST - 1, arm.Convert(ARM_REG_LAST - 1));
+  EXPECT_EQ(ARM_ALL_REG_LAST, arm.Convert(ARM_REG_LAST));
+  EXPECT_EQ(ARM_ALL_REG_LAST, arm.Convert(0x1c22));
   RegsArm64 arm64;
   EXPECT_EQ(0, arm64.Convert(0));
-  EXPECT_EQ(0x1c22, arm64.Convert(0x1c22));
+  EXPECT_EQ(ARM64_REG_LAST - 1, arm64.Convert(ARM64_REG_LAST - 1));
+  EXPECT_EQ(ARM64_ALL_REG_LAST, arm64.Convert(ARM64_REG_LAST));
+  EXPECT_EQ(ARM64_ALL_REG_LAST, arm64.Convert(0x1c22));
+  RegsRiscv64 riscv64;
+  EXPECT_EQ(0, riscv64.Convert(0));
+  EXPECT_EQ(RISCV64_REG_LAST - 1, riscv64.Convert(RISCV64_REG_LAST - 1));
+  EXPECT_EQ(RISCV64_ALL_REG_LAST, riscv64.Convert(RISCV64_REG_LAST));
+  EXPECT_EQ(RISCV64_ALL_REG_LAST, riscv64.Convert(0x1000));
   RegsX86 x86;
   EXPECT_EQ(0, x86.Convert(0));
-  EXPECT_EQ(0x1c22, x86.Convert(0x1c22));
+  EXPECT_EQ(X86_REG_LAST - 1, x86.Convert(X86_REG_LAST - 1));
+  EXPECT_EQ(X86_ALL_REG_LAST, x86.Convert(X86_REG_LAST));
+  EXPECT_EQ(X86_ALL_REG_LAST, x86.Convert(0x1c22));
   RegsX86_64 x86_64;
   EXPECT_EQ(0, x86_64.Convert(0));
-  EXPECT_EQ(0x1c22, x86_64.Convert(0x1c22));
+  EXPECT_EQ(X86_64_REG_LAST - 1, x86_64.Convert(X86_64_REG_LAST - 1));
+  EXPECT_EQ(X86_64_ALL_REG_LAST, x86_64.Convert(X86_64_REG_LAST));
+  EXPECT_EQ(X86_64_ALL_REG_LAST, x86_64.Convert(0x1c22));
 }
 
 TEST_F(RegsTest, arm_verify_sp_pc) {
@@ -230,9 +246,7 @@ TEST_F(RegsTest, riscv64_verify_sp_pc) {
 TEST_F(RegsTest, riscv_convert) {
   RegsRiscv64 regs;
   EXPECT_EQ(0, regs.Convert(0));
-  EXPECT_EQ(RISCV64_REG_REAL_COUNT - 1, regs.Convert(RISCV64_REG_REAL_COUNT - 1));
   EXPECT_EQ(RISCV64_REG_VLENB, regs.Convert(0x1c22));
-  EXPECT_EQ(RISCV64_REG_COUNT, regs.Convert(RISCV64_REG_VLENB));
 }
 
 #if defined(__riscv)
@@ -269,15 +283,11 @@ TEST_F(RegsTest, x86_64_verify_sp_pc) {
 }
 
 TEST_F(RegsTest, arm_error_code) {
-  RegsArm arm;
-  arm.SetExtraRegister(ARM_EXTRA_REG_ERROR_CODE, 0x8769U);
-  EXPECT_EQ(0x8769U, arm.GetExtraRegister(ARM_EXTRA_REG_ERROR_CODE));
-}
-
-TEST_F(RegsTest, arm64_esr) {
-  RegsArm64 arm64;
-  arm64.SetExtraRegister(Arm64Reg::ARM64_EXTRA_REG_ESR, 0x1000U);
-  EXPECT_EQ(0x1000U, arm64.GetExtraRegister(Arm64Reg::ARM64_EXTRA_REG_ESR));
+  arm_ucontext_t ucontext = {.uc_mcontext.error_code = 0x8769U};
+  std::unique_ptr<Regs> regs(RegsArm::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs.get() != nullptr);
+  uint32_t* raw_regs = reinterpret_cast<uint32_t*>(regs->RawData());
+  EXPECT_EQ(0x8769U, raw_regs[ArmReg::ARM_REG_ERROR_CODE]);
 }
 
 TEST_F(RegsTest, arm64_esr_from_ucontext) {
@@ -289,8 +299,8 @@ TEST_F(RegsTest, arm64_esr_from_ucontext) {
 
   std::unique_ptr<Regs> regs(RegsArm64::CreateFromUcontext(&ucontext));
   ASSERT_TRUE(regs.get() != nullptr);
-
-  EXPECT_EQ(0x1200adefU, regs->GetExtraRegister(ARM64_EXTRA_REG_ESR));
+  uint64_t* raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(0x1200adefU, raw_regs[ARM64_REG_ESR]);
 }
 
 TEST_F(RegsTest, arm64_esr_from_ucontext_edges) {
@@ -302,8 +312,8 @@ TEST_F(RegsTest, arm64_esr_from_ucontext_edges) {
 
   std::unique_ptr<Regs> regs(RegsArm64::CreateFromUcontext(&ucontext));
   ASSERT_TRUE(regs.get() != nullptr);
-
-  EXPECT_EQ(0U, regs->GetExtraRegister(ARM64_EXTRA_REG_ESR));
+  uint64_t* raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(0U, raw_regs[ARM64_REG_ESR]);
 
   // Put the esr context at the end of the ucontext section but with the esr
   // value past the end, so the value should not be set.
@@ -314,8 +324,8 @@ TEST_F(RegsTest, arm64_esr_from_ucontext_edges) {
 
   regs.reset(RegsArm64::CreateFromUcontext(&ucontext));
   ASSERT_TRUE(regs.get() != nullptr);
-
-  EXPECT_EQ(0U, regs->GetExtraRegister(ARM64_EXTRA_REG_ESR));
+  raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(0U, raw_regs[ARM64_REG_ESR]);
 
   // Now move the esr context data at the absolute end of the section.
   last_ctx->magic = 0;
@@ -330,20 +340,102 @@ TEST_F(RegsTest, arm64_esr_from_ucontext_edges) {
 
   regs.reset(RegsArm64::CreateFromUcontext(&ucontext));
   ASSERT_TRUE(regs.get() != nullptr);
-
-  EXPECT_EQ(0xdead1234U, regs->GetExtraRegister(ARM64_EXTRA_REG_ESR));
+  raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(0xdead1234U, raw_regs[ARM64_REG_ESR]);
 }
 
-TEST_F(RegsTest, x86_err) {
-  RegsX86 x86;
-  x86.SetExtraRegister(X86_EXTRA_REG_ERR, 0x1234U);
-  EXPECT_EQ(0x1234U, x86.GetExtraRegister(X86_EXTRA_REG_ERR));
+TEST_F(RegsTest, x86_create_from_ucontext) {
+  x86_ucontext_t ucontext = {};
+  ucontext.uc_mcontext.eax = 1;
+  ucontext.uc_mcontext.ecx = 2;
+  ucontext.uc_mcontext.edx = 3;
+  ucontext.uc_mcontext.ebx = 4;
+  ucontext.uc_mcontext.esp = 5;
+  ucontext.uc_mcontext.ebp = 6;
+  ucontext.uc_mcontext.esi = 7;
+  ucontext.uc_mcontext.edi = 8;
+  ucontext.uc_mcontext.eip = 9;
+  ucontext.uc_mcontext.efl = 10;
+  ucontext.uc_mcontext.cs = 11;
+  ucontext.uc_mcontext.ss = 12;
+  ucontext.uc_mcontext.ds = 13;
+  ucontext.uc_mcontext.es = 14;
+  ucontext.uc_mcontext.fs = 15;
+  ucontext.uc_mcontext.gs = 16;
+  ucontext.uc_mcontext.err = 0x1234;
+
+  std::unique_ptr<Regs> regs(RegsX86::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs != nullptr);
+  uint32_t* raw_regs = reinterpret_cast<uint32_t*>(regs->RawData());
+  EXPECT_EQ(1ULL, raw_regs[X86_REG_EAX]);
+  EXPECT_EQ(2ULL, raw_regs[X86_REG_ECX]);
+  EXPECT_EQ(3ULL, raw_regs[X86_REG_EDX]);
+  EXPECT_EQ(4ULL, raw_regs[X86_REG_EBX]);
+  EXPECT_EQ(5ULL, raw_regs[X86_REG_ESP]);
+  EXPECT_EQ(6ULL, raw_regs[X86_REG_EBP]);
+  EXPECT_EQ(7ULL, raw_regs[X86_REG_ESI]);
+  EXPECT_EQ(8ULL, raw_regs[X86_REG_EDI]);
+  EXPECT_EQ(9ULL, raw_regs[X86_REG_EIP]);
+  EXPECT_EQ(10ULL, raw_regs[X86_REG_EFL]);
+  EXPECT_EQ(11ULL, raw_regs[X86_REG_CS]);
+  EXPECT_EQ(12ULL, raw_regs[X86_REG_SS]);
+  EXPECT_EQ(13ULL, raw_regs[X86_REG_DS]);
+  EXPECT_EQ(14ULL, raw_regs[X86_REG_ES]);
+  EXPECT_EQ(15ULL, raw_regs[X86_REG_FS]);
+  EXPECT_EQ(16ULL, raw_regs[X86_REG_GS]);
+  EXPECT_EQ(0x1234U, raw_regs[X86_REG_ERR]);
 }
 
-TEST_F(RegsTest, x86_64_err) {
-  RegsX86_64 x86_64;
-  x86_64.SetExtraRegister(X86_64_EXTRA_REG_ERR, 0x2000U);
-  EXPECT_EQ(0x2000U, x86_64.GetExtraRegister(X86_64_EXTRA_REG_ERR));
+TEST_F(RegsTest, x86_64_create_from_ucontext) {
+  x86_64_ucontext_t ucontext = {};
+  ucontext.uc_mcontext.rax = 1;
+  ucontext.uc_mcontext.rbx = 2;
+  ucontext.uc_mcontext.rcx = 3;
+  ucontext.uc_mcontext.rdx = 4;
+  ucontext.uc_mcontext.r8 = 5;
+  ucontext.uc_mcontext.r9 = 6;
+  ucontext.uc_mcontext.r10 = 7;
+  ucontext.uc_mcontext.r11 = 8;
+  ucontext.uc_mcontext.r12 = 9;
+  ucontext.uc_mcontext.r13 = 10;
+  ucontext.uc_mcontext.r14 = 11;
+  ucontext.uc_mcontext.r15 = 12;
+  ucontext.uc_mcontext.rdi = 13;
+  ucontext.uc_mcontext.rsi = 14;
+  ucontext.uc_mcontext.rbp = 15;
+  ucontext.uc_mcontext.rsp = 16;
+  ucontext.uc_mcontext.rip = 17;
+  ucontext.uc_mcontext.err = 0x1234;
+
+  std::unique_ptr<Regs> regs(RegsX86_64::CreateFromUcontext(&ucontext));
+  ASSERT_TRUE(regs != nullptr);
+
+  uint64_t* raw_regs = reinterpret_cast<uint64_t*>(regs->RawData());
+  EXPECT_EQ(1ULL, raw_regs[X86_64_REG_RAX]);
+  EXPECT_EQ(2ULL, raw_regs[X86_64_REG_RBX]);
+  EXPECT_EQ(3ULL, raw_regs[X86_64_REG_RCX]);
+  EXPECT_EQ(4ULL, raw_regs[X86_64_REG_RDX]);
+  EXPECT_EQ(5ULL, raw_regs[X86_64_REG_R8]);
+  EXPECT_EQ(6ULL, raw_regs[X86_64_REG_R9]);
+  EXPECT_EQ(7ULL, raw_regs[X86_64_REG_R10]);
+  EXPECT_EQ(8ULL, raw_regs[X86_64_REG_R11]);
+  EXPECT_EQ(9ULL, raw_regs[X86_64_REG_R12]);
+  EXPECT_EQ(10ULL, raw_regs[X86_64_REG_R13]);
+  EXPECT_EQ(11ULL, raw_regs[X86_64_REG_R14]);
+  EXPECT_EQ(12ULL, raw_regs[X86_64_REG_R15]);
+  EXPECT_EQ(13ULL, raw_regs[X86_64_REG_RDI]);
+  EXPECT_EQ(14ULL, raw_regs[X86_64_REG_RSI]);
+  EXPECT_EQ(15ULL, raw_regs[X86_64_REG_RBP]);
+  EXPECT_EQ(16ULL, raw_regs[X86_64_REG_RSP]);
+  EXPECT_EQ(17ULL, raw_regs[X86_64_REG_RIP]);
+  EXPECT_EQ(0x1234U, raw_regs[X86_64_REG_ERR]);
+}
+
+TEST_F(RegsTest, arm64_ra_sign_check) {
+  RegsArm64 arm64;
+  EXPECT_FALSE(arm64.IsRASigned());
+  EXPECT_TRUE(arm64.SetPseudoRegister(Arm64Reg::ARM64_PREG_RA_SIGN_STATE, 1));
+  EXPECT_TRUE(arm64.IsRASigned());
 }
 
 TEST_F(RegsTest, arm64_strip_pac_mask) {
