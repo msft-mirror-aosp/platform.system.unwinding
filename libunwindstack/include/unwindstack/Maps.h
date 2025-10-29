@@ -83,12 +83,12 @@ class Maps {
     return maps_[index];
   }
 
-  void set_check_global_elf_cache(bool check) { check_global_elf_cache_ = check; }
-  bool check_global_elf_cache() { return check_global_elf_cache_; }
+  void set_use_global_elf_cache(bool check) { use_global_elf_cache_ = check; }
+  bool use_global_elf_cache() { return use_global_elf_cache_; }
 
  protected:
   std::vector<std::shared_ptr<MapInfo>> maps_;
-  bool check_global_elf_cache_ = true;
+  bool use_global_elf_cache_ = true;
 };
 
 class RemoteMaps : public Maps {
