@@ -144,20 +144,21 @@ static uint64_t GetRemoteVG(pid_t pid) {
   arm64_user_sve_header header;
   iovec io = {.iov_base = &header, .iov_len = sizeof(header)};
   if (ptrace(PTRACE_GETREGSET, pid, NT_ARM_SVE, reinterpret_cast<void*>(&io)) != -1) {
-    // SVE registers are only active if the size of the response is not the exact size of the
+    // SVE registers are only active if the size of the response is greater than the size of the
     // header.
-    if (header.size != sizeof(header)) {
+    if (header.size > sizeof(header)) {
       return header.vl / 8;
     }
+  }
 
-    // SSVE is only supported if SVE is supported.
-    io = {.iov_base = &header, .iov_len = sizeof(header)};
-    if (ptrace(PTRACE_GETREGSET, pid, NT_ARM_SSVE, reinterpret_cast<void*>(&io)) != -1) {
-      // Streaming SVE registers are only active if the size of the response is not the exact size
-      // of the header.
-      if (header.size != sizeof(header)) {
-        return header.vl / 8;
-      }
+  // It's possible to have SVE not supported while SSVE is supported, so we have
+  // to check both independently.
+  io = {.iov_base = &header, .iov_len = sizeof(header)};
+  if (ptrace(PTRACE_GETREGSET, pid, NT_ARM_SSVE, reinterpret_cast<void*>(&io)) != -1) {
+    // Streaming SVE registers are only active if the size of the response is greater than the size
+    // of the header.
+    if (header.size > sizeof(header)) {
+      return header.vl / 8;
     }
   }
 
