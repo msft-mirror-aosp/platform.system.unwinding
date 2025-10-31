@@ -80,7 +80,7 @@ class ElfCacheTest : public ::testing::Test {
 
     maps_no_elf_cache_.reset(new BufferMaps(kMapData));
     // Global elf caching is on by default, so disable it for these maps.
-    maps_no_elf_cache_->set_check_global_elf_cache(false);
+    maps_no_elf_cache_->set_use_global_elf_cache(false);
     ASSERT_TRUE(maps_no_elf_cache_->Parse());
 
     std::unordered_map<std::string, std::string> renames;
@@ -385,7 +385,7 @@ TEST_F(ElfCacheTest, verify_disable_global_elf_caching) {
 }
 
 // Verify if the global elf cache should not be checked, no elf objects are cached.
-TEST_F(ElfCacheTest, verify_check_global_elf_cache) {
+TEST_F(ElfCacheTest, verify_use_global_elf_cache) {
   Elf* elf_one = maps_no_elf_cache_->Find(0x1000)->GetElf(memory_, ARCH_ARM);
   ASSERT_TRUE(elf_one->valid());
   Elf* elf_two = maps_no_elf_cache_->Find(0x2000)->GetElf(memory_, ARCH_ARM);

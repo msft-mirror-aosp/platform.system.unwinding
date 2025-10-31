@@ -263,16 +263,6 @@ std::shared_ptr<Memory> MapInfo::CreateMemory(const std::shared_ptr<Memory>& pro
   return memory_ranges;
 }
 
-class ScopedElfCacheLock {
- public:
-  ScopedElfCacheLock() {
-    if (Elf::CachingEnabled()) Elf::CacheLock();
-  }
-  ~ScopedElfCacheLock() {
-    if (Elf::CachingEnabled()) Elf::CacheUnlock();
-  }
-};
-
 Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum expected_arch) {
   // Make sure no other thread is trying to add the elf to this map.
   std::lock_guard<std::mutex> guard(elf_mutex());
@@ -281,8 +271,8 @@ Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum exp
     return elf().get();
   }
 
-  if (check_global_elf_cache_) {
-    ScopedElfCacheLock elf_cache_lock;
+  if (use_global_elf_cache_) {
+    Elf::ScopedCacheLock elf_cache_lock;
     if (Elf::CachingEnabled() && !name().empty()) {
       if (Elf::CacheGet(this)) {
         return elf().get();
@@ -325,8 +315,9 @@ Elf* MapInfo::GetElf(const std::shared_ptr<Memory>& process_memory, ArchEnum exp
 
   // Cache the elf only after all of the above checks since we might
   // discard the original elf we created.
-  if (Elf::CachingEnabled()) {
-    Elf::CacheAdd(this);
+  if (use_global_elf_cache_) {
+    Elf::ScopedCacheLock elf_cache_lock;
+    if (Elf::CachingEnabled()) Elf::CacheAdd(this);
   }
   return elf().get();
 }

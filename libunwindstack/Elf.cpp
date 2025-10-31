@@ -43,7 +43,7 @@ namespace unwindstack {
 
 bool Elf::cache_enabled_;
 std::unordered_map<std::string, std::unordered_map<uint64_t, std::shared_ptr<Elf>>>* Elf::cache_;
-std::mutex* Elf::cache_lock_;
+std::mutex* Elf::cache_lock_ = nullptr;
 
 bool Elf::Init() {
   load_bias_ = 0;
@@ -346,6 +346,7 @@ int64_t Elf::GetLoadBias(Memory* memory) {
 }
 
 void Elf::SetCachingEnabled(bool enable) {
+  ScopedCacheLock elf_cache_lock;
   if (!cache_enabled_ && enable) {
     cache_enabled_ = true;
     cache_ =
@@ -354,16 +355,10 @@ void Elf::SetCachingEnabled(bool enable) {
   } else if (cache_enabled_ && !enable) {
     cache_enabled_ = false;
     delete cache_;
+    cache_ = nullptr;
     delete cache_lock_;
+    cache_lock_ = nullptr;
   }
-}
-
-void Elf::CacheLock() {
-  cache_lock_->lock();
-}
-
-void Elf::CacheUnlock() {
-  cache_lock_->unlock();
 }
 
 void Elf::CacheAdd(MapInfo* info) {

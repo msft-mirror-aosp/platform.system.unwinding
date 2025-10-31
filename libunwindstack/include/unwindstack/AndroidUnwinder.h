@@ -87,12 +87,12 @@ class AndroidUnwinder {
 
   FrameData BuildFrameFromPcOnly(uint64_t pc);
 
-  // If check_global_elf_cache is false, even if the global elf cache has been
+  // If use_global_elf_cache is false, even if the global elf cache has been
   // enabled, the elf cache will not be used.
   // If this is true, it does not use the globel elf cache unless it has also
   // been enabled.
-  bool check_global_elf_cache() { return check_global_elf_cache_; }
-  void set_check_global_elf_cache(bool check) { check_global_elf_cache_ = check; }
+  bool use_global_elf_cache() { return use_global_elf_cache_; }
+  void set_use_global_elf_cache(bool use) { use_global_elf_cache_ = use; }
 
   static AndroidUnwinder* Create(pid_t pid);
 
@@ -108,7 +108,7 @@ class AndroidUnwinder {
   std::vector<std::string> map_suffixes_to_ignore_;
   std::once_flag initialize_;
   bool initialize_status_ = false;
-  bool check_global_elf_cache_ = false;
+  bool use_global_elf_cache_ = false;
 
   ArchEnum arch_ = ARCH_UNKNOWN;
 
