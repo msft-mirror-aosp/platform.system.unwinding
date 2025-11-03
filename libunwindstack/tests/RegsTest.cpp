@@ -253,14 +253,14 @@ TEST_F(RegsTest, riscv_convert) {
 TEST_F(RegsTest, riscv_get_vlenb) {
   RegsRiscv64 regs;
   EXPECT_NE(0U, regs.GetVlenbFromLocal());
-  EXPECT_NE(0U, regs.GetVlenbFromRemote(0));
+  EXPECT_NE(0U, regs.GetVlenbFromRemote(-1));
 }
 #else
 using RegsDeathTest = SilentDeathTest;
 TEST_F(RegsDeathTest, riscv_get_vlenb) {
   RegsRiscv64 regs;
   ASSERT_DEATH(regs.GetVlenbFromLocal(), "");
-  ASSERT_DEATH(regs.GetVlenbFromRemote(0), "");
+  ASSERT_DEATH(regs.GetVlenbFromRemote(-1), "");
 }
 #endif
 

@@ -140,7 +140,7 @@ void RegsArm64::IterateRegisters(std::function<void(const char*, uint64_t)> fn) 
 #define NT_ARM_SSVE 0x40b
 #endif
 
-static uint64_t GetRemoteVG(pid_t pid) {
+uint64_t RegsArm64::GetVgFromRemote(pid_t pid) {
   arm64_user_sve_header header;
   iovec io = {.iov_base = &header, .iov_len = sizeof(header)};
   if (ptrace(PTRACE_GETREGSET, pid, NT_ARM_SVE, reinterpret_cast<void*>(&io)) != -1) {
@@ -171,7 +171,9 @@ Regs* RegsArm64::Read(const void* remote_data, pid_t pid) {
 
   RegsArm64* regs = new RegsArm64();
   memcpy(regs->RawData(), &user->regs[0], sizeof(user->regs));
-  regs->regs_[ARM64_REG_VG] = GetRemoteVG(pid);
+  if (pid != -1) {
+    regs->regs_[ARM64_REG_VG] = GetVgFromRemote(pid);
+  }
   return regs;
 }
 

@@ -66,9 +66,11 @@ class RegsArm64 : public RegsImpl<uint64_t> {
 
   static const uint16_t kDwarfVGReg = 46;
 
-  static Regs* Read(const void* data, pid_t pid = 0);
+  static Regs* Read(const void* data, pid_t pid = -1);
 
   static Regs* CreateFromUcontext(void* ucontext);
+
+  static uint64_t GetVgFromRemote(pid_t pid);
 
  protected:
   uint64_t pseudo_regs_[Arm64Reg::ARM64_PREG_LAST] = {};
