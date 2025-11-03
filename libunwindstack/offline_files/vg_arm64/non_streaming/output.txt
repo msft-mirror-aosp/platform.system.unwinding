@@ -1,0 +1,5 @@
+  #00 pc 0000000000001858  unwind_vg_test (loop+40)
+  #01 pc 0000000000001994  unwind_vg_test (loop_sve+32)
+  #02 pc 00000000000019fc  unwind_vg_test (test_sve+68)
+  #03 pc 0000000000001a24  unwind_vg_test (main+20)
+  #04 pc 0000000000054a90  libc.so (__libc_init+116)

@@ -192,13 +192,13 @@ TEST(AndroidLocalUnwinderTest, suffix_ignore) {
 // the global elf cache.
 TEST(AndroidLocalUnwinderTest, verify_check_elf_cache_default) {
   AndroidLocalUnwinder unwinder;
-  ASSERT_FALSE(unwinder.check_global_elf_cache());
+  ASSERT_FALSE(unwinder.use_global_elf_cache());
 
   ErrorData error;
   ASSERT_TRUE(unwinder.Initialize(error));
-  EXPECT_FALSE(unwinder.GetMaps()->check_global_elf_cache());
+  EXPECT_FALSE(unwinder.GetMaps()->use_global_elf_cache());
   for (auto map_info : *unwinder.GetMaps()) {
-    EXPECT_FALSE(map_info->check_global_elf_cache())
+    EXPECT_FALSE(map_info->use_global_elf_cache())
         << "Failed on MapInfo " << map_info->name().c_str();
   }
 }
@@ -207,14 +207,14 @@ TEST(AndroidLocalUnwinderTest, verify_check_elf_cache_default) {
 // elf cache correctly.
 TEST(AndroidLocalUnwinderTest, verify_set_check_elf_cache) {
   AndroidLocalUnwinder unwinder;
-  unwinder.set_check_global_elf_cache(true);
-  ASSERT_TRUE(unwinder.check_global_elf_cache());
+  unwinder.set_use_global_elf_cache(true);
+  ASSERT_TRUE(unwinder.use_global_elf_cache());
 
   ErrorData error;
   ASSERT_TRUE(unwinder.Initialize(error));
-  EXPECT_TRUE(unwinder.GetMaps()->check_global_elf_cache());
+  EXPECT_TRUE(unwinder.GetMaps()->use_global_elf_cache());
   for (auto map_info : *unwinder.GetMaps()) {
-    EXPECT_TRUE(map_info->check_global_elf_cache())
+    EXPECT_TRUE(map_info->use_global_elf_cache())
         << "Failed on MapInfo " << map_info->name().c_str();
   }
 }
@@ -251,7 +251,7 @@ TEST_F(AndroidUnwinderTest, verify_all_unwind_functions) {
           reinterpret_cast<arm64_ucontext_t*>(malloc(sizeof(arm64_ucontext_t)));
       ucontext = arm64_ucontext;
       memcpy(&arm64_ucontext->uc_mcontext.regs[0], regs->RawData(),
-             ARM64_REG_LAST * sizeof(uint64_t));
+             sizeof(arm64_ucontext->uc_mcontext.regs));
     } break;
     case ARCH_X86: {
       x86_ucontext_t* x86_ucontext =
@@ -505,13 +505,13 @@ TEST_F(AndroidRemoteUnwinderTest, verify_check_elf_cache_default) {
   ASSERT_NO_FATAL_FAILURE(Fork());
 
   AndroidRemoteUnwinder unwinder(pid_);
-  ASSERT_FALSE(unwinder.check_global_elf_cache());
+  ASSERT_FALSE(unwinder.use_global_elf_cache());
 
   ErrorData error;
   ASSERT_TRUE(unwinder.Initialize(error));
-  EXPECT_FALSE(unwinder.GetMaps()->check_global_elf_cache());
+  EXPECT_FALSE(unwinder.GetMaps()->use_global_elf_cache());
   for (auto map_info : *unwinder.GetMaps()) {
-    EXPECT_FALSE(map_info->check_global_elf_cache())
+    EXPECT_FALSE(map_info->use_global_elf_cache())
         << "Failed on MapInfo " << map_info->name().c_str();
   }
 }
@@ -522,14 +522,14 @@ TEST_F(AndroidRemoteUnwinderTest, verify_set_check_elf_cache) {
   ASSERT_NO_FATAL_FAILURE(Fork());
 
   AndroidRemoteUnwinder unwinder(pid_);
-  unwinder.set_check_global_elf_cache(true);
-  ASSERT_TRUE(unwinder.check_global_elf_cache());
+  unwinder.set_use_global_elf_cache(true);
+  ASSERT_TRUE(unwinder.use_global_elf_cache());
 
   ErrorData error;
   ASSERT_TRUE(unwinder.Initialize(error));
-  EXPECT_TRUE(unwinder.GetMaps()->check_global_elf_cache());
+  EXPECT_TRUE(unwinder.GetMaps()->use_global_elf_cache());
   for (auto map_info : *unwinder.GetMaps()) {
-    EXPECT_TRUE(map_info->check_global_elf_cache())
+    EXPECT_TRUE(map_info->use_global_elf_cache())
         << "Failed on MapInfo " << map_info->name().c_str();
   }
 }

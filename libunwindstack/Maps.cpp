@@ -70,7 +70,7 @@ bool Maps::Parse() {
       flags |= unwindstack::MAPS_FLAGS_DEVICE_MAP;
     }
     maps_.emplace_back(MapInfo::Create(prev_map, mapinfo.start, mapinfo.end, mapinfo.pgoff, flags,
-                                       mapinfo.name, check_global_elf_cache_));
+                                       mapinfo.name, use_global_elf_cache_));
     prev_map = maps_.back();
   });
 }
@@ -78,16 +78,14 @@ bool Maps::Parse() {
 void Maps::Add(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags,
                const std::string& name) {
   std::shared_ptr<MapInfo> prev_map(maps_.empty() ? nullptr : maps_.back());
-  auto map_info =
-      MapInfo::Create(prev_map, start, end, offset, flags, name, check_global_elf_cache_);
+  auto map_info = MapInfo::Create(prev_map, start, end, offset, flags, name, use_global_elf_cache_);
   maps_.emplace_back(std::move(map_info));
 }
 
 void Maps::Add(uint64_t start, uint64_t end, uint64_t offset, uint64_t flags,
                const std::string& name, uint64_t load_bias) {
   std::shared_ptr<MapInfo> prev_map(maps_.empty() ? nullptr : maps_.back());
-  auto map_info =
-      MapInfo::Create(prev_map, start, end, offset, flags, name, check_global_elf_cache_);
+  auto map_info = MapInfo::Create(prev_map, start, end, offset, flags, name, use_global_elf_cache_);
   map_info->set_load_bias(load_bias);
   maps_.emplace_back(std::move(map_info));
 }
@@ -127,7 +125,7 @@ bool BufferMaps::Parse() {
           flags |= unwindstack::MAPS_FLAGS_DEVICE_MAP;
         }
         maps_.emplace_back(MapInfo::Create(prev_map, mapinfo.start, mapinfo.end, mapinfo.pgoff,
-                                           flags, mapinfo.name, check_global_elf_cache_));
+                                           flags, mapinfo.name, use_global_elf_cache_));
         prev_map = maps_.back();
       });
 }

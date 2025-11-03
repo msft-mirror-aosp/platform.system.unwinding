@@ -495,7 +495,7 @@ std::unordered_map<std::string, uint32_t> OfflineUnwindUtils::arm64_regs_ = {
     {"x24", ARM64_REG_R24},    {"x25", ARM64_REG_R25}, {"x26", ARM64_REG_R26},
     {"x27", ARM64_REG_R27},    {"x28", ARM64_REG_R28}, {"x29", ARM64_REG_R29},
     {"sp", ARM64_REG_SP},      {"lr", ARM64_REG_LR},   {"pc", ARM64_REG_PC},
-    {"pst", ARM64_REG_PSTATE},
+    {"pst", ARM64_REG_PSTATE}, {"vg", ARM64_REG_VG},
 };
 
 std::unordered_map<std::string, uint32_t> OfflineUnwindUtils::riscv64_regs_ = {

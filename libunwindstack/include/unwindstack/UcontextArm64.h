@@ -45,6 +45,8 @@ struct arm64_sigset_t {
 };
 
 constexpr uint32_t kArm64EsrMagic = 0x45535201U;
+constexpr uint32_t kArm64SveMagic = 0x53564501U;
+constexpr uint32_t kArm64ExtraMagic = 0x45585401U;
 
 struct arm64_ctx {
   uint32_t magic;
@@ -54,6 +56,13 @@ struct arm64_ctx {
 struct arm64_esr_ctx {
   struct arm64_ctx head;
   uint64_t esr;
+};
+
+struct arm64_sve_ctx {
+  struct arm64_ctx head;
+  uint16_t vl;
+  uint16_t flags;
+  uint16_t reserved[2];
 };
 
 struct arm64_mcontext_t {

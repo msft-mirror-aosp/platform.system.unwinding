@@ -62,7 +62,11 @@ class RegsArm64 : public RegsImpl<uint64_t> {
 
   Regs* Clone() override final;
 
-  static Regs* Read(const void* data);
+  uint16_t Convert(uint16_t reg) override;
+
+  static const uint16_t kDwarfVGReg = 46;
+
+  static Regs* Read(const void* data, pid_t pid = 0);
 
   static Regs* CreateFromUcontext(void* ucontext);
 
