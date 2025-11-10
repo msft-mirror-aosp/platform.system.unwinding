@@ -53,7 +53,7 @@ uint64_t RegsRiscv64::GetVlenbFromRemote(pid_t) {
 }
 #else
 uint64_t RegsRiscv64::GetVlenbFromRemote(pid_t pid) {
-  if (pid == 0) {
+  if (pid == -1) {
     Log::Fatal("%s:%d: Attempt to get vlenb remotely from non-riscv device without pid.", __FILE__,
                __LINE__);
   }
@@ -145,7 +145,9 @@ Regs* RegsRiscv64::Read(const void* remote_data, pid_t pid) {
 
   RegsRiscv64* regs = new RegsRiscv64();
   memcpy(regs->RawData(), &user->regs[0], sizeof(user->regs));
-  regs->regs_[RISCV64_REG_VLENB] = GetVlenbFromRemote(pid);
+  if (pid != -1) {
+    regs->regs_[RISCV64_REG_VLENB] = GetVlenbFromRemote(pid);
+  }
   return regs;
 }
 
