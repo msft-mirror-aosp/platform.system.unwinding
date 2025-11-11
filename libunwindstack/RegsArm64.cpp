@@ -140,6 +140,18 @@ void RegsArm64::IterateRegisters(std::function<void(const char*, uint64_t)> fn) 
 #define NT_ARM_SSVE 0x40b
 #endif
 
+uint64_t RegsArm64::GetVgFromLocal() {
+  int value = prctl(PR_SVE_GET_VL);
+  if (value != -1) {
+    return value / 8;
+  }
+  value = prctl(PR_SME_GET_VL);
+  if (value == -1) {
+    return 0;
+  }
+  return value / 8;
+}
+
 uint64_t RegsArm64::GetVgFromRemote(pid_t pid) {
   arm64_user_sve_header header;
   iovec io = {.iov_base = &header, .iov_len = sizeof(header)};

@@ -28,7 +28,11 @@
 
 #pragma once
 
+#include <unwindstack/MachineArm64.h>
+#include <unwindstack/MachineRiscv64.h>
 #include <unwindstack/Regs.h>
+#include <unwindstack/RegsArm64.h>
+#include <unwindstack/RegsRiscv64.h>
 
 namespace unwindstack {
 
@@ -141,6 +145,12 @@ extern "C" void AsmGetRegs(void* regs);
 
 inline __attribute__((__always_inline__)) void RegsGetLocal(Regs* regs) {
   AsmGetRegs(regs->RawData());
+#if defined(__aarch64__)
+  reinterpret_cast<uint64_t*>(regs->RawData())[ARM64_REG_VG] = RegsArm64::GetVgFromLocal();
+#elif defined(__riscv)
+  reinterpret_cast<uint64_t*>(regs->RawData())[RISCV64_REG_VLENB] =
+      RegsRiscv64::GetVlenbFromLocal();
+#endif
 }
 
 }  // namespace unwindstack
