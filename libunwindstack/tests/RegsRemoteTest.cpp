@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 
 #include <unwindstack/Regs.h>
+#include <unwindstack/RegsArm64.h>
 
 #include "ForkTest.h"
 #include "PidUtils.h"
@@ -83,5 +84,16 @@ TEST_F(RegsRemoteTest, remote_get_arch_ptrace_fails) {
   ASSERT_EQ(ARCH_UNKNOWN, Regs::RemoteGetArch(getpid(), &error_code));
   ASSERT_EQ(ERROR_PTRACE_CALL, error_code);
 }
+
+#if defined(__aarch64__)
+TEST_F(RegsRemoteTest, arm64_verify_vg) {
+  // The remote and local values will be the same since we are forked from
+  // this process.
+  uint64_t remote_vg = RegsArm64::GetVgFromRemote(pid_);
+  uint64_t local_vg = RegsArm64::GetVgFromLocal();
+
+  EXPECT_EQ(remote_vg, local_vg);
+}
+#endif
 
 }  // namespace unwindstack

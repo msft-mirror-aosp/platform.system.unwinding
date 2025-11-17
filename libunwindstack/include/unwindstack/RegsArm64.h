@@ -72,6 +72,8 @@ class RegsArm64 : public RegsImpl<uint64_t> {
 
   static uint64_t GetVgFromRemote(pid_t pid);
 
+  static uint64_t GetVgFromLocal();
+
  protected:
   uint64_t pseudo_regs_[Arm64Reg::ARM64_PREG_LAST] = {};
   uint64_t pac_mask_ = 0;
