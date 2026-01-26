@@ -39,6 +39,11 @@
 #include <unwindstack/Unwinder.h>
 
 #if defined(__BIONIC__)
+
+#if !defined(UNWINDSTACK_STATIC)
+#include <dlfcn.h>
+#endif
+
 #include <bionic/reserved_signals.h>
 static constexpr int kThreadUnwindSignal = BIONIC_SIGNAL_BACKTRACE;
 #else
@@ -196,11 +201,36 @@ bool AndroidLocalUnwinder::InternalUnwind(std::optional<pid_t> tid, AndroidUnwin
   if (data.saved_initial_regs) {
     initial_regs = &data.saved_initial_regs.value();
   }
+
+#if defined(__BIONIC__) && !defined(UNWINDSTACK_STATIC)
+  // There is a possible deadlock if fdtrack is trying to backtrace while
+  // doing a thread unwind. Therefore disable fdtrack on this thread as
+  // the unwind occurs. See b/434879811.
+
+  // Use dlsym since this could be running on SDK 29 and this function was
+  // introduced in SDK 30. This can happen because this library is part of
+  // the art mainline module and part of simpleperf. Both of which might
+  // wind up on older devices.
+  static bool (*fdtrack_set_enabled_func)(bool) =
+      reinterpret_cast<bool (*)(bool)>(dlsym(RTLD_DEFAULT, "android_fdtrack_set_enabled"));
+  bool reenable_fdtrack = false;
+  if (fdtrack_set_enabled_func) {
+    reenable_fdtrack = fdtrack_set_enabled_func(false);
+  }
+#endif
+
   unwinder.UnwindWithSignal(kThreadUnwindSignal, *tid, initial_regs,
                             data.show_all_frames ? nullptr : &initial_map_names_to_skip_,
                             &map_suffixes_to_ignore_);
   data.frames = unwinder.ConsumeFrames();
   data.error = unwinder.LastError();
+
+#if defined(__BIONIC__) && !defined(UNWINDSTACK_STATIC)
+  if (reenable_fdtrack) {
+    fdtrack_set_enabled_func(true);
+  }
+#endif
+
   return data.frames.size() != 0;
 }
 

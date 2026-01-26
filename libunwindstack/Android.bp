@@ -121,6 +121,10 @@ cc_defaults {
         },
     },
 
+    static: {
+        cflags: ["-DUNWINDSTACK_STATIC"],
+    },
+
     static_libs: [
         "libprocinfo",
     ],
