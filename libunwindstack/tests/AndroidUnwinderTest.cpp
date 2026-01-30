@@ -219,6 +219,67 @@ TEST(AndroidLocalUnwinderTest, verify_set_check_elf_cache) {
   }
 }
 
+#if defined(__BIONIC__)
+TEST(AndroidLocalUnwinderTest, no_deadlock_with_fdtrack) {
+  constexpr size_t kNumIterations = 50;
+  constexpr size_t kNumThreadsPerIteration = 5;
+  constexpr size_t kNumFdOps = 100;
+
+  void* libfdtrack = dlopen("libfdtrack.so", RTLD_NOW);
+  ASSERT_TRUE(libfdtrack != nullptr);
+
+  std::atomic_bool create_stop;
+  std::thread create_thread([&create_stop] {
+    while (!create_stop) {
+      // Create a bunch of threads all doing open closes.
+      std::vector<std::thread*> threads;
+      for (size_t i = 0; i < kNumThreadsPerIteration; i++) {
+        threads.push_back(new std::thread([] {
+          for (size_t j = 0; j < kNumFdOps; j++) {
+            int fd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+            ASSERT_NE(-1, fd);
+            close(fd);
+          }
+        }));
+      }
+      for (auto thread : threads) {
+        thread->join();
+        delete thread;
+      }
+    }
+  });
+
+  for (size_t i = 0; i < kNumIterations; i++) {
+    std::atomic_bool stop;
+    std::atomic<pid_t> tid;
+    std::thread thread_to_unwind([&tid, &stop] {
+      tid = android::base::GetThreadId();
+      while (!stop) {
+        int fd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+        ASSERT_NE(-1, fd);
+        close(fd);
+      }
+    });
+
+    while (tid == 0);
+
+    std::thread unwind_thread([&tid] {
+      AndroidLocalUnwinder unwinder;
+      AndroidUnwinderData data;
+      ASSERT_TRUE(unwinder.Unwind(tid, data));
+      ASSERT_NE(data.error.code, ERROR_THREAD_TIMEOUT);
+    });
+    unwind_thread.join();
+
+    stop = true;
+    thread_to_unwind.join();
+  }
+
+  create_stop = true;
+  create_thread.join();
+}
+#endif
+
 TEST_F(AndroidUnwinderTest, verify_all_unwind_functions) {
   // Do not reuse the unwinder object to verify initialization is done
   // correctly.
