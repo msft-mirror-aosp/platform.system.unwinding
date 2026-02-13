@@ -156,6 +156,37 @@ TEST(MapInfoTest, real_map_check) {
   EXPECT_EQ(map3, map1->GetNextRealMap());
 }
 
+TEST(MapInfoTest, read_only_map_check) {
+  // Many maps between read-only and execute map, read-only map zero offset.
+  auto map1 = MapInfo::Create(0x2000, 0x3000, 0, PROT_READ, "lib1.so");
+  auto map2 = MapInfo::Create(map1, 0x3000, 0x4000, 0, PROT_READ, "[anon:nothing]");
+  auto map3 = MapInfo::Create(map2, 0x4000, 0x5000, 0, 0, "[anon:nothing]");
+  auto map4 = MapInfo::Create(map3, 0x5000, 0x6000, 0, PROT_READ | PROT_WRITE, "");
+  auto map5 = MapInfo::Create(map4, 0x6000, 0x7000, 0x4000, PROT_READ | PROT_EXEC, "lib1.so");
+  // Maps between read-only and execute map, read-only map non-zero offset.
+  auto map6 = MapInfo::Create(map5, 0x8000, 0x9000, 0x4000, PROT_READ, "lib2.so");
+  auto map7 = MapInfo::Create(map6, 0x9000, 0xa000, 0, 0, "[anon:nothing]");
+  auto map8 = MapInfo::Create(map7, 0xa000, 0xb000, 0x6000, PROT_READ | PROT_EXEC, "lib2.so");
+  // The read-only map is < start - offset of executable map, so should not be found.
+  auto map9 = MapInfo::Create(map8, 0x10000, 0x11000, 0, PROT_READ, "lib3.so");
+  auto map10 = MapInfo::Create(map9, 0x12000, 0x13000, 0x1000, PROT_READ | PROT_EXEC, "lib3.so");
+
+  EXPECT_EQ(map1, map5->GetPrevReadOnlyMap());
+
+  EXPECT_EQ(map6, map8->GetPrevReadOnlyMap());
+
+  EXPECT_EQ(nullptr, map10->GetPrevReadOnlyMap());
+
+  // Check that all other calls return nullptr.
+  EXPECT_TRUE(map1->GetPrevReadOnlyMap() == nullptr);
+  EXPECT_TRUE(map2->GetPrevReadOnlyMap() == nullptr);
+  EXPECT_TRUE(map3->GetPrevReadOnlyMap() == nullptr);
+  EXPECT_TRUE(map4->GetPrevReadOnlyMap() == nullptr);
+  EXPECT_TRUE(map6->GetPrevReadOnlyMap() == nullptr);
+  EXPECT_TRUE(map7->GetPrevReadOnlyMap() == nullptr);
+  EXPECT_TRUE(map9->GetPrevReadOnlyMap() == nullptr);
+}
+
 TEST(MapInfoTest, get_function_name) {
   std::shared_ptr<Memory> empty;
   ElfFake* elf = new ElfFake(empty);

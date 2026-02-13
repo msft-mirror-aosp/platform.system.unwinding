@@ -111,6 +111,18 @@ class MapInfo {
   // elf is using the data in memory.
   bool ElfFileNotReadable();
 
+  // This is the previous read-only map of an executable map with the same
+  // name that is not empty with an offset less than the offset of the current
+  // map. For example, for this set of maps:
+  //  1000-2000  r--p 000000 00:00 0 libc.so
+  //  2000-3000  ---p 000000 00:00 0
+  //  3000-4000  r-xp 003000 00:00 0 libc.so
+  // The last map's prev_map would point to the 2000-3000 map, while
+  // GetPrevReadOnlyMap() would point to the 1000-2000 map.
+  // NOTE: Any map between the executable map and the read-only map are
+  //       ignored regardless of name or any other value.
+  std::shared_ptr<MapInfo> GetPrevReadOnlyMap();
+
   // This is the previous map with the same name that is not empty and with
   // a 0 offset. For example, this set of maps:
   //  1000-2000  r--p 000000 00:00 0 libc.so
