@@ -283,7 +283,7 @@ TEST_F(MapInfoCreateMemoryTest, valid_rosegment_zero_offset) {
   Maps maps;
   maps.Add(0x500, 0x600, 0, PROT_READ, "something_else", 0);
   maps.Add(0x1000, 0x2600, 0, PROT_READ, "/only/in/memory.so", 0);
-  maps.Add(0x3000, 0x5000, 0x4000, PROT_READ | PROT_EXEC, "/only/in/memory.so", 0);
+  maps.Add(0x5000, 0x7000, 0x4000, PROT_READ | PROT_EXEC, "/only/in/memory.so", 0);
 
   Elf32_Ehdr ehdr = {};
   TestInitEhdr<Elf32_Ehdr>(&ehdr, ELFCLASS32, EM_ARM);
@@ -291,9 +291,9 @@ TEST_F(MapInfoCreateMemoryTest, valid_rosegment_zero_offset) {
   memory_->SetMemoryBlock(0x1000 + sizeof(ehdr), 0x1600 - sizeof(ehdr), 0xab);
 
   // Set the memory in the r-x map.
-  memory_->SetMemoryBlock(0x3000, 0x2000, 0x5d);
+  memory_->SetMemoryBlock(0x5000, 0x2000, 0x5d);
 
-  auto map_info = maps.Find(0x3000).get();
+  auto map_info = maps.Find(0x5000).get();
   ASSERT_TRUE(map_info != nullptr);
 
   auto mem = map_info->CreateMemory(process_memory_);

@@ -383,17 +383,12 @@ bool Elf::CacheGet(MapInfo* info) {
     elf_start_offset = info->offset();
     entry = offset_cache.find(elf_start_offset);
     if (entry == offset_cache.end()) {
-      // If this is an execute map, then see if the previous read-only
-      // map is the start of the elf.
-      if (!(info->flags() & PROT_EXEC)) {
+      // Look for the matching read-only map if it exists.
+      auto prev_read_only_map = info->GetPrevReadOnlyMap();
+      if (prev_read_only_map == nullptr) {
         return false;
       }
-      auto prev_map = info->GetPrevRealMap();
-      if (prev_map == nullptr || info->offset() <= prev_map->offset() ||
-          (prev_map->flags() != PROT_READ)) {
-        return false;
-      }
-      elf_start_offset = prev_map->offset();
+      elf_start_offset = prev_read_only_map->offset();
       entry = offset_cache.find(elf_start_offset);
       if (entry == offset_cache.end()) {
         return false;
